@@ -9,7 +9,7 @@ import type {
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ??
-  "http://inventorydevelop.us-east-2.elasticbeanstalk.com/api";
+  "http://inventorydevelop.us-east-2.elasticbeanstalk.com/";
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
