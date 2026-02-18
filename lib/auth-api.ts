@@ -7,7 +7,15 @@ import type {
   ApiResponse,
 } from "./auth-types";
 
-const API_URL = "http://inventorydevelop.us-east-2.elasticbeanstalk.com/api";
+const BACKEND_URL = "http://inventorydevelop.us-east-2.elasticbeanstalk.com/api";
+
+/** En el navegador usa /api (mismo origen, HTTPS); Vercel reescribe a el backend. En servidor usa la URL directa. */
+function getApiUrl(): string {
+  if (typeof window !== "undefined") {
+    return process.env.NEXT_PUBLIC_API_URL ?? "/api";
+  }
+  return process.env.NEXT_PUBLIC_API_URL ?? BACKEND_URL;
+}
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -39,7 +47,7 @@ export function clearSession(): void {
 export async function login(
   credentials: LoginRequest
 ): Promise<{ user: UserResponse }> {
-  const res = await fetch(`${API_URL}/account/login`, {
+  const res = await fetch(`${getApiUrl()}/account/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),
@@ -73,7 +81,7 @@ export async function register(body: {
   Phone?: string;
   OrganizationId?: number;
 }): Promise<void> {
-  const res = await fetch(`${API_URL}/account/register`, {
+  const res = await fetch(`${getApiUrl()}/account/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -88,7 +96,7 @@ export async function createOrganization(
   data: CreateOrganizationRequest
 ): Promise<OrganizationResponse> {
   const token = getToken();
-  const res = await fetch(`${API_URL}/organization`, {
+  const res = await fetch(`${getApiUrl()}/organization`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
