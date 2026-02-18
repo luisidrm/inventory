@@ -9,10 +9,10 @@ import type {
 
 const BACKEND_URL = "http://inventorydevelop.us-east-2.elasticbeanstalk.com/api";
 
-/** En el navegador usa /api (mismo origen, HTTPS); Vercel reescribe a el backend. En servidor usa la URL directa. */
+/** En el navegador siempre /api (mismo origen HTTPS; Vercel reescribe a backend). En servidor usa env o URL directa. */
 function getApiUrl(): string {
   if (typeof window !== "undefined") {
-    return process.env.NEXT_PUBLIC_API_URL ?? "/api";
+    return "/api";
   }
   return process.env.NEXT_PUBLIC_API_URL ?? BACKEND_URL;
 }
