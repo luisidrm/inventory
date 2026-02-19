@@ -123,10 +123,6 @@ export function CtaSection() {
                 Crear Cuenta Gratis
                 <Icon name="rocket_launch" />
               </Link>
-              <p className="final-cta__note">
-                <Icon name="verified" />
-                Sin tarjeta de crédito requerida
-              </p>
             </div>
           </div>
         </div>

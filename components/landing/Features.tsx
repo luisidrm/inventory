@@ -1,3 +1,7 @@
+"use client";
+
+import { useRef, type MouseEvent } from "react";
+import { motion, useInView } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 
 const FEATURES = [
@@ -51,11 +55,51 @@ const FEATURES = [
   },
 ];
 
+const containerVariants = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.12 },
+  },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 40 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1] },
+  },
+};
+
+function handleTilt(e: MouseEvent<HTMLDivElement>) {
+  const card = e.currentTarget;
+  const rect = card.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const centerX = rect.width / 2;
+  const centerY = rect.height / 2;
+  const rotateX = ((y - centerY) / centerY) * -8;
+  const rotateY = ((x - centerX) / centerX) * 8;
+  card.style.transform = `perspective(600px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
+}
+
+function handleTiltReset(e: MouseEvent<HTMLDivElement>) {
+  e.currentTarget.style.transform = "perspective(600px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)";
+}
+
 export function Features() {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, amount: 0.15 });
+
   return (
     <section className="features section" id="features">
       <div className="container">
-        <div className="features__header">
+        <motion.div
+          className="features__header"
+          initial={{ opacity: 0, y: 30 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+          transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+        >
           <span className="section-label">Características</span>
           <h2 className="section-title">
             Todo lo que necesitas para{" "}
@@ -65,11 +109,23 @@ export function Features() {
             Módulos diseñados para cubrir cada aspecto de tu operación, desde el
             catálogo hasta la auditoría.
           </p>
-        </div>
+        </motion.div>
 
-        <div className="features__grid">
+        <motion.div
+          ref={ref}
+          className="features__grid"
+          variants={containerVariants}
+          initial="hidden"
+          animate={isInView ? "visible" : "hidden"}
+        >
           {FEATURES.map((feature) => (
-            <div key={feature.title} className="feature-card">
+            <motion.div
+              key={feature.title}
+              className="feature-card"
+              variants={cardVariants}
+              onMouseMove={handleTilt}
+              onMouseLeave={handleTiltReset}
+            >
               <div
                 className="feature-card__icon"
                 style={{ background: feature.bgColor }}
@@ -84,9 +140,9 @@ export function Features() {
                 Saber más
                 <Icon name="arrow_forward" />
               </a>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   );

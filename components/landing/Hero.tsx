@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
 
-const STATS = [
-  { value: "99.9%", label: "Uptime" },
-  { value: "50K+", label: "Productos gestionados" },
-  { value: "3x", label: "Más eficiencia" },
-  { value: "24/7", label: "Soporte" },
+const TAGS = [
+  { icon: "inventory_2", text: "Productos" },
+  { icon: "swap_horiz", text: "Movimientos" },
+  { icon: "warehouse", text: "Multi-almacén" },
+  { icon: "local_shipping", text: "Proveedores" },
+  { icon: "admin_panel_settings", text: "Roles" },
+  { icon: "notifications_active", text: "Alertas" },
 ];
 
 function scrollToFeatures() {
@@ -22,6 +24,31 @@ export function Hero() {
         <div className="hero__grid" />
         <div className="hero__glow hero__glow--1" />
         <div className="hero__glow hero__glow--2" />
+      </div>
+
+      {/* Animated flying birds */}
+      <div className="hero__birds">
+        <div className="bird-container bird-container--one">
+          <div className="bird bird--one" />
+        </div>
+        <div className="bird-container bird-container--two">
+          <div className="bird bird--two" />
+        </div>
+        <div className="bird-container bird-container--three">
+          <div className="bird bird--three" />
+        </div>
+        <div className="bird-container bird-container--four">
+          <div className="bird bird--four" />
+        </div>
+        <div className="bird-container bird-container--five">
+          <div className="bird bird--five" />
+        </div>
+        <div className="bird-container bird-container--six">
+          <div className="bird bird--six" />
+        </div>
+        <div className="bird-container bird-container--seven">
+          <div className="bird bird--seven" />
+        </div>
       </div>
 
       <div className="hero__container container">
@@ -168,11 +195,11 @@ export function Hero() {
         </div>
       </div>
 
-      <div className="hero__stats container">
-        {STATS.map((stat) => (
-          <div key={stat.label} className="hero__stat">
-            <span className="hero__stat-value">{stat.value}</span>
-            <span className="hero__stat-label">{stat.label}</span>
+      <div className="hero__tags container">
+        {TAGS.map((tag) => (
+          <div key={tag.text} className="hero__tag">
+            <Icon name={tag.icon} />
+            <span>{tag.text}</span>
           </div>
         ))}
       </div>
