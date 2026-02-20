@@ -116,7 +116,7 @@ export function CtaSection() {
             </h2>
             <p className="final-cta__desc">
               Únete a cientos de empresas que ya optimizaron sus operaciones con
-              InventoryPro. Empieza gratis hoy, sin compromiso.
+              Strova. Empieza gratis hoy, sin compromiso.
             </p>
             <div className="final-cta__actions">
               <Link href="/login" className="btn-primary btn-large">

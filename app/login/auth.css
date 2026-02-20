@@ -71,35 +71,10 @@
   opacity: 0.8;
 }
 
-.auth-header__logo span {
-  font-family: var(--font-heading);
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-
-.auth-header__logo .accent {
-  background: var(--gradient-primary);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.auth-header__logo-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: var(--gradient-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.auth-header__logo-icon .material-icons {
-  color: #fff;
-  font-size: 20px;
-  width: 20px;
-  height: 20px;
+.auth-header__logo-img {
+  height: 56px;
+  width: auto;
+  object-fit: contain;
 }
 
 /* Auth card */

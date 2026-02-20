@@ -28,12 +28,12 @@ export function Navbar() {
     <nav className={`navbar ${scrolled ? "scrolled" : ""}`}>
       <div className="navbar__container container">
         <Link href="/" className="navbar__logo">
-          <div className="navbar__logo-icon">
-            <Icon name="inventory_2" />
-          </div>
-          <span className="navbar__logo-text">
-            Inventory<span className="accent">Pro</span>
-          </span>
+          <img
+            src="/assets/strova-claro-nobg.png"
+            alt="Strova"
+            className="navbar__logo-img"
+            height={32}
+          />
         </Link>
 
         <ul className="navbar__links">

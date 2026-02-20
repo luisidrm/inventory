@@ -49,10 +49,12 @@ export default function LoginPage() {
 
       <header className="auth-header">
         <Link className="auth-header__logo" href="/">
-          <div className="auth-header__logo-icon">
-            <Icon name="inventory_2" />
-          </div>
-          <span>Inventory<span className="accent">Pro</span></span>
+          <img
+            src="/assets/strova-claro-nobg.png"
+            alt="Strova"
+            className="auth-header__logo-img"
+            height={32}
+          />
         </Link>
       </header>
 

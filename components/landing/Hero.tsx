@@ -1,7 +1,11 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
+
+const ROTATING_WORDS = ["Organiza", "Optimiza", "Controla"];
 
 const TAGS = [
   { icon: "inventory_2", text: "Productos" },
@@ -18,6 +22,17 @@ function scrollToFeatures() {
 }
 
 export function Hero() {
+  const [wordIndex, setWordIndex] = useState(0);
+
+  const nextWord = useCallback(() => {
+    setWordIndex((prev) => (prev + 1) % ROTATING_WORDS.length);
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(nextWord, 2800);
+    return () => clearInterval(timer);
+  }, [nextWord]);
+
   return (
     <section className="hero">
       <div className="hero__bg">
@@ -60,9 +75,23 @@ export function Hero() {
           </div>
 
           <h1 className="hero__title">
-            Gestión de inventario
-            <span className="hero__title-gradient"> simple y poderosa</span>
-            {" "}para tu empresa
+            <span className="hero__title-rotating">
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={ROTATING_WORDS[wordIndex]}
+                  className="hero__title-gradient hero__title-word"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+                >
+                  {ROTATING_WORDS[wordIndex]}
+                </motion.span>
+              </AnimatePresence>
+            </span>{" "}
+            tu inventario
+            <br />
+            con <span className="hero__title-gradient">Strova</span>
           </h1>
 
           <p className="hero__subtitle">
@@ -106,7 +135,7 @@ export function Hero() {
                 <span />
                 <span />
               </div>
-              <span className="dashboard-title">InventoryPro — Dashboard</span>
+              <span className="dashboard-title">Strova — Dashboard</span>
             </div>
             <div className="dashboard-body">
               <div className="dashboard-sidebar">
