@@ -1,5 +1,5 @@
 {
-  "name": "inventory",
+  "name": "strova",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,12 +11,14 @@
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",
+    "@types/three": "^0.183.0",
     "framer-motion": "^12.34.2",
     "next": "16.1.6",
     "next-intl": "^4.8.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-redux": "^9.2.0"
+    "react-redux": "^9.2.0",
+    "three": "^0.183.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.0",

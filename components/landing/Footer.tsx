@@ -30,12 +30,12 @@ export function Footer() {
         <div className="footer__grid">
           <div className="footer__brand">
             <div className="footer__logo">
-              <div className="footer__logo-icon">
-                <Icon name="inventory_2" />
-              </div>
-              <span className="footer__logo-text">
-                Inventory<span className="accent">Pro</span>
-              </span>
+              <img
+                src="/assets/strova-claro-nobg.png"
+                alt="Strova"
+                className="footer__logo-img"
+                height={32}
+              />
             </div>
             <p className="footer__desc">
               Control de inventario inteligente para empresas que quieren crecer
@@ -87,7 +87,7 @@ export function Footer() {
 
         <div className="footer__bottom">
           <p>
-            © {currentYear} InventoryPro. Todos los derechos reservados.
+            © {currentYear} Strova. Todos los derechos reservados.
           </p>
         </div>
       </div>

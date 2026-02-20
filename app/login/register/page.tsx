@@ -81,30 +81,17 @@ export default function RegisterPage() {
     setErrorMessage("");
 
     try {
-      // Create organization
-      const orgResponse = await createOrganization({
-        name: orgName,
-        code: orgCode,
-      }).unwrap();
-
-      console.log(orgResponse);
-
-      // Register user
-      await register({
-        FullName: fullName,
-        Email: email,
-        Password: password,
-        ConfirmationPassword: confirmationPassword,
-        Birthday: new Date(birthday).toISOString(),
-        Gender: Number(gender),
-        ...(phone ? { Phone: phone } : {}),
-        ...(orgResponse.result ? { OrganizationId: orgResponse.result.id } : {}),
-      }).unwrap();
-
-      // Login user
-      await login({ email, password }).unwrap();
-
-      // Redirect to dashboard
+      await registerWithOrganization({
+        organizationName: orgName,
+        organizationCode: orgCode,
+        fullName,
+        email,
+        password,
+        confirmationPassword,
+        birthday: new Date(birthday).toISOString(),
+        phone: phone || "",
+        gender: Number(gender),
+      });
       router.push("/dashboard");
       router.refresh();
     } catch (err: any) {
@@ -116,19 +103,17 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-page__bg">
-        <div className="auth-page__circle auth-page__circle--1" />
-        <div className="auth-page__circle auth-page__circle--2" />
-        <div className="auth-page__circle auth-page__circle--3" />
-      </div>
+    <div className="auth-page auth-page--register">
+      <div className="auth-page__bg-dashboard" />
 
       <header className="auth-header">
         <Link className="auth-header__logo" href="/">
-          <div className="auth-header__logo-icon">
-            <Icon name="inventory_2" />
-          </div>
-          <span>Inventory<span className="accent">Pro</span></span>
+          <img
+            src="/assets/strova-claro-nobg.png"
+            alt="Strova"
+            className="auth-header__logo-img"
+            height={32}
+          />
         </Link>
       </header>
 
@@ -154,7 +139,7 @@ export default function RegisterPage() {
 
         {currentStep === 0 ? (
           <>
-            <h1 className="auth-card__title">Crea tu cuenta</h1>
+            <h1 className="auth-card__title">Crea tu cuenta de Strova</h1>
             <p className="auth-card__subtitle">Paso 1 de 2 — Tus datos de administrador</p>
 
             <form className="auth-card__form" onSubmit={handleNextStep}>

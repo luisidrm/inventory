@@ -10,6 +10,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [hidePassword, setHidePassword] = useState(true);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
@@ -47,24 +48,19 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
-      <div className="auth-page__bg">
-        <div className="auth-page__circle auth-page__circle--1" />
-        <div className="auth-page__circle auth-page__circle--2" />
-        <div className="auth-page__circle auth-page__circle--3" />
-      </div>
-
       <header className="auth-header">
         <Link className="auth-header__logo" href="/">
-          <div className="auth-header__logo-icon">
-            <Icon name="inventory_2" />
-          </div>
-          <span>Inventory<span className="accent">Pro</span></span>
+          <img
+            src="/assets/strova-claro-nobg.png"
+            alt="Strova"
+            className="auth-header__logo-img"
+            height={32}
+          />
         </Link>
       </header>
 
-      <div className="auth-card">
-        <h1 className="auth-card__title">Bienvenido de vuelta</h1>
-        <p className="auth-card__subtitle">Ingresa a tu cuenta para continuar</p>
+      <div className="auth-card auth-card--signin">
+        <h1 className="auth-card__title">Inicia sesión en tu cuenta</h1>
 
         {errorMessage ? (
           <div className="auth-alert auth-alert--error">
@@ -124,7 +120,17 @@ export default function LoginPage() {
             {passwordError ? <span className="form-error">La contraseña es requerida</span> : null}
           </div>
 
-          <button type="submit" className="auth-btn" disabled={isLoading}>
+          <label className="auth-checkbox">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
+            <span className="auth-checkbox__box" />
+            <span>Recordarme en este dispositivo</span>
+          </label>
+
+          <button type="submit" className="auth-btn auth-btn--primary" disabled={isLoading}>
             {isLoading ? (
               <div className="spinner" />
             ) : (
@@ -137,7 +143,7 @@ export default function LoginPage() {
         </form>
 
         <div className="auth-card__divider">
-          <span>o</span>
+          <span>O</span>
         </div>
 
         <button type="button" className="auth-btn auth-btn--google">
@@ -151,7 +157,7 @@ export default function LoginPage() {
         </button>
 
         <p className="auth-card__footer">
-          ¿No tienes cuenta? <Link href="/login/register">Crear cuenta gratis</Link>
+          ¿Nuevo en Strova? <Link href="/login/register">Crear cuenta</Link>
         </p>
       </div>
     </div>

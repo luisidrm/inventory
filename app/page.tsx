@@ -3,6 +3,7 @@ import {
   Navbar,
   Hero,
   Features,
+  StatsSection,
   HowItWorks,
   CtaSection,
   Footer,
@@ -14,6 +15,7 @@ export default function Home() {
       <Navbar />
       <Hero />
       <Features />
+      <StatsSection />
       <HowItWorks />
       <CtaSection />
       <Footer />

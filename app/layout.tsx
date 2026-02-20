@@ -3,7 +3,7 @@ import "./globals.css";
 import { ReduxProvider } from "../components/ReduxProvider";
 
 export const metadata: Metadata = {
-  title: "InventoryPro — Gestión de inventario simple y poderosa",
+  title: "Strova — Gestión de inventario simple y poderosa",
   description:
     "Controla productos, proveedores, ubicaciones y movimientos de stock desde una sola plataforma.",
 };
