@@ -98,12 +98,8 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-page__bg">
-        <div className="auth-page__circle auth-page__circle--1" />
-        <div className="auth-page__circle auth-page__circle--2" />
-        <div className="auth-page__circle auth-page__circle--3" />
-      </div>
+    <div className="auth-page auth-page--register">
+      <div className="auth-page__bg-dashboard" />
 
       <header className="auth-header">
         <Link className="auth-header__logo" href="/">
@@ -138,7 +134,7 @@ export default function RegisterPage() {
 
         {currentStep === 0 ? (
           <>
-            <h1 className="auth-card__title">Crea tu cuenta</h1>
+            <h1 className="auth-card__title">Crea tu cuenta de Strova</h1>
             <p className="auth-card__subtitle">Paso 1 de 2 — Tus datos de administrador</p>
 
             <form className="auth-card__form" onSubmit={handleNextStep}>
