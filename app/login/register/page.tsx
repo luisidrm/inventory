@@ -75,18 +75,17 @@ export default function RegisterPage() {
     setIsLoading(true);
     setErrorMessage("");
     try {
-      await registerWithOrganization(
-        {
-          fullName,
-          email,
-          password,
-          confirmationPassword,
-          birthday: new Date(birthday).toISOString(),
-          gender: Number(gender),
-          phone: phone || undefined,
-        },
-        { name: orgName, code: orgCode }
-      );
+      await registerWithOrganization({
+        organizationName: orgName,
+        organizationCode: orgCode,
+        fullName,
+        email,
+        password,
+        confirmationPassword,
+        birthday: new Date(birthday).toISOString(),
+        phone: phone || "",
+        gender: Number(gender),
+      });
       router.push("/dashboard");
       router.refresh();
     } catch (err) {

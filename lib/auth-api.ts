@@ -1,7 +1,7 @@
 import type {
   LoginRequest,
-  SignUpRequest,
   CreateOrganizationRequest,
+  RegisterWithOrganizationRequest,
   UserResponse,
   OrganizationResponse,
   ApiResponse,
@@ -9,12 +9,13 @@ import type {
 
 const BACKEND_URL = "http://inventorydevelop.us-east-2.elasticbeanstalk.com/api";
 
-/** En el navegador siempre /api (mismo origen HTTPS; Vercel reescribe a backend). En servidor usa env o URL directa. */
+/** URL base de la API. En producción (Vercel) el cliente usa /api (rewrite al backend). En local no hay rewrite, así que usamos la URL remota. */
 function getApiUrl(): string {
-  if (typeof window !== "undefined") {
+  const remoteUrl = process.env.NEXT_PUBLIC_API_URL ?? BACKEND_URL;
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
     return "/api";
   }
-  return process.env.NEXT_PUBLIC_API_URL ?? BACKEND_URL;
+  return remoteUrl;
 }
 
 function getToken(): string | null {
@@ -58,15 +59,16 @@ export async function login(
   if (token) saveToken(token);
   if (refreshToken) saveRefreshToken(refreshToken);
 
-  const json = (await res.json()) as ApiResponse<UserResponse>;
+  const json = (await res.json()) as ApiResponse<UserResponse> & { result?: UserResponse };
   if (!res.ok) {
     const msg =
       json?.message ?? (res.status === 401 ? "Email o contraseña incorrectos." : "Error al iniciar sesión.");
     throw new Error(msg);
   }
-  if (json.data) {
-    saveUser(json.data);
-    return { user: json.data };
+  const user = json.data ?? json.result;
+  if (user) {
+    saveUser(user);
+    return { user };
   }
   throw new Error("Respuesta inválida del servidor.");
 }
@@ -112,21 +114,16 @@ export async function createOrganization(
 }
 
 export async function registerWithOrganization(
-  userData: SignUpRequest,
-  orgData: CreateOrganizationRequest
+  body: RegisterWithOrganizationRequest
 ): Promise<{ user: UserResponse }> {
-  const response = await createOrganization(orgData)
-  console.log(response)
-  await register({
-    FullName: userData.fullName,
-    Email: userData.email,
-    Password: userData.password,
-    ConfirmationPassword: userData.confirmationPassword,
-    Birthday: userData.birthday,
-    Gender: userData.gender,
-    ...(userData.phone ? { Phone: userData.phone } : {}),
-    ...(response.result ? { OrganizationId: response.result.id } : {}),
+  const res = await fetch(`${getApiUrl()}/account/register-with-organization`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
-
-  return login({ email: userData.email, password: userData.password });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message ?? "Error al registrar.");
+  }
+  return login({ email: body.email, password: body.password });
 }

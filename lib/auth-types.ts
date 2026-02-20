@@ -19,6 +19,19 @@ export interface CreateOrganizationRequest {
   code: string;
 }
 
+
+export interface RegisterWithOrganizationRequest {
+  organizationName: string;
+  organizationCode: string;
+  fullName: string;
+  email: string;
+  password: string;
+  confirmationPassword: string;
+  birthday: string;
+  phone: string;
+  gender: number;
+}
+
 export interface UserResponse {
   id: number;
   birthDate: string;
