@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { useCreateOrganizationMutation, useLoginMutation, useRegisterMutation } from "../_service/authApi";
+import { registerWithOrganization } from "@/lib/auth-api";
+import Image from "next/image";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -108,11 +110,12 @@ export default function RegisterPage() {
 
       <header className="auth-header">
         <Link className="auth-header__logo" href="/">
-          <img
+          <Image
             src="/assets/strova-claro-nobg.png"
             alt="Strova"
             className="auth-header__logo-img"
             height={32}
+            width={32}
           />
         </Link>
       </header>
