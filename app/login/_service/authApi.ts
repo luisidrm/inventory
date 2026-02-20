@@ -38,7 +38,22 @@ export const authApi = createApi({
         body,
       }),
     }),
-
+    regiterWithOrganization: builder.mutation<void, {
+      FullName: string;
+      Email: string;
+      Password: string;
+      ConfirmationPassword: string;
+      Birthday: string;
+      Gender: number;
+      Phone?: string;
+      OrganizationId?: number;
+    }>({
+      query: (body) => ({
+        url: '/account/register-with-organization',
+        method: 'POST',
+        body,
+      }),
+    }),
     createOrganization: builder.mutation<OrganizationResponse, CreateOrganizationRequest>({
       query: (data) => ({
         url: '/organization',

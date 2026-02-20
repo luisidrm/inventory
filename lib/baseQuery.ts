@@ -55,7 +55,7 @@ export function clearSession(): void {
  * Base query configuration with authentication
  */
 const baseQuery = fetchBaseQuery({
-  baseUrl: "http://inventorydevelop.us-east-2.elasticbeanstalk.com/api",
+  baseUrl: getApiUrl(),
   prepareHeaders: (headers) => {
     const token = getToken();
     if (token) {
