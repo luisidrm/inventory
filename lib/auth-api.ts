@@ -62,11 +62,10 @@ export async function login(
 
   const json = (await res.json()) as ApiResponse<UserResponse> & { result?: UserResponse };
   if (!res.ok) {
-    const msg =
-      json?.message ?? (res.status === 401 ? "Email o contraseña incorrectos." : "Error al iniciar sesión.");
+    const msg = (res.status === 401 ? "Email o contraseña incorrectos." : "Error al iniciar sesión.");
     throw new Error(msg);
   }
-  const user = json.data ?? json.result;
+  const user = json.result;
   if (user) {
     saveUser(user);
     return { user };
@@ -109,9 +108,9 @@ export async function createOrganization(
   });
   const json = (await res.json()) as ApiResponse<OrganizationResponse>;
   if (!res.ok) {
-    throw new Error(json?.message ?? "Error al crear la organización.");
+    throw new Error("Error al crear la organización.");
   }
-  return json.data ?? (json as unknown as OrganizationResponse);
+  return (json as unknown as OrganizationResponse);
 }
 
 export async function registerWithOrganization(

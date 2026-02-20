@@ -27,7 +27,6 @@ const adminItems: NavItem[] = [
   { icon: "group", label: "Usuarios", route: "/dashboard/users" },
   { icon: "admin_panel_settings", label: "Roles", route: "/dashboard/roles" },
   { icon: "settings", label: "Configuración", route: "/dashboard/settings" },
-  { icon: "receipt_long", label: "Logs", route: "/dashboard/logs" },
 ];
 
 function BrandIcon() {
