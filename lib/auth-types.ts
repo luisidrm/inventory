@@ -67,7 +67,7 @@ export interface LocationResponse {
 }
 
 export interface ApiResponse<T> {
-  data: T;
-  message?: string;
-  success: boolean;
+  result: T;
+  customStatusCode: number;
+  statusCode: number;
 }

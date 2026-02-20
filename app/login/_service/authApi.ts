@@ -1,0 +1,79 @@
+import { createApi } from '@reduxjs/toolkit/query/react';
+import baseQueryWithReauth, { saveToken, saveRefreshToken } from '@/lib/baseQuery';
+import type {
+  LoginRequest,
+  CreateOrganizationRequest,
+  UserResponse,
+  OrganizationResponse,
+  ApiResponse,
+} from '@/lib/auth-types';
+
+export const authApi = createApi({
+  reducerPath: 'authApi',
+  baseQuery: baseQueryWithReauth,
+  tagTypes: ['User', 'Organization'],
+  endpoints: (builder) => ({
+    login: builder.mutation<ApiResponse<UserResponse>, LoginRequest>({
+      query: (credentials) => ({
+        url: '/account/login',
+        method: 'POST',
+        body: credentials,
+      }),
+      invalidatesTags: ['User'],
+    }),
+
+    register: builder.mutation<void, {
+      FullName: string;
+      Email: string;
+      Password: string;
+      ConfirmationPassword: string;
+      Birthday: string;
+      Gender: number;
+      Phone?: string;
+      OrganizationId?: number;
+    }>({
+      query: (body) => ({
+        url: '/account/register',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    createOrganization: builder.mutation<OrganizationResponse, CreateOrganizationRequest>({
+      query: (data) => ({
+        url: '/organization',
+        method: 'POST',
+        body: { Name: data.name, Code: data.code },
+      }),
+      invalidatesTags: ['Organization'],
+    }),
+
+    refreshToken: builder.mutation<void, { refreshToken: string }>({
+      query: (body) => ({
+        url: '/account/refresh',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    logout: builder.mutation<void, void>({
+      queryFn: () => {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("token");
+          localStorage.removeItem("refreshToken");
+          localStorage.removeItem("user");
+        }
+        return { data: undefined };
+      },
+      invalidatesTags: ['User'],
+    }),
+  }),
+});
+
+export const {
+  useLoginMutation,
+  useRegisterMutation,
+  useCreateOrganizationMutation,
+  useRefreshTokenMutation,
+  useLogoutMutation,
+} = authApi;

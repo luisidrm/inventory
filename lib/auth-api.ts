@@ -47,6 +47,7 @@ export function clearSession(): void {
 export async function login(
   credentials: LoginRequest
 ): Promise<{ user: UserResponse }> {
+  console.log(getApiUrl())
   const res = await fetch(`${getApiUrl()}/account/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
-import { registerWithOrganization } from "@/lib/auth-api";
+import { useCreateOrganizationMutation, useLoginMutation, useRegisterMutation } from "../_service/authApi";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -27,6 +27,10 @@ export default function RegisterPage() {
 
   const [touchedPersonal, setTouchedPersonal] = useState<Record<string, boolean>>({});
   const [touchedOrg, setTouchedOrg] = useState<Record<string, boolean>>({});
+
+  const [createOrganization] = useCreateOrganizationMutation();
+  const [register] = useRegisterMutation();
+  const [login] = useLoginMutation();
 
   const passwordMismatch = !!password && !!confirmationPassword && password !== confirmationPassword;
 
@@ -67,6 +71,7 @@ export default function RegisterPage() {
     setCurrentStep(1);
   };
 
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouchedOrg({ name: true, code: true });
@@ -74,25 +79,38 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     setErrorMessage("");
+
     try {
-      await registerWithOrganization(
-        {
-          fullName,
-          email,
-          password,
-          confirmationPassword,
-          birthday: new Date(birthday).toISOString(),
-          gender: Number(gender),
-          phone: phone || undefined,
-        },
-        { name: orgName, code: orgCode }
-      );
+      // Create organization
+      const orgResponse = await createOrganization({
+        name: orgName,
+        code: orgCode,
+      }).unwrap();
+
+      console.log(orgResponse);
+
+      // Register user
+      await register({
+        FullName: fullName,
+        Email: email,
+        Password: password,
+        ConfirmationPassword: confirmationPassword,
+        Birthday: new Date(birthday).toISOString(),
+        Gender: Number(gender),
+        ...(phone ? { Phone: phone } : {}),
+        ...(orgResponse.result ? { OrganizationId: orgResponse.result.id } : {}),
+      }).unwrap();
+
+      // Login user
+      await login({ email, password }).unwrap();
+
+      // Redirect to dashboard
       router.push("/dashboard");
       router.refresh();
-    } catch (err) {
+    } catch (err: any) {
       setIsLoading(false);
       setErrorMessage(
-        err instanceof Error ? err.message : "Ocurrió un error. Intenta de nuevo."
+        err?.data?.message ?? err?.message ?? "Ocurrió un error. Intenta de nuevo."
       );
     }
   };
