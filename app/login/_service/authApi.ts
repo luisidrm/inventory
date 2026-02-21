@@ -9,15 +9,15 @@ import type {
 } from '@/lib/auth-types';
 
 export interface RegisterWithOrganizationRequest {
-  OrganizationName: string;
-  FullName: string;
-  Email: string;
-  Password: string;
-  ConfirmationPassword: string;
-  Birthday: string;
-  Gender: number;
-  Phone?: string;
-  OrganizationId?: number;
+  organizationName: string;
+  fullName: string;
+  email: string;
+  password: string;
+  confirmationPassword: string;
+  birthday: string;
+  gender: number;
+  phone?: string;
+  organizationId?: number;
 }
 
 export const authApi = createApi({
