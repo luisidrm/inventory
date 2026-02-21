@@ -51,7 +51,7 @@ function formatCurrency(n: number) {
   }).format(n);
 }
 
-function getValue(row: Record<string, unknown>, key: string): unknown {
+function getValue(row: object, key: string): unknown {
   return key.split(".").reduce((obj: unknown, k) => (obj as Record<string, unknown>)?.[k], row);
 }
 
