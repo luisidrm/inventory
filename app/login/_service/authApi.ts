@@ -10,6 +10,7 @@ import type {
 
 export interface RegisterWithOrganizationRequest {
   organizationName: string;
+  organizationCode: string;
   fullName: string;
   email: string;
   password: string;
