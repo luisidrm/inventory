@@ -4,9 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
-import { useCreateOrganizationMutation, useLoginMutation, useRegisterMutation } from "../_service/authApi";
-import { registerWithOrganization } from "@/lib/auth-api";
+import { useRegiterWithOrganizationMutation } from "../_service/authApi";
+// import { registerWithOrganization } from "@/lib/auth-api";
 import Image from "next/image";
+import { DatePickerSimple } from "@/components/DatePickerSimple";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -30,9 +32,7 @@ export default function RegisterPage() {
   const [touchedPersonal, setTouchedPersonal] = useState<Record<string, boolean>>({});
   const [touchedOrg, setTouchedOrg] = useState<Record<string, boolean>>({});
 
-  const [createOrganization] = useCreateOrganizationMutation();
-  const [register] = useRegisterMutation();
-  const [login] = useLoginMutation();
+  const [registerWithOrganization] = useRegiterWithOrganizationMutation()
 
   const passwordMismatch = !!password && !!confirmationPassword && password !== confirmationPassword;
 
@@ -94,8 +94,7 @@ export default function RegisterPage() {
         phone: phone || "",
         gender: Number(gender),
       });
-      router.push("/dashboard");
-      router.refresh();
+      router.push("/login");
     } catch (err: any) {
       setIsLoading(false);
       setErrorMessage(
@@ -200,32 +199,45 @@ export default function RegisterPage() {
                 </div>
                 <div className="form-group">
                   <label>Género</label>
-                  <div className="input-wrapper select-wrapper">
-                    <span className="input-icon"><Icon name="wc" /></span>
-                    <select
+                  <Select value={String(gender)} onValueChange={(val) => setGender(Number(val))}>
+                    <SelectTrigger className="input-wrapper select-wrapper">
+                      <Icon name="wc" />
+                      <SelectValue>{gender === 0 ? "Masculino" : gender === 1 ? "Femenino" : "Seleccionar género"}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value={"0"}>Masculino</SelectItem>
+                        <SelectItem value={"1"}>Femenino</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {/* <select
                       value={gender}
                       onChange={(e) => setGender(Number(e.target.value))}
                     >
                       <option value={0}>Masculino</option>
                       <option value={1}>Femenino</option>
-                    </select>
-                  </div>
+                    </select> */}
                 </div>
               </div>
 
               <div className="form-group">
                 <label>Fecha de nacimiento</label>
-                <div
+                {/* <div
                   className={`input-wrapper ${touchedPersonal.birthday && !birthday ? "error" : ""}`}
                 >
-                  <span className="input-icon"><Icon name="calendar_today" /></span>
-                  <input
+                  <span className="input-icon"><Icon name="calendar_today" /></span> */}
+                <DatePickerSimple
+                  date={birthday}
+                  setDate={(date) => setBirthday(date ? date : "")}
+                />
+                {/* <input
                     type="date"
                     value={birthday}
                     onChange={(e) => setBirthday(e.target.value)}
                     onBlur={() => setTouchedPersonal((t) => ({ ...t, birthday: true }))}
-                  />
-                </div>
+                  /> */}
+                {/* </div> */}
                 {touchedPersonal.birthday && !birthday ? (
                   <span className="form-error">La fecha es requerida</span>
                 ) : null}

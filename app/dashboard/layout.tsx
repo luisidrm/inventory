@@ -31,18 +31,7 @@ const adminItems: NavItem[] = [
 
 function BrandIcon() {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
-      <path d="m3.3 7 8.7 5 8.7-5" />
-      <path d="M12 22V12" />
-    </svg>
+    <img src="/assets/logo-claro-nobg.png" alt="Strova Logo" className="brand-logo" height={32} />
   );
 }
 
@@ -90,7 +79,7 @@ export default function DashboardLayout({
             </div>
             {!collapsed && (
               <span className="brand-text">
-                Inventory<span>Pro</span>
+                Strova
               </span>
             )}
           </Link>
@@ -163,15 +152,8 @@ export default function DashboardLayout({
               <Icon name="notifications_none" />
             </button>
             <button type="button" className="topbar-icon-btn" aria-label="Mensajes">
-              <Icon name="mail_outline" />
+              <Icon name="mail_outline"/>
             </button>
-            <div className="topbar-profile">
-              <div className="topbar-avatar">{initial}</div>
-              <div className="topbar-user-text">
-                <span className="topbar-user-name">{userName || "Usuario"}</span>
-                <span className="topbar-user-role">Admin</span>
-              </div>
-            </div>
           </div>
         </header>
 

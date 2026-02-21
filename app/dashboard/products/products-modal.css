@@ -1,0 +1,256 @@
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.modal-box {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e8ecf1;
+}
+
+.modal-header__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(79, 110, 247, 0.12);
+  color: #4f6ef7;
+  display: grid;
+  place-items: center;
+}
+
+.modal-header__icon .material-icons {
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+}
+
+.modal-header__title {
+  flex: 1;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  color: #94a3b8;
+}
+
+.modal-close:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.modal-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.modal-form-grid .field-full {
+  grid-column: 1 / -1;
+}
+
+.modal-field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 6px;
+}
+
+.modal-field input,
+.modal-field select,
+.modal-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #1e293b;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.modal-field input:focus,
+.modal-field select:focus,
+.modal-field textarea:focus {
+  outline: none;
+  border-color: #4f6ef7;
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.1);
+}
+
+.modal-field textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.modal-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.modal-toggle input {
+  width: 44px;
+  height: 24px;
+  accent-color: #4f6ef7;
+  cursor: pointer;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid #e8ecf1;
+}
+
+.modal-btn {
+  padding: 9px 20px;
+  border-radius: 9px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.modal-btn--ghost {
+  background: #f4f5f7;
+  color: #6b7280;
+  border: none;
+}
+
+.modal-btn--ghost:hover {
+  background: #eaecef;
+}
+
+.modal-btn--primary {
+  background: #4f6ef7;
+  color: #fff;
+  border: none;
+}
+
+.modal-btn--primary:hover {
+  background: #3d5bd9;
+  box-shadow: 0 4px 12px rgba(79, 110, 247, 0.3);
+}
+
+.modal-btn--primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Confirm modal */
+.confirm-modal {
+  text-align: center;
+  padding: 28px 28px 24px;
+  min-width: 320px;
+  max-width: 400px;
+}
+
+.confirm-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  display: inline-grid;
+  place-items: center;
+  margin-bottom: 18px;
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.confirm-icon .material-icons {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+}
+
+.confirm-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1a1d26;
+  margin: 0 0 6px;
+}
+
+.confirm-msg {
+  font-size: 0.84rem;
+  color: #6b7280;
+  margin: 0 0 24px;
+  line-height: 1.55;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.confirm-btn {
+  padding: 9px 20px;
+  border: none;
+  border-radius: 9px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.confirm-btn--cancel {
+  background: #f4f5f7;
+  color: #6b7280;
+}
+
+.confirm-btn--cancel:hover {
+  background: #eaecef;
+}
+
+.confirm-btn--danger {
+  background: #ef4444;
+  color: #fff;
+}
+
+.confirm-btn--danger:hover {
+  background: #dc2626;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.form-error {
+  font-size: 0.75rem;
+  color: #ef4444;
+  margin-top: 4px;
+}

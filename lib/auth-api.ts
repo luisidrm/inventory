@@ -10,7 +10,7 @@ import type {
 const BACKEND_URL = "http://inventorydevelop.us-east-2.elasticbeanstalk.com/api";
 
 /** URL base de la API. En producción (Vercel) el cliente usa /api (rewrite al backend). En local no hay rewrite, así que usamos la URL remota. */
-function getApiUrl(): string {
+export function getApiUrl(): string {
   const remoteUrl = process.env.NEXT_PUBLIC_API_URL ?? BACKEND_URL;
   if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
     return "/api";
@@ -18,7 +18,7 @@ function getApiUrl(): string {
   return remoteUrl;
 }
 
-function getToken(): string | null {
+export function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("token");
 }

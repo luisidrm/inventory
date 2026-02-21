@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ReduxProvider } from "../components/ReduxProvider";
+import { Toaster } from "@/components/ui/sonner"
+
 
 export const metadata: Metadata = {
   title: "Strova — Gestión de inventario simple y poderosa",
@@ -29,6 +31,7 @@ export default function RootLayout({
       </head>
       <body>
         <ReduxProvider>{children}</ReduxProvider>
+        <Toaster/>
       </body>
     </html>
   );
