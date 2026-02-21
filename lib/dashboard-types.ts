@@ -36,7 +36,7 @@ export interface UpdateProductRequest {
   code?: string;
   name?: string;
   description?: string;
-  categoryId?: number;
+  categoryId?: number | null;  // ← add null
   precio?: number;
   costo?: number;
   imagenUrl?: string;

@@ -83,10 +83,15 @@ export default function ProductsPage() {
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState<ProductResponse | null>(null);
+  const [deleteError, setDeleteError] = useState("");
 
   const loadCategories = useCallback(async () => {
-    const res = await getProductCategories(1, 100);
-    setCategories(res.data.map((c) => ({ value: c.id, label: c.name })));
+    try {
+      const res = await getProductCategories(1, 100);
+      setCategories(res.data.map((c) => ({ value: c.id, label: c.name })));
+    } catch {
+      // fail silently — categories are optional
+    }
   }, []);
 
   const loadData = useCallback(
@@ -113,6 +118,15 @@ export default function ProductsPage() {
   useEffect(() => {
     loadData(page);
   }, [page, loadData]);
+
+  // Client-side search filter applied to loaded page data
+  const filteredData = searchTerm.trim()
+    ? data.filter((row) =>
+        Object.values(row).some((val) =>
+          String(val ?? "").toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      )
+    : data;
 
   const openCreate = () => {
     setEditing(null);
@@ -167,16 +181,17 @@ export default function ProductsPage() {
         precio: Number(form.precio),
         costo: Number(form.costo),
         imagenUrl: form.imagenUrl.trim(),
-        isAvailable: !!form.isAvailable,
+        isAvailable: form.isAvailable,
       };
       if (editing) {
         await updateProduct(editing.id, payload);
+        await loadData(page);
       } else {
         await createProduct(payload);
+        setPage(1);
+        await loadData(1);
       }
       closeForm();
-      loadData(editing ? page : 1);
-      if (!editing) setPage(1);
     } catch (err) {
       setFormErrors({ submit: err instanceof Error ? err.message : "Error al guardar" });
     } finally {
@@ -186,18 +201,24 @@ export default function ProductsPage() {
 
   const openDelete = (item: ProductResponse) => {
     setDeleting(item);
+    setDeleteError("");
     setConfirmOpen(true);
+  };
+
+  const closeConfirm = () => {
+    setConfirmOpen(false);
+    setDeleting(null);
+    setDeleteError("");
   };
 
   const handleDelete = async () => {
     if (!deleting) return;
     try {
       await deleteProduct(deleting.id);
-      setConfirmOpen(false);
-      setDeleting(null);
-      loadData(pagination?.currentPage ?? 1);
+      closeConfirm();
+      await loadData(pagination?.currentPage ?? 1);
     } catch {
-      setFormErrors({ submit: "Error al eliminar" });
+      setDeleteError("Error al eliminar. Intenta de nuevo.");
     }
   };
 
@@ -219,7 +240,7 @@ export default function ProductsPage() {
     let end = start + maxVisible - 1;
     if (end > total) {
       end = total;
-      start = end - maxVisible + 1;
+      start = Math.max(1, end - maxVisible + 1);
     }
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
   };
@@ -256,17 +277,21 @@ export default function ProductsPage() {
             <div className="state-msg__spinner" />
             <span>Cargando datos...</span>
           </div>
-        ) : data.length === 0 ? (
+        ) : filteredData.length === 0 ? (
           <div className="state-msg state-msg--empty">
             <div className="state-msg__icon-box">
               <Icon name="inventory_2" />
             </div>
             <p className="state-msg__title">Sin registros</p>
-            <p className="state-msg__desc">Aún no hay productos</p>
-            <button type="button" className="btn-add" onClick={openCreate}>
-              <Icon name="add" />
-              Crear primero
-            </button>
+            <p className="state-msg__desc">
+              {searchTerm ? "No se encontraron resultados para tu búsqueda" : "Aún no hay productos"}
+            </p>
+            {!searchTerm && (
+              <button type="button" className="btn-add" onClick={openCreate}>
+                <Icon name="add" />
+                Crear primero
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -283,36 +308,33 @@ export default function ProductsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((row, idx) => (
+                  {filteredData.map((row, idx) => (
                     <tr key={row.id} className={idx % 2 === 1 ? "row-alt" : ""}>
-                      {COLUMNS.map((col) => (
-                        <td key={col.key}>
-                          {col.type === "boolean" && (
-                            <span
-                              className={`tag ${getValue(row, col.key) ? "tag--green" : "tag--red"}`}
-                            >
-                              {getValue(row, col.key) ? "Activo" : "Inactivo"}
-                            </span>
-                          )}
-                          {col.type === "date" && (
-                            <span>
-                              {formatDate(String(getValue(row, col.key) ?? ""))}
-                            </span>
-                          )}
-                          {col.type === "currency" && (
-                            <span className="cell-mono">
-                              {formatCurrency(Number(getValue(row, col.key) ?? 0))}
-                            </span>
-                          )}
-                          {(!col.type || col.type === "text" || col.type === "number") && (
-                            <span className="cell-clamp">
-                              {getValue(row, col.key) != null
-                                ? String(getValue(row, col.key))
-                                : "—"}
-                            </span>
-                          )}
-                        </td>
-                      ))}
+                      {COLUMNS.map((col) => {
+                        const val = getValue(row, col.key);
+                        return (
+                          <td key={col.key}>
+                            {col.type === "boolean" && (
+                              <span className={`tag ${val ? "tag--green" : "tag--red"}`}>
+                                {val ? "Activo" : "Inactivo"}
+                              </span>
+                            )}
+                            {col.type === "date" && (
+                              <span>{formatDate(String(val ?? ""))}</span>
+                            )}
+                            {col.type === "currency" && (
+                              <span className="cell-mono">
+                                {formatCurrency(Number(val ?? 0))}
+                              </span>
+                            )}
+                            {(!col.type || col.type === "text" || col.type === "number") && (
+                              <span className="cell-clamp">
+                                {val != null ? String(val) : "—"}
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
                       <td className="td-actions">
                         <button
                           type="button"
@@ -343,7 +365,7 @@ export default function ProductsPage() {
                   <span>Filas por página</span>
                   <select
                     className="footer-select"
-                    value={pagination.pageSize}
+                    value={pageSize}
                     onChange={(e) => {
                       setPageSize(Number(e.target.value));
                       setPage(1);
@@ -420,9 +442,7 @@ export default function ProductsPage() {
                     onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
                     placeholder="Código"
                   />
-                  {formErrors.code && (
-                    <p className="form-error">{formErrors.code}</p>
-                  )}
+                  {formErrors.code && <p className="form-error">{formErrors.code}</p>}
                 </div>
                 <div className="modal-field">
                   <label htmlFor="name">Nombre *</label>
@@ -432,9 +452,7 @@ export default function ProductsPage() {
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                     placeholder="Nombre"
                   />
-                  {formErrors.name && (
-                    <p className="form-error">{formErrors.name}</p>
-                  )}
+                  {formErrors.name && <p className="form-error">{formErrors.name}</p>}
                 </div>
                 <div className="modal-field field-full">
                   <label htmlFor="description">Descripción</label>
@@ -476,9 +494,7 @@ export default function ProductsPage() {
                     value={form.precio}
                     onChange={(e) => setForm((f) => ({ ...f, precio: e.target.value }))}
                   />
-                  {formErrors.precio && (
-                    <p className="form-error">{formErrors.precio}</p>
-                  )}
+                  {formErrors.precio && <p className="form-error">{formErrors.precio}</p>}
                 </div>
                 <div className="modal-field">
                   <label htmlFor="costo">Costo *</label>
@@ -490,9 +506,7 @@ export default function ProductsPage() {
                     value={form.costo}
                     onChange={(e) => setForm((f) => ({ ...f, costo: e.target.value }))}
                   />
-                  {formErrors.costo && (
-                    <p className="form-error">{formErrors.costo}</p>
-                  )}
+                  {formErrors.costo && <p className="form-error">{formErrors.costo}</p>}
                 </div>
                 <div className="modal-field field-full">
                   <label htmlFor="imagenUrl">URL de imagen</label>
@@ -509,9 +523,7 @@ export default function ProductsPage() {
                     id="isAvailable"
                     type="checkbox"
                     checked={form.isAvailable}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, isAvailable: e.target.checked }))
-                    }
+                    onChange={(e) => setForm((f) => ({ ...f, isAvailable: e.target.checked }))}
                   />
                   <label htmlFor="isAvailable">Disponible</label>
                 </div>
@@ -540,11 +552,8 @@ export default function ProductsPage() {
 
       {/* Confirm delete modal */}
       {confirmOpen && deleting && (
-        <div className="modal-overlay" onClick={() => setConfirmOpen(false)}>
-          <div
-            className="modal-box confirm-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="modal-overlay" onClick={closeConfirm}>
+          <div className="modal-box confirm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="confirm-icon">
               <Icon name="delete_outline" />
             </div>
@@ -552,19 +561,14 @@ export default function ProductsPage() {
             <p className="confirm-msg">
               Se eliminará &quot;{deleting.name}&quot; permanentemente.
             </p>
+            {deleteError && (
+              <p className="form-error" style={{ textAlign: "center" }}>{deleteError}</p>
+            )}
             <div className="confirm-actions">
-              <button
-                type="button"
-                className="confirm-btn confirm-btn--cancel"
-                onClick={() => setConfirmOpen(false)}
-              >
+              <button type="button" className="confirm-btn confirm-btn--cancel" onClick={closeConfirm}>
                 Cancelar
               </button>
-              <button
-                type="button"
-                className="confirm-btn confirm-btn--danger"
-                onClick={handleDelete}
-              >
+              <button type="button" className="confirm-btn confirm-btn--danger" onClick={handleDelete}>
                 Eliminar
               </button>
             </div>
