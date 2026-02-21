@@ -8,6 +8,18 @@ import type {
   ApiResponse,
 } from '@/lib/auth-types';
 
+export interface RegisterWithOrganizationRequest {
+  OrganizationName: string;
+  FullName: string;
+  Email: string;
+  Password: string;
+  ConfirmationPassword: string;
+  Birthday: string;
+  Gender: number;
+  Phone?: string;
+  OrganizationId?: number;
+}
+
 export const authApi = createApi({
   reducerPath: 'authApi',
   baseQuery: baseQueryWithReauth,
@@ -38,16 +50,7 @@ export const authApi = createApi({
         body,
       }),
     }),
-    regiterWithOrganization: builder.mutation<void, {
-      FullName: string;
-      Email: string;
-      Password: string;
-      ConfirmationPassword: string;
-      Birthday: string;
-      Gender: number;
-      Phone?: string;
-      OrganizationId?: number;
-    }>({
+    regiterWithOrganization: builder.mutation<void, RegisterWithOrganizationRequest>({
       query: (body) => ({
         url: '/account/register-with-organization',
         method: 'POST',
