@@ -29,7 +29,7 @@ export const movementsApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ["InventoryMovement"],
+  tagTypes: ["InventoryMovement", "Inventory"],
   endpoints: (builder) => ({
     getMovements: builder.query<PaginatedResult<InventoryMovementResponse>, GetMovementsArgs>({
       query: (arg) => {
