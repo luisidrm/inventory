@@ -229,6 +229,7 @@ export interface UpdateUserRequest {
   password?: string;
   email?: string;
   phone?: string;
+  birthDate?: string;
   locationId?: number;
   organizationId?: number;
   roleId?: number;

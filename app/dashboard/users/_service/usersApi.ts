@@ -77,6 +77,7 @@ export const usersApi = createApi({
         if (body.password !== undefined) b.password = body.password;
         if (body.email !== undefined) b.email = body.email;
         if (body.phone !== undefined) b.phone = body.phone;
+        if (body.birthDate !== undefined) b.birthDate = body.birthDate ? new Date(body.birthDate).toISOString() : "";
         if (body.locationId !== undefined) b.locationId = body.locationId;
         if (body.organizationId !== undefined) b.organizationId = body.organizationId;
         if (body.roleId !== undefined) b.roleId = body.roleId;
