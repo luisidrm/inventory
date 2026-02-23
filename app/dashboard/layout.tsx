@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { clearSession } from "@/lib/auth-api";
 import "./dashboard.css";
+import { useAppSelector } from "@/store/store";
 
 interface NavItem {
   icon: string;
@@ -26,6 +27,7 @@ const navItems: NavItem[] = [
 const adminItems: NavItem[] = [
   { icon: "group", label: "Usuarios", route: "/dashboard/users" },
   { icon: "admin_panel_settings", label: "Roles", route: "/dashboard/roles" },
+  { icon: "receipt_long", label: "Logs", route: "/dashboard/logs" },
   { icon: "settings", label: "Configuración", route: "/dashboard/settings" },
 ];
 
@@ -41,20 +43,8 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [userName, setUserName] = useState("");
+  const user = useAppSelector((state) => state.auth) || null;
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = localStorage.getItem("user");
-      if (raw) {
-        const user = JSON.parse(raw) as { fullName?: string };
-        setUserName(user.fullName ?? "");
-      }
-    } catch {
-      setUserName("");
-    }
-  }, []);
 
   const isActive = (route: string) => {
     if (route === "/dashboard") return pathname === "/dashboard";
@@ -67,7 +57,7 @@ export default function DashboardLayout({
     router.refresh();
   };
 
-  const initial = userName ? userName.charAt(0).toUpperCase() : "?";
+  const initial = user ? user.fullName.charAt(0).toUpperCase() : "?";
 
   return (
     <div className={`dashboard ${collapsed ? "sidebar-collapsed" : ""}`}>
@@ -119,8 +109,8 @@ export default function DashboardLayout({
             <div className="sidebar-user">
               <div className="sidebar-user-avatar">{initial}</div>
               <div className="sidebar-user-info">
-                <span className="sidebar-user-name">{userName || "Usuario"}</span>
-                <span className="sidebar-user-role">Admin</span>
+                <span className="sidebar-user-name">{user?.fullName || "Usuario"}</span>
+                <span className="sidebar-user-role">{user?.location?.name || user?.organization?.name || "Sin ubicación"}</span>
               </div>
             </div>
           )}

@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { useLoginMutation } from "./_service/authApi";
+import { useAppDispatch } from "@/store/store";
+import { AuthState, loginSuccessfull } from "./_slices/authSlice";
 
 export default function LoginPage() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -34,12 +37,12 @@ export default function LoginPage() {
     setIsLoading(true);
     setErrorMessage("");
     try {
-      await login({ email, password }).unwrap().then(res => {
-        if (res.statusCode === 200) {
-          router.push("/dashboard");
-          router.refresh();
-        }
-      });
+      const res = await login({ email, password })
+      if (res.data?.statusCode === 200) {
+        dispatch(loginSuccessfull(res.data?.result as AuthState))
+        router.push("/dashboard");
+        router.refresh();
+      }
     } catch (err) {
       setIsLoading(false);
       setErrorMessage(err instanceof Error ? err.message : "Ocurrió un error. Intenta de nuevo.");

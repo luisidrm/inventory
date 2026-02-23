@@ -1,22 +1,54 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-interface AuthState {
-  token: string | null;
+export interface AuthState {
+  id: number;
+  birthDate: string;
+  fullName: string;
+  identity: string;
+  genderId: number;
+  gender: string;
+  email: string;
+  phone: string;
+  statusId: number;
+  status: string;
+  locationId: number;
+  organizationId: number;
+  roleId: number;
+  location: {
+    id: number;
+    organizationId: number;
+    organizationName: string;
+    name: string;
+    code: string;
+    description: string;
+    createdAt: string;
+    modifiedAt: string;
+  };
+  organization?: {
+    id: number;
+    name: string;
+    code: string;
+    description: string;
+    createdAt: string;
+    modifiedAt: string;
+  };
 }
 
-const initialState: AuthState = {
-  token: null,
-};
+type AuthSliceState = AuthState | null;
+
+const initialState: AuthSliceState = null;
 
 export const authSlice = createSlice({
   name: "auth",
-  initialState,
+  initialState: initialState as AuthSliceState,
   reducers: {
-    setToken: (state, action) => {
-      state.token = action.payload;
+    loginSuccessfull: (_state, action: PayloadAction<AuthState>) => {
+      return action.payload;   // ✅ return instead of reassign
     },
-    clearToken: (state) => {
-      state.token = null;
+    logoutSuccessfull: () => {
+      return null;             // ✅ return instead of reassign
     },
   },
 });
+
+export const { loginSuccessfull, logoutSuccessfull } = authSlice.actions;
