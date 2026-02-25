@@ -1,3 +1,4 @@
+import { logoutSuccessfull } from "@/app/login/_slices/authSlice";
 import type {
   LoginRequest,
   CreateOrganizationRequest,
@@ -40,6 +41,7 @@ export function saveUser(user: UserResponse): void {
 
 export function clearSession(): void {
   if (typeof window === "undefined") return;
+  logoutSuccessfull()
   localStorage.removeItem("token");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("user");

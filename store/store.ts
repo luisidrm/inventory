@@ -19,6 +19,7 @@ import { usersApi } from "@/app/dashboard/users/_service/usersApi";
 import { rolesApi } from "@/app/dashboard/roles/_service/rolesApi";
 import { logsApi } from "@/app/dashboard/logs/_service/logsApi";
 import { settingsApi } from "@/app/dashboard/settings/_service/settingsApi";
+import { toastMiddleware } from "@/lib/toastMiddleware";
 
 // Only persist the auth slice — API cache doesn't need persistence
 const persistConfig = {
@@ -65,7 +66,9 @@ export const store = configureStore({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
       },
-    }).concat(...apiMiddleware),
+    })
+    .concat(toastMiddleware)
+    .concat(...apiMiddleware),
 });
 
 export const persistor = persistStore(store);

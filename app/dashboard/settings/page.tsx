@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { useGetGroupedSettingsQuery, useUpdateGroupedSettingsMutation } from "./_service/settingsApi";
 import "../products/products-modal.css";
+import Switch from "@/components/Switch";
 
 export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
@@ -65,7 +66,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: 24 }}>
+      <div style={{ display: "flex", flexDirection: "row", gap: 24, padding: 24 }}>
         <section style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
             <div
@@ -122,15 +123,13 @@ export default function SettingsPage() {
               />
             </div>
             <div className="modal-field field-full modal-toggle">
-              <input
-                type="checkbox"
-                id="allowNegative"
+              <Switch
                 checked={inventory.allowNegativeStock}
-                onChange={(e) =>
-                  setInventory((s) => ({ ...s, allowNegativeStock: e.target.checked }))
+                onChange={(checked) =>
+                  setInventory((s) => ({ ...s, allowNegativeStock: checked }))
                 }
               />
-              <label htmlFor="allowNegative">Permitir stock negativo</label>
+              <label>Permitir stock negativo</label>
             </div>
           </div>
         </section>
@@ -197,15 +196,13 @@ export default function SettingsPage() {
           </div>
           <div className="modal-form-grid">
             <div className="modal-field field-full modal-toggle">
-              <input
-                type="checkbox"
-                id="alertLow"
+              <Switch
                 checked={notifications.alertOnLowStock}
-                onChange={(e) =>
-                  setNotifications((s) => ({ ...s, alertOnLowStock: e.target.checked }))
+                onChange={(checked) =>
+                  setNotifications((s) => ({ ...s, alertOnLowStock: checked }))
                 }
               />
-              <label htmlFor="alertLow">Alertar por stock bajo</label>
+              <label>Alertar por stock bajo</label>
             </div>
             <div className="modal-field field-full">
               <label>Destinatarios (emails separados por coma)</label>
@@ -221,7 +218,8 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 8 }}>
+      </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 8 , margin: 20}}>
           {saved && (
             <span style={{ color: "#10b981", fontSize: "0.9rem", display: "flex", alignItems: "center", gap: 6 }}>
               <Icon name="check_circle" />
@@ -237,7 +235,6 @@ export default function SettingsPage() {
             {saving ? "Guardando..." : "Guardar cambios"}
           </button>
         </div>
-      </div>
     </div>
   );
 }

@@ -17,11 +17,11 @@ import { FormModal } from "@/components/FormModal";
 import "../products/products-modal.css";
 
 const COLUMNS: DataTableColumn<InventoryResponse>[] = [
-  { key: "productId", label: "Producto ID", width: "100px" },
+  { key: "productName", label: "Producto", width: "180px" },
   { key: "currentStock", label: "Stock actual", type: "number" },
   { key: "minimumStock", label: "Stock mínimo", type: "number" },
   { key: "unitOfMeasure", label: "Unidad" },
-  { key: "locationId", label: "Ubicación ID", width: "100px" },
+  { key: "locationName", label: "Ubicación", width: "180px" },
   { key: "createdAt", label: "Creado", type: "date" },
 ];
 

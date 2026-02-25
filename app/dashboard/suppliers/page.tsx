@@ -12,6 +12,7 @@ import {
 } from "./_service/suppliersApi";
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
+import Switch from "@/components/Switch";
 import "../products/products-modal.css";
 
 const COLUMNS: DataTableColumn<SupplierResponse>[] = [
@@ -241,11 +242,9 @@ export default function SuppliersPage() {
             />
           </div>
           <div className="modal-field field-full modal-toggle">
-            <input
-              id="isActive"
-              type="checkbox"
+            <Switch
               checked={form.isActive}
-              onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
+              onChange={(checked) => setForm((f) => ({ ...f, isActive: checked }))}
             />
             <label htmlFor="isActive">Activo</label>
           </div>

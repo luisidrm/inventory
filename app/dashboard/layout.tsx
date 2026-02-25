@@ -43,7 +43,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const user = useAppSelector((state) => state.auth) || null;
+  const user = useAppSelector((state) => state.auth) || null
 
 
   const isActive = (route: string) => {

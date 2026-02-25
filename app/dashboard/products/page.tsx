@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
 import type { ProductResponse, CreateProductRequest } from "@/lib/dashboard-types";
 import "./products-modal.css";
@@ -15,17 +15,19 @@ import {
 } from "./_service/productsApi";
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
+import Switch from "@/components/Switch";
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
 
 const COLUMNS: DataTableColumn<ProductResponse>[] = [
-  { key: "code", label: "Código", width: "100px" },
-  { key: "name", label: "Nombre" },
+  { key: "code",        label: "Código",      width: "100px" },
+  { key: "name",        label: "Nombre" },
   { key: "description", label: "Descripción" },
-  { key: "precio", label: "Precio", type: "currency" },
-  { key: "costo", label: "Costo", type: "currency" },
-  { key: "isAvailable", label: "Estado", type: "boolean" },
-  { key: "createdAt", label: "Creado", type: "date" },
+  { key: "precio",      label: "Precio",      type: "currency" },
+  { key: "costo",       label: "Costo",       type: "currency" },
+  { key: "totalStock", label: "totalStock" , type: "number" },
+  { key: "isAvailable", label: "Estado",      type: "boolean" },
+  { key: "createdAt",   label: "Creado",      type: "date" },
 ];
 
 const initialForm = {
@@ -43,8 +45,9 @@ const initialForm = {
 
 export default function ProductsPage() {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
+  const [allRows, setAllRows] = useState<ProductResponse[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ProductResponse | null>(null);
@@ -56,9 +59,9 @@ export default function ProductsPage() {
   const [deleting, setDeleting] = useState<ProductResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
 
-  // ─── Queries & mutations ───────────────────────────────────────────────────
+  // ─── Queries ──────────────────────────────────────────────────────────────
 
-  const { data: result, isLoading } = useGetProductsQuery({ page, perPage: pageSize });
+  const { data: result, isLoading, isFetching } = useGetProductsQuery({ page, perPage: pageSize });
   const { data: categoriesResult } = useGetProductCategoriesQuery({ perPage: 100 });
 
   const [createProduct] = useCreateProductMutation();
@@ -67,15 +70,35 @@ export default function ProductsPage() {
 
   const categories = categoriesResult?.data ?? [];
 
-  // Client-side search filter
-  const allRows = result?.data ?? [];
+  // Accumulate rows across pages
+  useEffect(() => {
+    if (!result?.data) return;
+    setAllRows((prev) =>
+      page === 1 ? result.data : [...prev, ...result.data]
+    );
+  }, [result?.data, page]);
+
+  // Reset on search change
+  useEffect(() => {
+    setPage(1);
+    setAllRows([]);
+  }, [searchTerm]);
+
   const filteredData = searchTerm.trim()
     ? allRows.filter((row) =>
-      Object.values(row).some((val) =>
-        String(val ?? "").toLowerCase().includes(searchTerm.toLowerCase())
+        Object.values(row).some((val) =>
+          String(val ?? "").toLowerCase().includes(searchTerm.toLowerCase())
+        )
       )
-    )
     : allRows;
+
+  const hasMore = result?.pagination
+    ? page < result.pagination.totalPages
+    : false;
+
+  const handleLoadMore = () => {
+    if (!isFetching && hasMore) setPage((p) => p + 1);
+  };
 
   // ─── Form handlers ─────────────────────────────────────────────────────────
 
@@ -114,7 +137,7 @@ export default function ProductsPage() {
     const precio = Number(form.precio);
     const costo = Number(form.costo);
     if (Number.isNaN(precio) || precio < 0) err.precio = "Precio inválido";
-    if (Number.isNaN(costo) || costo < 0) err.costo = "Costo inválido";
+    if (Number.isNaN(costo)  || costo  < 0) err.costo  = "Costo inválido";
     setFormErrors(err);
     return Object.keys(err).length === 0;
   };
@@ -138,7 +161,9 @@ export default function ProductsPage() {
         await updateProduct({ id: editing.id, body: payload }).unwrap();
       } else {
         await createProduct(payload).unwrap();
+        // Reset to first page so new item appears
         setPage(1);
+        setAllRows([]);
       }
       closeForm();
     } catch (err) {
@@ -166,6 +191,8 @@ export default function ProductsPage() {
     if (!deleting) return;
     try {
       await deleteProduct(deleting.id).unwrap();
+      // Remove deleted item from local rows immediately
+      setAllRows((prev) => prev.filter((r) => r.id !== deleting.id));
       closeConfirm();
     } catch {
       setDeleteError("Error al eliminar. Intenta de nuevo.");
@@ -179,7 +206,7 @@ export default function ProductsPage() {
       <DataTable
         data={filteredData}
         columns={COLUMNS}
-        loading={isLoading}
+        loading={isLoading && page === 1}
         title="Productos"
         titleIcon="inventory_2"
         searchTerm={searchTerm}
@@ -187,149 +214,136 @@ export default function ProductsPage() {
         addLabel="Nuevo Producto"
         onAdd={openCreate}
         actions={[
-          { icon: "edit", label: "Editar", onClick: openEdit },
+          { icon: "edit",           label: "Editar",   onClick: openEdit },
           { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger" },
         ]}
-        pagination={result?.pagination ?? undefined}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        infiniteScroll
+        onLoadMore={handleLoadMore}
+        hasMore={hasMore}
+        loadingMore={isFetching && page > 1}
         emptyIcon="inventory_2"
         emptyTitle="Sin registros"
         emptyDesc={searchTerm ? "No se encontraron resultados" : "Aún no hay productos"}
       />
 
-      {/* ── Form modal ──────────────────────────────────────────────────────── */}
-      {formOpen && (
-        <FormModal
-          open={formOpen}
-          onClose={closeForm}
-          title={editing ? "Editar Producto" : "Nuevo Producto"}
-          icon={editing ? "edit" : "inventory_2"}
-          onSubmit={handleSubmit}
-          submitting={formSubmitting}
-          submitLabel={editing ? "Guardar" : "Crear"}
-          error={formErrors.submit}
-        >
-          <div className="modal-field">
-            <label htmlFor="code">Código *</label>
-            <input
-              id="code"
-              value={form.code}
-              onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-              placeholder="Código"
-            />
-            {formErrors.code && <p className="form-error">{formErrors.code}</p>}
-          </div>
-
-          <div className="modal-field">
-            <label htmlFor="name">Nombre *</label>
-            <input
-              id="name"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="Nombre"
-            />
-            {formErrors.name && <p className="form-error">{formErrors.name}</p>}
-          </div>
-
-          <div className="modal-field field-full">
-            <label htmlFor="description">Descripción</label>
-            <textarea
-              id="description"
-              value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              placeholder="Descripción"
-              rows={3}
-            />
-          </div>
-
-          <div className="modal-field">
-            <label htmlFor="categoryId">Categoría</label>
-            <select
-              id="categoryId"
-              value={form.categoryId}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  categoryId: e.target.value === "" ? "" : Number(e.target.value),
-                }))
-              }
-            >
-              <option value="">Sin categoría</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="modal-field">
-            <label htmlFor="precio">Precio *</label>
-            <input
-              id="precio"
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.precio}
-              onChange={(e) => setForm((f) => ({ ...f, precio: e.target.value }))}
-            />
-            {formErrors.precio && <p className="form-error">{formErrors.precio}</p>}
-          </div>
-
-          <div className="modal-field">
-            <label htmlFor="costo">Costo *</label>
-            <input
-              id="costo"
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.costo}
-              onChange={(e) => setForm((f) => ({ ...f, costo: e.target.value }))}
-            />
-            {formErrors.costo && <p className="form-error">{formErrors.costo}</p>}
-          </div>
-
-          <div className="modal-field field-full">
-            <label htmlFor="imagenUrl">URL de imagen</label>
-            <input
-              id="imagenUrl"
-              type="url"
-              value={form.imagenUrl}
-              onChange={(e) => setForm((f) => ({ ...f, imagenUrl: e.target.value }))}
-              placeholder="https://..."
-            />
-          </div>
-
-          <div className="modal-field field-full modal-toggle">
-            <input
-              id="isAvailable"
-              type="checkbox"
-              checked={form.isAvailable}
-              onChange={(e) => setForm((f) => ({ ...f, isAvailable: e.target.checked }))}
-            />
-            <label htmlFor="isAvailable">Disponible</label>
-          </div>
-
-          {formErrors.submit && (
-            <p className="form-error" style={{ marginTop: 12 }}>{formErrors.submit}</p>
-          )}
-        </FormModal>
-      )
-      }
-
-      {/* ── Confirm delete modal ────────────────────────────────────────────── */}
-      {
-        confirmOpen && deleting && (
-          <DeleteModal
-            open={confirmOpen && !!deleting}
-            onClose={closeConfirm}
-            onConfirm={handleDelete}
-            title="¿Eliminar producto?"
-            itemName={deleting?.name}
-            error={deleteError}
+      {/* ── Form modal ── */}
+      <FormModal
+        open={formOpen}
+        onClose={closeForm}
+        title={editing ? "Editar Producto" : "Nuevo Producto"}
+        icon={editing ? "edit" : "inventory_2"}
+        onSubmit={handleSubmit}
+        submitting={formSubmitting}
+        submitLabel={editing ? "Guardar" : "Crear"}
+        error={formErrors.submit}
+      >
+        <div className="modal-field">
+          <label htmlFor="code">Código *</label>
+          <input
+            id="code"
+            value={form.code}
+            onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+            placeholder="Código"
           />
-        )
-      }
+          {formErrors.code && <p className="form-error">{formErrors.code}</p>}
+        </div>
+
+        <div className="modal-field">
+          <label htmlFor="name">Nombre *</label>
+          <input
+            id="name"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="Nombre"
+          />
+          {formErrors.name && <p className="form-error">{formErrors.name}</p>}
+        </div>
+
+        <div className="modal-field field-full">
+          <label htmlFor="description">Descripción</label>
+          <textarea
+            id="description"
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            placeholder="Descripción"
+            rows={3}
+          />
+        </div>
+
+        <div className="modal-field">
+          <label htmlFor="categoryId">Categoría</label>
+          <select
+            id="categoryId"
+            value={form.categoryId}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                categoryId: e.target.value === "" ? "" : Number(e.target.value),
+              }))
+            }
+          >
+            <option value="">Sin categoría</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="modal-field">
+          <label htmlFor="precio">Precio *</label>
+          <input
+            id="precio"
+            type="number"
+            step="0.01"
+            min="0"
+            value={form.precio}
+            onChange={(e) => setForm((f) => ({ ...f, precio: e.target.value }))}
+          />
+          {formErrors.precio && <p className="form-error">{formErrors.precio}</p>}
+        </div>
+
+        <div className="modal-field">
+          <label htmlFor="costo">Costo *</label>
+          <input
+            id="costo"
+            type="number"
+            step="0.01"
+            min="0"
+            value={form.costo}
+            onChange={(e) => setForm((f) => ({ ...f, costo: e.target.value }))}
+          />
+          {formErrors.costo && <p className="form-error">{formErrors.costo}</p>}
+        </div>
+
+        <div className="modal-field field-full">
+          <label htmlFor="imagenUrl">URL de imagen</label>
+          <input
+            id="imagenUrl"
+            type="url"
+            value={form.imagenUrl}
+            onChange={(e) => setForm((f) => ({ ...f, imagenUrl: e.target.value }))}
+            placeholder="https://..."
+          />
+        </div>
+
+        <div className="modal-field field-full modal-toggle">
+          <Switch
+            checked={form.isAvailable}
+            onChange={(checked) => setForm((f) => ({ ...f, isAvailable: checked }))}
+          />
+          <label htmlFor="isAvailable">Disponible</label>
+        </div>
+      </FormModal>
+
+      {/* ── Delete modal ── */}
+      <DeleteModal
+        open={confirmOpen && !!deleting}
+        onClose={closeConfirm}
+        onConfirm={handleDelete}
+        title="¿Eliminar producto?"
+        itemName={deleting?.name}
+        error={deleteError}
+      />
     </>
   );
 }

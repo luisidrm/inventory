@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
 import "./data-table.css";
 
@@ -9,21 +9,21 @@ import "./data-table.css";
 export type ColumnType = "text" | "number" | "currency" | "date" | "boolean" | "custom";
 
 export interface DataTableColumn<T = Record<string, unknown>> {
-  key: string;           // Soporta dot notation: "address.city"
+  key: string | ((row: T) => string | number);
   label: string;
-  type?: ColumnType;     // Default: "text"
+  type?: ColumnType;
   width?: string;
-  locale?: string;       // Default: "es-ES"
-  currency?: string;     // Default: "USD"
-  booleanLabels?: { true: string; false: string }; // Default: Activo / Inactivo
-  render?: (row: T) => React.ReactNode; // Renderer custom completo
+  locale?: string;
+  currency?: string;
+  booleanLabels?: { true: string; false: string };
+  render?: (row: T) => React.ReactNode;
 }
 
 export interface DataTableAction<T = Record<string, unknown>> {
-  icon: string;         // Material Icon name
+  icon: string;
   label: string;
   onClick: (row: T) => void;
-  variant?: "default" | "danger"; // Default: "default"
+  variant?: "default" | "danger";
   hidden?: (row: T) => boolean;
 }
 
@@ -37,31 +37,28 @@ export interface PaginationMeta {
 }
 
 export interface DataTableProps<T extends { id: string | number }> {
-  // Contenido
   data: T[];
   columns: DataTableColumn<T>[];
   loading?: boolean;
-  // Cabecera
   title: string;
   titleIcon?: string;
-  // Toolbar
   searchTerm?: string;
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
   addLabel?: string;
   addIcon?: string;
   onAdd?: () => void;
-  /** Nodo extra en la toolbar (filtros, exports, etc.) */
   toolbarExtra?: React.ReactNode;
-  // Acciones por fila
   actions?: DataTableAction<T>[];
-  // Paginación
   pagination?: PaginationMeta;
   pageSize?: number;
   pageSizeOptions?: number[];
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
-  // Empty state
+  infiniteScroll?: boolean;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
   emptyIcon?: string;
   emptyTitle?: string;
   emptyDesc?: string;
@@ -73,6 +70,18 @@ function getNestedValue(row: object, key: string): unknown {
   return key
     .split(".")
     .reduce((obj: unknown, k) => (obj as Record<string, unknown>)?.[k], row);
+}
+
+// Resolves the key regardless of whether it's a string or a function
+function resolveValue<T extends object>(row: T, key: string | ((row: T) => string | number)): unknown {
+  if (typeof key === "function") return key(row);
+  return getNestedValue(row, key);
+}
+
+// Generates a stable string to use in React's key prop and for column identification
+function resolveColKey<T>(col: DataTableColumn<T>, index: number): string {
+  if (typeof col.key === "string") return col.key;
+  return `col-${index}`;
 }
 
 function formatDate(iso: string, locale = "es-ES") {
@@ -104,18 +113,12 @@ function getPageNumbers(current: number, total: number, maxVisible = 5): number[
   return Array.from({ length: end - start + 1 }, (_, i) => start + i);
 }
 
-// ─── Cell renderer ────────────────────────────────────────────────────────────
+// ─── Cell ─────────────────────────────────────────────────────────────────────
 
-function Cell<T extends object>({
-  col,
-  row,
-}: {
-  col: DataTableColumn<T>;
-  row: T;
-}) {
+function Cell<T extends object>({ col, row }: { col: DataTableColumn<T>; row: T }) {
   if (col.render) return <>{col.render(row)}</>;
 
-  const val = getNestedValue(row as object, col.key);
+  const val = resolveValue(row, col.key);
 
   switch (col.type) {
     case "boolean": {
@@ -166,23 +169,43 @@ export function DataTable<T extends { id: string | number }>({
   pageSizeOptions = PAGE_SIZES_DEFAULT,
   onPageChange,
   onPageSizeChange,
+  infiniteScroll = true,
+  onLoadMore,
+  hasMore = false,
+  loadingMore = false,
   emptyIcon = "table_rows",
   emptyTitle = "Sin registros",
   emptyDesc,
 }: DataTableProps<T>) {
   const hasActions = actions && actions.length > 0;
   const hasToolbar = onSearchChange || onAdd || toolbarExtra;
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const rangeStart = pagination
-    ? (pagination.currentPage - 1) * pagination.pageSize + 1
-    : 0;
+  useEffect(() => {
+    if (!infiniteScroll || !onLoadMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (sentinelRef.current) observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [infiniteScroll, onLoadMore, hasMore, loadingMore]);
+
+  const rangeStart = pagination ? (pagination.currentPage - 1) * pagination.pageSize + 1 : 0;
   const rangeEnd = pagination
     ? Math.min(pagination.currentPage * pagination.pageSize, pagination.totalCount)
     : 0;
 
   return (
     <div className="dt-card">
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div className="dt-header">
         <h1 className="dt-header__title">
           {titleIcon && <Icon name={titleIcon} />}
@@ -190,7 +213,7 @@ export function DataTable<T extends { id: string | number }>({
         </h1>
       </div>
 
-      {/* Toolbar */}
+      {/* ── Toolbar ── */}
       {hasToolbar && (
         <div className="dt-toolbar">
           {onSearchChange && (
@@ -215,12 +238,14 @@ export function DataTable<T extends { id: string | number }>({
         </div>
       )}
 
-      {/* States */}
+      {/* ── Loading (initial) ── */}
       {loading ? (
         <div className="dt-state">
           <div className="dt-state__spinner" />
           <span>Cargando datos...</span>
         </div>
+
+      /* ── Empty ── */
       ) : data.length === 0 ? (
         <div className="dt-state dt-state--empty">
           <div className="dt-state__icon-box">
@@ -235,15 +260,19 @@ export function DataTable<T extends { id: string | number }>({
             </button>
           )}
         </div>
+
+      /* ── Table ── */
       ) : (
         <>
-          {/* Table */}
           <div className="dt-wrap">
             <table className="dt-table">
               <thead>
                 <tr>
-                  {columns.map((col) => (
-                    <th key={col.key} style={{ width: col.width ?? "auto" }}>
+                  {columns.map((col, colIdx) => (
+                    <th
+                      key={resolveColKey(col, colIdx)}
+                      style={{ width: col.width ?? "auto" }}
+                    >
                       {col.label}
                     </th>
                   ))}
@@ -253,8 +282,8 @@ export function DataTable<T extends { id: string | number }>({
               <tbody>
                 {data.map((row, idx) => (
                   <tr key={row.id} className={idx % 2 === 1 ? "dt-row-alt" : ""}>
-                    {columns.map((col) => (
-                      <td key={col.key}>
+                    {columns.map((col, colIdx) => (
+                      <td key={resolveColKey(col, colIdx)}>
                         <Cell col={col} row={row} />
                       </td>
                     ))}
@@ -282,17 +311,30 @@ export function DataTable<T extends { id: string | number }>({
             </table>
           </div>
 
-          {/* Pagination */}
-          {pagination && (
+          {/* ── Infinite scroll footer ── */}
+          {infiniteScroll ? (
+            <>
+              <div ref={sentinelRef} style={{ height: 1 }} />
+              {loadingMore && (
+                <div className="dt-load-more">
+                  <div className="dt-state__spinner" />
+                  <span>Cargando más...</span>
+                </div>
+              )}
+              {!hasMore && (
+                <div className="dt-end-msg">— Fin de los registros —</div>
+              )}
+            </>
+
+          /* ── Traditional pagination footer ── */
+          ) : pagination ? (
             <div className="dt-footer">
               <div className="dt-footer__left">
                 <span>Filas por página</span>
                 <select
                   className="dt-footer-select"
                   value={pageSize}
-                  onChange={(e) => {
-                    onPageSizeChange?.(Number(e.target.value));
-                  }}
+                  onChange={(e) => onPageSizeChange?.(Number(e.target.value))}
                 >
                   {pageSizeOptions.map((n) => (
                     <option key={n} value={n}>{n}</option>
@@ -333,7 +375,7 @@ export function DataTable<T extends { id: string | number }>({
                 Mostrando {rangeStart}–{rangeEnd} de {pagination.totalCount} registros
               </div>
             </div>
-          )}
+          ) : null}
         </>
       )}
     </div>

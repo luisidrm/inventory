@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
+import Switch from "@/components/Switch";
 import { useLoginMutation } from "./_service/authApi";
-import { useAppDispatch } from "@/store/store";
-import { AuthState, loginSuccessfull } from "./_slices/authSlice";
+import { useAppDispatch, } from "@/store/store";
+import {type AuthState, loginSuccessfull } from "./_slices/authSlice";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -28,6 +29,9 @@ export default function LoginPage() {
   const [login] = useLoginMutation();
 
 
+  // const user = useAppSelector((state) => state.auth);
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouched({ email: true, password: true });
@@ -40,6 +44,7 @@ export default function LoginPage() {
       const res = await login({ email, password })
       if (res.data?.statusCode === 200) {
         dispatch(loginSuccessfull(res.data?.result as AuthState))
+        // toast.success("¡Bienvenido de nuevo!");
         router.push("/dashboard");
         router.refresh();
       }
@@ -124,12 +129,10 @@ export default function LoginPage() {
           </div>
 
           <label className="auth-checkbox">
-            <input
-              type="checkbox"
+            <Switch
               checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
+              onChange={(checked) => setRememberMe(checked)}
             />
-            <span className="auth-checkbox__box" />
             <span>Recordarme en este dispositivo</span>
           </label>
 
