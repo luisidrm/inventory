@@ -6,7 +6,7 @@ import { theme } from "./theme";
 export interface PieChartCardProps {
   title: string;
   data: { name: string; value: number }[];
-  colors?: string[];
+  colors?: readonly string[];
   height?: number;
   showLegend?: boolean;
 }
@@ -52,16 +52,16 @@ export function PieChartCard({
               innerRadius="55%"
               outerRadius="80%"
               paddingAngle={2}
-              label={({ name, percentLabel }: { name: string; percentLabel?: string }) => (percentLabel ? `${name} ${percentLabel}` : name)}
+              label={({ name, percentLabel }: { name?: string; percentLabel?: string }) => (percentLabel ? `${name ?? ""} ${percentLabel}` : (name ?? ""))}
             >
               {withPercent.map((_, i) => (
                 <Cell key={i} fill={colors[i % colors.length]} stroke={theme.surface} strokeWidth={2} />
               ))}
             </Pie>
             <Tooltip
-              formatter={(value: number, name: string, props: { payload: { percentLabel: string } }) => [
-                `${value} (${props.payload.percentLabel})`,
-                name,
+              formatter={(value: number | undefined, name?: string, item?: { payload?: { percentLabel?: string } }) => [
+                `${value ?? 0} (${item?.payload?.percentLabel ?? ""})`,
+                name ?? "",
               ]}
               contentStyle={{ background: theme.surface, border: `1px solid ${theme.divider}`, borderRadius: 8 }}
             />

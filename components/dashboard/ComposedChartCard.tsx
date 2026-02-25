@@ -70,7 +70,7 @@ export function ComposedChartCard({
             <Tooltip
               contentStyle={{ background: theme.surface, border: `1px solid ${theme.divider}`, borderRadius: 8 }}
               labelStyle={{ color: theme.primaryText }}
-              formatter={(value: number, name: string) => [value, name === "lineValue" ? lineName : "Cantidad"]}
+              formatter={(value: number | undefined, name?: string) => [value ?? 0, name === "lineValue" ? lineName : "Cantidad"]}
               labelFormatter={(label) => label}
             />
             {hasLine && (
