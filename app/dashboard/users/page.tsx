@@ -44,7 +44,7 @@ export default function UsersPage() {
   const user = useAppSelector((s) => s.auth);
   const organizationId = user?.organizationId ?? 0;
   const isAdmin =
-    user?.roleId === 0;
+    user?.roleId === 2;
 
   const { data: result, isLoading } = useGetUsersQuery({
     page,

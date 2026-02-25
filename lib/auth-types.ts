@@ -47,7 +47,14 @@ export interface UserResponse {
   organizationId?: number;
   roleId?: number;
   location?: LocationResponse;
-  organization?: OrganizationResponse;
+  organization?: {
+    id: number;
+    name: string;
+    code: string;
+    description?: string;
+    createdAt: string;
+    modifiedAt: string;
+  };
 }
 export interface LoginResponse {
   result: UserResponse;
