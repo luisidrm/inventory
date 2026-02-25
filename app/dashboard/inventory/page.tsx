@@ -14,6 +14,7 @@ import { useGetProductsQuery } from "../products/_service/productsApi";
 import { useGetLocationsQuery } from "../locations/_service/locationsApi";
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
+import { StatCard, LineChartCard, BarChartCard, PieChartCard, theme } from "@/components/dashboard";
 import "../products/products-modal.css";
 
 const COLUMNS: DataTableColumn<InventoryResponse>[] = [
@@ -150,8 +151,30 @@ export default function InventoryPage() {
     }
   };
 
+  const inventoryStats = [
+    { label: "Valor Total", value: "$45,280.00", icon: "payment", trend: "+12% vs mes pasado", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+    { label: "Stock Bajo", value: "12", icon: "warning", trend: "3 nuevos hoy", trendUp: true, iconBg: "#FEF2F2", iconColor: theme.error },
+    { label: "Movimientos", value: "142", icon: "swap_vert", trend: "-5% vs ayer", trendUp: false, iconBg: "#EEF2FF", iconColor: theme.accent },
+    { label: "Productos", value: "854", icon: "inventory", trend: "+8 nuevos", trendUp: true, iconBg: "#F1F5F9", iconColor: theme.primary },
+  ];
+  const flowData = [
+    { label: "Lun", value: 45 }, { label: "Mar", value: 52 }, { label: "Mié", value: 48 }, { label: "Jue", value: 70 }, { label: "Vie", value: 65 }, { label: "Sáb", value: 85 }, { label: "Dom", value: 92 },
+  ];
+  const stockByLocation = [
+    { label: "Almacén A", value: 420 }, { label: "Almacén B", value: 280 }, { label: "Sucursal Centro", value: 195 }, { label: "Sucursal Norte", value: 120 }, { label: "Showroom", value: 85 },
+  ];
+
   return (
     <>
+      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+          {inventoryStats.map((s) => <StatCard key={s.label} {...s} />)}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+          <LineChartCard title="Flujo de Inventario (7 días)" data={flowData} height={340} />
+          <BarChartCard title="Stock por Ubicación" subtitle="Unidades por ubicación" data={stockByLocation} height={340} />
+        </div>
+      </div>
       <DataTable
         data={filteredData}
         columns={COLUMNS}

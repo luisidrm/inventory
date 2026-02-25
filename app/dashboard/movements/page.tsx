@@ -8,6 +8,7 @@ import { useGetMovementsQuery, useCreateMovementMutation } from "./_service/move
 import { useGetProductsQuery } from "../products/_service/productsApi";
 import { useGetLocationsQuery } from "../locations/_service/locationsApi";
 import { FormModal } from "@/components/FormModal";
+import { StatCard, ComposedChartCard, PieChartCard, theme } from "@/components/dashboard";
 import "../products/products-modal.css";
 
 const COLUMNS: DataTableColumn<InventoryMovementResponse>[] = [
@@ -106,8 +107,36 @@ export default function MovementsPage() {
     }
   };
 
+  const movementStats = [
+    { label: "Total Movimientos", value: "1,284", icon: "sync_alt", trend: "+12% vs mes ant.", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+    { label: "Entradas (Stock)", value: "842", icon: "add_circle_outline", trend: "+5% hoy", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+    { label: "Salidas (Stock)", value: "442", icon: "remove_circle_outline", trend: "-2% hoy", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
+    { label: "Ajustes Manuales", value: "12", icon: "tune", trend: "Estable", trendUp: true, iconBg: "#F5F3FF", iconColor: theme.accent },
+  ];
+  const flowWithCumulative = [
+    { label: "Lun", value: 45, lineValue: 45 },
+    { label: "Mar", value: 52, lineValue: 97 },
+    { label: "Mié", value: 38, lineValue: 135 },
+    { label: "Jue", value: 65, lineValue: 200 },
+    { label: "Vie", value: 48, lineValue: 248 },
+    { label: "Sáb", value: 72, lineValue: 320 },
+    { label: "Dom", value: 58, lineValue: 378 },
+  ];
+  const typePie = [
+    { name: "Entradas", value: 65 }, { name: "Salidas", value: 30 }, { name: "Ajustes", value: 5 },
+  ];
+
   return (
     <>
+      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+          {movementStats.map((s) => <StatCard key={s.label} {...s} />)}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+          <ComposedChartCard title="Movimientos por día y acumulado" subtitle="Barras: cantidad diaria · Línea: acumulado" data={flowWithCumulative} height={220} lineName="Acumulado" />
+          <PieChartCard title="Distribución por Tipo" data={typePie} height={220} />
+        </div>
+      </div>
       <DataTable
         data={filteredData}
         columns={COLUMNS}

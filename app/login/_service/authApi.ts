@@ -16,7 +16,7 @@ export interface RegisterWithOrganizationRequest {
   password: string;
   confirmationPassword: string;
   birthday: string;
-  gender: number;
+  gender: number | null;
   phone?: string;
   organizationId?: number;
 }

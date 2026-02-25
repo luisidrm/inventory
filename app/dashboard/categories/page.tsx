@@ -12,6 +12,7 @@ import {
 } from "./_service/categoriesApi";
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
+import { StatCard, BarChartCard, PieChartCard, theme } from "@/components/dashboard";
 import "../products/products-modal.css";
 
 const COLUMNS: DataTableColumn<ProductCategoryResponse>[] = [
@@ -134,8 +135,30 @@ export default function CategoriesPage() {
     }
   };
 
+  const categoryStats = [
+    { label: "Total Categorías", value: "24", icon: "category", iconBg: "#EEF2FF", iconColor: theme.accent },
+    { label: "Más Activa", value: "Comida", icon: "trending_up", iconBg: "#F0FDF4", iconColor: theme.success },
+    { label: "Última Edición", value: "2h ago", icon: "schedule", iconBg: "#FFFBEB", iconColor: "#F59E0B" },
+    { label: "Items Totales", value: "1,240", icon: "bar_chart", iconBg: "#ECFEFF", iconColor: "#06B6D4" },
+  ];
+  const distributionData = [
+    { label: "Liq", value: 45 }, { label: "Sol", value: 32 }, { label: "Tec", value: 67 }, { label: "Ase", value: 23 }, { label: "Com", value: 89 }, { label: "Per", value: 12 }, { label: "Mis", value: 54 },
+  ];
+  const storagePie = [
+    { name: "Comida", value: 40 }, { name: "Tecno", value: 25 }, { name: "Aseo", value: 20 }, { name: "Otros", value: 15 },
+  ];
+
   return (
     <>
+      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+          {categoryStats.map((s) => <StatCard key={s.label} {...s} />)}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+          <BarChartCard title="Distribución de Items" subtitle="Por categoría" data={distributionData} height={300} horizontal />
+          <PieChartCard title="Uso de Almacenamiento" data={storagePie} height={300} />
+        </div>
+      </div>
       <DataTable
         data={filteredData}
         columns={COLUMNS}

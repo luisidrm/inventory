@@ -29,7 +29,7 @@ export interface RegisterWithOrganizationRequest {
   confirmationPassword: string;
   birthday: string;
   phone: string;
-  gender: number;
+  gender: number | null;
 }
 
 export interface UserResponse {

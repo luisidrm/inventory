@@ -5,6 +5,7 @@ import { Icon } from "@/components/ui/Icon";
 import type { ProductResponse, CreateProductRequest } from "@/lib/dashboard-types";
 import "./products-modal.css";
 import { DataTable } from "@/components/DataTable";
+import { StatCard, BarChartCard, PieChartCard, theme } from "@/components/dashboard";
 import type { DataTableColumn } from "@/components/DataTable";
 import {
   useGetProductsQuery,
@@ -70,6 +71,12 @@ export default function ProductsPage() {
 
   const categories = categoriesResult?.data ?? [];
 
+  // Fuente de datos: al volver a la vista, usar result.data de la caché si allRows está vacío (evita tabla vacía sin refrescar)
+  const loadedRows =
+    page === 1 && allRows.length === 0
+      ? (result?.data ?? [])
+      : allRows;
+
   // Accumulate rows across pages
   useEffect(() => {
     if (!result?.data) return;
@@ -85,12 +92,12 @@ export default function ProductsPage() {
   }, [searchTerm]);
 
   const filteredData = searchTerm.trim()
-    ? allRows.filter((row) =>
+    ? loadedRows.filter((row) =>
         Object.values(row).some((val) =>
           String(val ?? "").toLowerCase().includes(searchTerm.toLowerCase())
         )
       )
-    : allRows;
+    : loadedRows;
 
   const hasMore = result?.pagination
     ? page < result.pagination.totalPages
@@ -199,10 +206,33 @@ export default function ProductsPage() {
     }
   };
 
+  // ─── Estadísticas estáticas ────────────────────────────────────────────────
+  const productStats = [
+    { label: "Total Productos", value: "1,284", icon: "inventory_2", trend: "+12% vs mes pasado", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+    { label: "Valor Inventario", value: "$45,200", icon: "payment", trend: "+4% vs mes pasado", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+    { label: "Stock Crítico", value: "18", icon: "warning", trend: "↓2% vs mes pasado", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
+    { label: "Movimientos Hoy", value: "142", icon: "swap_horiz", trend: "+8% vs mes pasado", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+  ];
+  const performanceData = [
+    { label: "Lun", value: 45 }, { label: "Mar", value: 52 }, { label: "Mié", value: 38 }, { label: "Jue", value: 65 }, { label: "Vie", value: 48 }, { label: "Sáb", value: 80 }, { label: "Dom", value: 72 },
+  ];
+  const stockByCategory = [
+    { name: "Higiene", value: 40 }, { name: "Alimentos", value: 25 }, { name: "Limpieza", value: 20 }, { name: "Otros", value: 15 },
+  ];
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
+      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+          {productStats.map((s) => <StatCard key={s.label} {...s} />)}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+          <BarChartCard title="Rendimiento de Inventario" subtitle="Unidades por día" data={performanceData} height={300} />
+          <PieChartCard title="Stock por Categoría" data={stockByCategory} height={300} />
+        </div>
+      </div>
       <DataTable
         data={filteredData}
         columns={COLUMNS}

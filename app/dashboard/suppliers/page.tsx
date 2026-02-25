@@ -13,6 +13,7 @@ import {
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
 import Switch from "@/components/Switch";
+import { StatCard, LineChartCard, PieChartCard, theme } from "@/components/dashboard";
 import "../products/products-modal.css";
 
 const COLUMNS: DataTableColumn<SupplierResponse>[] = [
@@ -145,8 +146,30 @@ export default function SuppliersPage() {
     }
   };
 
+  const supplierStats = [
+    { label: "Total Proveedores", value: "124", icon: "group", trend: "+12%", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+    { label: "Órdenes Activas", value: "48", icon: "shopping_cart", trend: "+8%", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+    { label: "Cumplimiento", value: "94%", icon: "check_circle", trend: "+3%", trendUp: true, iconBg: "#FFFBEB", iconColor: "#F59E0B" },
+    { label: "Gastos Mes", value: "$12.4k", icon: "payment", trend: "+15%", trendUp: true, iconBg: "#FDF2F8", iconColor: "#EC4899" },
+  ];
+  const deliveryData = [
+    { label: "Lun", value: 45 }, { label: "Mar", value: 70 }, { label: "Mié", value: 55 }, { label: "Jue", value: 90 }, { label: "Vie", value: 65 }, { label: "Sáb", value: 80 },
+  ];
+  const supplierPie = [
+    { name: "Electrónica", value: 40 }, { name: "Hogar", value: 30 }, { name: "Textil", value: 20 }, { name: "Otros", value: 10 },
+  ];
+
   return (
     <>
+      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+          {supplierStats.map((s) => <StatCard key={s.label} {...s} />)}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+          <LineChartCard title="Pedidos y Entregas en el tiempo" subtitle="Últimos 7 días" data={deliveryData} height={300} filled={false} />
+          <PieChartCard title="Distribución por Categoría" data={supplierPie} height={300} />
+        </div>
+      </div>
       <DataTable
         data={filteredData}
         columns={COLUMNS}

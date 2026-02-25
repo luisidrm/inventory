@@ -20,8 +20,8 @@ export default function RegisterPage() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [gender, setGender] = useState(0);
+  const [phonePrefix, setPhonePrefix] = useState("+53");
+  const [phoneDigits, setPhoneDigits] = useState("");
   const [birthday, setBirthday] = useState("");
   const [password, setPassword] = useState("");
   const [confirmationPassword, setConfirmationPassword] = useState("");
@@ -36,12 +36,25 @@ export default function RegisterPage() {
 
   const passwordMismatch = !!password && !!confirmationPassword && password !== confirmationPassword;
 
+  const hasMinLength = password.length >= 6;
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasSpecialChar = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password);
+  const passwordValid = hasMinLength && hasUpperCase && hasSpecialChar;
+
+  const phoneDigitsOnly = phoneDigits.replace(/\D/g, "");
+  const phoneValidByPrefix =
+    !phoneDigitsOnly ||
+    (phonePrefix === "+53" && /^\d{7,8}$/.test(phoneDigitsOnly)) ||
+    (phonePrefix === "+1" && /^\d{10}$/.test(phoneDigitsOnly));
+  const phoneFull = phoneDigitsOnly ? `${phonePrefix}${phoneDigitsOnly}` : "";
+
   const personalValid =
     fullName.length >= 3 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
     birthday &&
-    password.length >= 6 &&
-    !passwordMismatch;
+    passwordValid &&
+    !passwordMismatch &&
+    phoneValidByPrefix;
 
   const orgValid = orgName.length >= 2 && orgCode.length >= 2;
 
@@ -64,9 +77,14 @@ export default function RegisterPage() {
       birthday: true,
       password: true,
       confirmationPassword: true,
+      phone: true,
     });
     if (!personalValid) {
       if (passwordMismatch) setErrorMessage("Las contraseñas no coinciden.");
+      else if (password.length > 0 && !passwordValid)
+        setErrorMessage("La contraseña requiere 6 caracteres, incluyendo al menos 1 letra en mayúsculas y 1 carácter especial.");
+      else if (phoneDigitsOnly && !phoneValidByPrefix)
+        setErrorMessage(phonePrefix === "+53" ? "Teléfono Cuba: 7 u 8 dígitos." : "Teléfono EE.UU./Canadá: 10 dígitos.");
       return;
     }
     setErrorMessage("");
@@ -91,8 +109,8 @@ export default function RegisterPage() {
         password,
         confirmationPassword,
         birthday: new Date(birthday).toISOString(),
-        phone: phone || "",
-        gender: Number(gender),
+        phone: phoneFull || "",
+        gender: null,
       });
       router.push("/login");
     } catch (err: any) {
@@ -185,40 +203,64 @@ export default function RegisterPage() {
                 ) : null}
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Teléfono <span className="optional">(opcional)</span></label>
-                  <div className="input-wrapper">
-                    <span className="input-icon"><Icon name="phone" /></span>
-                    <input
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+1 234 567"
-                    />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label>Género</label>
-                  <Select value={String(gender)} onValueChange={(val) => setGender(Number(val))}>
-                    <SelectTrigger className="input-wrapper select-wrapper">
-                      <Icon name="wc" />
-                      <SelectValue>{gender === 0 ? "Masculino" : gender === 1 ? "Femenino" : "Seleccionar género"}</SelectValue>
+              <div className="form-group">
+                <label>Teléfono <span className="optional">(opcional)</span></label>
+                <div className="input-wrapper input-wrapper--phone">
+                  <Select
+                    value={phonePrefix}
+                    onValueChange={(val: string) => {
+                      setPhonePrefix(val);
+                      if (val === "+53" && phoneDigits.replace(/\D/g, "").length > 8)
+                        setPhoneDigits((d) => d.replace(/\D/g, "").slice(0, 8));
+                    }}
+                  >
+                    <SelectTrigger className="phone-prefix-trigger">
+                      <SelectValue>
+                        {phonePrefix === "+53" ? (
+                          <span className="phone-option">
+                            <img src="https://flagcdn.com/w20/cu.png" alt="CU" width={20} height={14} className="phone-flag" />
+                            +53
+                          </span>
+                        ) : (
+                          <span className="phone-option">
+                            <img src="https://flagcdn.com/w20/us.png" alt="US" width={20} height={14} className="phone-flag" />
+                            +1
+                          </span>
+                        )}
+                      </SelectValue>
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value={"0"}>Masculino</SelectItem>
-                        <SelectItem value={"1"}>Femenino</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="+53">
+                            <span className="phone-option">
+                              <img src="https://flagcdn.com/w20/cu.png" alt="CU" width={20} height={14} className="phone-flag" />
+                              +53
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="+1">
+                            <span className="phone-option">
+                              <img src="https://flagcdn.com/w20/us.png" alt="US" width={20} height={14} className="phone-flag" />
+                              +1
+                            </span>
+                          </SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
                   </Select>
-                  {/* <select
-                      value={gender}
-                      onChange={(e) => setGender(Number(e.target.value))}
-                    >
-                      <option value={0}>Masculino</option>
-                      <option value={1}>Femenino</option>
-                    </select> */}
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    value={phoneDigits}
+                    onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, "").slice(0, phonePrefix === "+1" ? 10 : 8))}
+                    onBlur={() => setTouchedPersonal((t) => ({ ...t, phone: true }))}
+                    placeholder="+1 234 567"
+                    className="phone-number-input"
+                  />
                 </div>
+                {touchedPersonal.phone && phoneDigitsOnly && !phoneValidByPrefix ? (
+                  <span className="form-error">
+                    {phonePrefix === "+53" ? "Introduce 7 u 8 dígitos (ej. 51234567)." : "Introduce 10 dígitos (ej. 2345678901)."}
+                  </span>
+                ) : null}
               </div>
 
               <div className="form-group">
@@ -246,7 +288,7 @@ export default function RegisterPage() {
               <div className="form-group">
                 <label>Contraseña</label>
                 <div
-                  className={`input-wrapper ${touchedPersonal.password && password.length < 6 ? "error" : ""}`}
+                  className={`input-wrapper ${touchedPersonal.password && password.length > 0 && !passwordValid ? "error" : ""}`}
                 >
                   <span className="input-icon"><Icon name="lock_outline" /></span>
                   <input
@@ -254,7 +296,7 @@ export default function RegisterPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onBlur={() => setTouchedPersonal((t) => ({ ...t, password: true }))}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Escriba su contraseña"
                   />
                   <button
                     type="button"
@@ -265,8 +307,9 @@ export default function RegisterPage() {
                     <Icon name={hidePassword ? "visibility_off" : "visibility"} />
                   </button>
                 </div>
-                {touchedPersonal.password && password.length > 0 && password.length < 6 ? (
-                  <span className="form-error">Mínimo 6 caracteres</span>
+                <span className="form-hint">Mínimo 6 caracteres, al menos 1 mayúscula y 1 carácter especial.</span>
+                {touchedPersonal.password && password.length > 0 && !passwordValid ? (
+                  <span className="form-error">La contraseña requiere 6 caracteres, incluyendo al menos 1 letra en mayúsculas y 1 carácter especial.</span>
                 ) : null}
               </div>
 
@@ -297,7 +340,7 @@ export default function RegisterPage() {
                 ) : null}
               </div>
 
-              <button type="submit" className="auth-btn">
+              <button type="submit" className="auth-btn" disabled={!personalValid}>
                 <span>Siguiente</span>
                 <Icon name="arrow_forward" />
               </button>
