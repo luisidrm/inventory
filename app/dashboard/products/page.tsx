@@ -10,6 +10,9 @@ import type { DataTableColumn } from "@/components/DataTable";
 import {
   useGetProductsQuery,
   useGetProductCategoriesQuery,
+  useGetProductStatsQuery,
+  useGetProductPerformanceQuery,
+  useGetProductStockByCategoryQuery,
   useCreateProductMutation,
   useUpdateProductMutation,
   useDeleteProductMutation,
@@ -206,17 +209,28 @@ export default function ProductsPage() {
     }
   };
 
-  // ─── Estadísticas estáticas ────────────────────────────────────────────────
-  const productStats = [
-    { label: "Total Productos", value: "1,284", icon: "inventory_2", trend: "+12% vs mes pasado", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-    { label: "Valor Inventario", value: "$45,200", icon: "payment", trend: "+4% vs mes pasado", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
-    { label: "Stock Crítico", value: "18", icon: "warning", trend: "↓2% vs mes pasado", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
-    { label: "Movimientos Hoy", value: "142", icon: "swap_horiz", trend: "+8% vs mes pasado", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-  ];
-  const performanceData = [
+  // ─── Estadísticas desde API (fallback estático) ─────────────────────────────
+  const { data: productStatsApi } = useGetProductStatsQuery();
+  const { data: performanceApi } = useGetProductPerformanceQuery();
+  const { data: stockByCategoryApi } = useGetProductStockByCategoryQuery();
+
+  const productStats = productStatsApi && typeof productStatsApi === "object"
+    ? [
+        { label: "Total Productos", value: String((productStatsApi as Record<string, unknown>).totalProducts ?? "1,284"), icon: "inventory_2" as const, trend: `+${(productStatsApi as Record<string, unknown>).totalProductsTrend ?? 12}% vs mes pasado`, trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+        { label: "Valor Inventario", value: (productStatsApi as Record<string, unknown>).inventoryValue != null ? `$${Number((productStatsApi as Record<string, unknown>).inventoryValue).toLocaleString("es")}` : "$45,200", icon: "payment" as const, trend: `+${(productStatsApi as Record<string, unknown>).inventoryValueTrend ?? 4}% vs mes pasado`, trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+        { label: "Stock Crítico", value: String((productStatsApi as Record<string, unknown>).criticalStockCount ?? "18"), icon: "warning" as const, trend: "↓2% vs mes pasado", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
+        { label: "Movimientos Hoy", value: String((productStatsApi as Record<string, unknown>).movementsToday ?? "142"), icon: "swap_horiz" as const, trend: `+${(productStatsApi as Record<string, unknown>).movementsTodayTrend ?? 8}% vs mes pasado`, trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+      ]
+    : [
+        { label: "Total Productos", value: "1,284", icon: "inventory_2" as const, trend: "+12% vs mes pasado", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+        { label: "Valor Inventario", value: "$45,200", icon: "payment" as const, trend: "+4% vs mes pasado", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+        { label: "Stock Crítico", value: "18", icon: "warning" as const, trend: "↓2% vs mes pasado", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
+        { label: "Movimientos Hoy", value: "142", icon: "swap_horiz" as const, trend: "+8% vs mes pasado", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+      ];
+  const performanceData = (performanceApi && performanceApi.length > 0) ? performanceApi : [
     { label: "Lun", value: 45 }, { label: "Mar", value: 52 }, { label: "Mié", value: 38 }, { label: "Jue", value: 65 }, { label: "Vie", value: 48 }, { label: "Sáb", value: 80 }, { label: "Dom", value: 72 },
   ];
-  const stockByCategory = [
+  const stockByCategory = (stockByCategoryApi && stockByCategoryApi.length > 0) ? stockByCategoryApi : [
     { name: "Higiene", value: 40 }, { name: "Alimentos", value: 25 }, { name: "Limpieza", value: 20 }, { name: "Otros", value: 15 },
   ];
 

@@ -6,6 +6,9 @@ import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
 import {
   useGetInventoriesQuery,
+  useGetInventoryStatsQuery,
+  useGetInventoryFlowQuery,
+  useGetStockByLocationQuery,
   useCreateInventoryMutation,
   useUpdateInventoryMutation,
   useDeleteInventoryMutation,
@@ -151,16 +154,27 @@ export default function InventoryPage() {
     }
   };
 
-  const inventoryStats = [
-    { label: "Valor Total", value: "$45,280.00", icon: "payment", trend: "+12% vs mes pasado", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
-    { label: "Stock Bajo", value: "12", icon: "warning", trend: "3 nuevos hoy", trendUp: true, iconBg: "#FEF2F2", iconColor: theme.error },
-    { label: "Movimientos", value: "142", icon: "swap_vert", trend: "-5% vs ayer", trendUp: false, iconBg: "#EEF2FF", iconColor: theme.accent },
-    { label: "Productos", value: "854", icon: "inventory", trend: "+8 nuevos", trendUp: true, iconBg: "#F1F5F9", iconColor: theme.primary },
-  ];
-  const flowData = [
+  const { data: inventoryStatsApi } = useGetInventoryStatsQuery();
+  const { data: flowApi } = useGetInventoryFlowQuery();
+  const { data: stockByLocationApi } = useGetStockByLocationQuery();
+
+  const inventoryStats = inventoryStatsApi && typeof inventoryStatsApi === "object"
+    ? [
+        { label: "Valor Total", value: typeof inventoryStatsApi.totalValue === "number" ? `$${inventoryStatsApi.totalValue.toLocaleString("es")}` : "$45,280.00", icon: "payment" as const, trend: `+${inventoryStatsApi.totalValueTrend ?? 12}% vs mes pasado`, trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+        { label: "Stock Bajo", value: String(inventoryStatsApi.lowStockCount ?? 12), icon: "warning" as const, trend: `${inventoryStatsApi.lowStockNewToday ?? 3} nuevos hoy`, trendUp: true, iconBg: "#FEF2F2", iconColor: theme.error },
+        { label: "Movimientos", value: String(inventoryStatsApi.movementsCount ?? 142), icon: "swap_vert" as const, trend: `${(inventoryStatsApi.movementsTrend as number ?? -5) >= 0 ? "+" : ""}${inventoryStatsApi.movementsTrend ?? -5}% vs ayer`, trendUp: (inventoryStatsApi.movementsTrend as number ?? 0) >= 0, iconBg: "#EEF2FF", iconColor: theme.accent },
+        { label: "Productos", value: String(inventoryStatsApi.productsCount ?? 854), icon: "inventory" as const, trend: `+${inventoryStatsApi.productsNewCount ?? 8} nuevos`, trendUp: true, iconBg: "#F1F5F9", iconColor: theme.primary },
+      ]
+    : [
+        { label: "Valor Total", value: "$45,280.00", icon: "payment" as const, trend: "+12% vs mes pasado", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+        { label: "Stock Bajo", value: "12", icon: "warning" as const, trend: "3 nuevos hoy", trendUp: true, iconBg: "#FEF2F2", iconColor: theme.error },
+        { label: "Movimientos", value: "142", icon: "swap_vert" as const, trend: "-5% vs ayer", trendUp: false, iconBg: "#EEF2FF", iconColor: theme.accent },
+        { label: "Productos", value: "854", icon: "inventory" as const, trend: "+8 nuevos", trendUp: true, iconBg: "#F1F5F9", iconColor: theme.primary },
+      ];
+  const flowData = (flowApi && flowApi.length > 0) ? flowApi : [
     { label: "Lun", value: 45 }, { label: "Mar", value: 52 }, { label: "Mié", value: 48 }, { label: "Jue", value: 70 }, { label: "Vie", value: 65 }, { label: "Sáb", value: 85 }, { label: "Dom", value: 92 },
   ];
-  const stockByLocation = [
+  const stockByLocation = (stockByLocationApi && stockByLocationApi.length > 0) ? stockByLocationApi : [
     { label: "Almacén A", value: 420 }, { label: "Almacén B", value: 280 }, { label: "Sucursal Centro", value: 195 }, { label: "Sucursal Norte", value: 120 }, { label: "Showroom", value: 85 },
   ];
 

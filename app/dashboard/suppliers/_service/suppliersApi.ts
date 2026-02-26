@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { getApiUrl, getToken } from "@/lib/auth-api";
-import { parsePaginated } from "@/lib/api-utils";
+import { parsePaginated, parseChartResult, parseSummaryResult } from "@/lib/api-utils";
 import type {
   SupplierResponse,
   CreateSupplierRequest,
@@ -68,6 +68,31 @@ export const suppliersApi = createApi({
       query: (id) => ({ url: "/supplier?id=" + id, method: "DELETE" }),
       invalidatesTags: (_r, _e, id) => [{ type: "Supplier", id }, { type: "Supplier", id: "LIST" }],
     }),
+    getSupplierStats: builder.query<Record<string, unknown> | null, { from?: string; to?: string } | void>({
+      query: (arg) => {
+        const params = new URLSearchParams();
+        if (arg?.from) params.set("from", arg.from);
+        if (arg?.to) params.set("to", arg.to);
+        const q = params.toString();
+        return `/supplier/stats${q ? `?${q}` : ""}`;
+      },
+      transformResponse: parseSummaryResult<Record<string, unknown>>,
+    }),
+    getDeliveryTimeline: builder.query<{ label: string; value: number }[], { days?: number; from?: string; to?: string } | void>({
+      query: (arg) => {
+        const params = new URLSearchParams();
+        if (arg?.days != null) params.set("days", String(arg.days));
+        if (arg?.from) params.set("from", arg.from);
+        if (arg?.to) params.set("to", arg.to);
+        const q = params.toString();
+        return `/supplier/delivery-timeline${q ? `?${q}` : ""}`;
+      },
+      transformResponse: (raw: unknown) => parseChartResult<{ label: string; value: number }>(raw),
+    }),
+    getSupplierCategoryDistribution: builder.query<{ name: string; value: number }[], void>({
+      query: () => "/supplier/category-distribution",
+      transformResponse: (raw: unknown) => parseChartResult<{ name: string; value: number }>(raw),
+    }),
   }),
 });
 
@@ -76,4 +101,7 @@ export const {
   useCreateSupplierMutation,
   useUpdateSupplierMutation,
   useDeleteSupplierMutation,
+  useGetSupplierStatsQuery,
+  useGetDeliveryTimelineQuery,
+  useGetSupplierCategoryDistributionQuery,
 } = suppliersApi;

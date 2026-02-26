@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { getApiUrl, getToken } from "@/lib/auth-api";
-import { parsePaginated } from "@/lib/api-utils";
+import { parsePaginated, parseChartResult, parseSummaryResult } from "@/lib/api-utils";
 import type {
   InventoryMovementResponse,
   CreateInventoryMovementRequest,
@@ -57,10 +57,32 @@ export const movementsApi = createApi({
         { type: "Inventory", id: "LIST" },
       ],
     }),
+    getMovementStats: builder.query<Record<string, unknown> | null, { from?: string; to?: string; today?: boolean } | void>({
+      query: (arg) => {
+        const params = new URLSearchParams();
+        if (arg?.from) params.set("from", arg.from);
+        if (arg?.to) params.set("to", arg.to);
+        if (arg?.today != null) params.set("today", String(arg.today));
+        const q = params.toString();
+        return `/inventory-movement/stats${q ? `?${q}` : ""}`;
+      },
+      transformResponse: parseSummaryResult<Record<string, unknown>>,
+    }),
+    getFlowWithCumulative: builder.query<{ label: string; value: number; lineValue?: number }[], { days?: number } | void>({
+      query: (arg) => `/inventory-movement/flow-with-cumulative?days=${(arg as { days?: number })?.days ?? 7}`,
+      transformResponse: (raw: unknown) => parseChartResult<{ label: string; value: number; lineValue?: number }>(raw),
+    }),
+    getDistributionByType: builder.query<{ name: string; value: number }[], void>({
+      query: () => "/inventory-movement/distribution-by-type",
+      transformResponse: (raw: unknown) => parseChartResult<{ name: string; value: number }>(raw),
+    }),
   }),
 });
 
 export const {
   useGetMovementsQuery,
   useCreateMovementMutation,
+  useGetMovementStatsQuery,
+  useGetFlowWithCumulativeQuery,
+  useGetDistributionByTypeQuery,
 } = movementsApi;

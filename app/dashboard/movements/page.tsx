@@ -1,27 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import type { InventoryMovementResponse, CreateInventoryMovementRequest } from "@/lib/dashboard-types";
+import { useState, useMemo, useRef, useEffect } from "react";
+import type { InventoryMovementResponse, CreateInventoryMovementRequest, ProductResponse } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
-import { useGetMovementsQuery, useCreateMovementMutation } from "./_service/movementsApi";
+import { useGetMovementsQuery, useGetMovementStatsQuery, useGetFlowWithCumulativeQuery, useGetDistributionByTypeQuery, useCreateMovementMutation } from "./_service/movementsApi";
 import { useGetProductsQuery } from "../products/_service/productsApi";
 import { useGetLocationsQuery } from "../locations/_service/locationsApi";
 import { FormModal } from "@/components/FormModal";
 import { StatCard, ComposedChartCard, PieChartCard, theme } from "@/components/dashboard";
+import { Icon } from "@/components/ui/Icon";
 import "../products/products-modal.css";
 
-const COLUMNS: DataTableColumn<InventoryMovementResponse>[] = [
-  { key: "id", label: "ID", width: "60px" },
-  { key: "productId", label: "Producto ID" },
-  { key: "type", label: "Tipo" },
-  { key: "quantity", label: "Cantidad", type: "number" },
-  { key: "previousStock", label: "Stock anterior", type: "number" },
-  { key: "newStock", label: "Stock nuevo", type: "number" },
-  { key: "locationName", label: "Ubicación" },
-  { key: "reason", label: "Razón" },
-  { key: "createdAt", label: "Fecha", type: "date" },
-];
+const MOVEMENT_TYPE_LABELS: Record<string, string> = {
+  "0": "Entrada",
+  "1": "Salida",
+  "2": "Ajuste",
+  "3": "Transferencia",
+};
 
 const MOVEMENT_TYPES = [
   { value: 0, label: "Entrada" },
@@ -35,8 +31,6 @@ const initialForm = {
   locationId: "" as number | string,
   type: 0 as number,
   quantity: "0",
-  unitCost: "",
-  unitPrice: "",
   reason: "",
   referenceDocument: "",
 };
@@ -49,6 +43,9 @@ export default function MovementsPage() {
   const [form, setForm] = useState(initialForm);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [productSearch, setProductSearch] = useState("");
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
 
   const { data: result, isLoading } = useGetMovementsQuery({ page, perPage: pageSize });
   const { data: productsResult } = useGetProductsQuery({ page: 1, perPage: 100 });
@@ -64,9 +61,38 @@ export default function MovementsPage() {
       )
     : allRows;
 
-  const openCreate = () => {
-    setForm(initialForm);
+  const columns: DataTableColumn<InventoryMovementResponse>[] = useMemo(
+    () => [
+      { key: "id", label: "ID", width: "60px" },
+      {
+        key: "productId",
+        label: "Producto",
+        render: (row) => {
+          if (row.productName) return row.productName;
+          const p = products.find((x: ProductResponse) => x.id === row.productId);
+          return p ? (p.code ? `${p.code} - ${p.name}` : p.name) : String(row.productId);
+        },
+      },
+      {
+        key: "type",
+        label: "Tipo",
+        render: (row) => MOVEMENT_TYPE_LABELS[String(row.type)] ?? row.type,
+      },
+      { key: "quantity", label: "Cantidad", type: "number" },
+      { key: "previousStock", label: "Stock anterior", type: "number" },
+      { key: "newStock", label: "Stock nuevo", type: "number" },
+      { key: "locationName", label: "Ubicación" },
+      { key: "reason", label: "Razón" },
+      { key: "createdAt", label: "Fecha", type: "date" },
+    ],
+    [products]
+  );
+
+  const openCreate = (type: 0 | 1 = 0) => {
+    setForm({ ...initialForm, type });
     setFormErrors({});
+    setProductSearch("");
+    setProductDropdownOpen(false);
     setFormOpen(true);
   };
 
@@ -92,8 +118,6 @@ export default function MovementsPage() {
         locationId: Number(form.locationId),
         type: form.type,
         quantity: Number(form.quantity),
-        unitCost: form.unitCost ? Number(form.unitCost) : undefined,
-        unitPrice: form.unitPrice ? Number(form.unitPrice) : undefined,
         reason: form.reason.trim() || undefined,
         referenceDocument: form.referenceDocument.trim() || undefined,
       };
@@ -107,13 +131,24 @@ export default function MovementsPage() {
     }
   };
 
-  const movementStats = [
-    { label: "Total Movimientos", value: "1,284", icon: "sync_alt", trend: "+12% vs mes ant.", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-    { label: "Entradas (Stock)", value: "842", icon: "add_circle_outline", trend: "+5% hoy", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
-    { label: "Salidas (Stock)", value: "442", icon: "remove_circle_outline", trend: "-2% hoy", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
-    { label: "Ajustes Manuales", value: "12", icon: "tune", trend: "Estable", trendUp: true, iconBg: "#F5F3FF", iconColor: theme.accent },
-  ];
-  const flowWithCumulative = [
+  const { data: movementStatsApi } = useGetMovementStatsQuery();
+  const { data: flowCumulativeApi } = useGetFlowWithCumulativeQuery();
+  const { data: typePieApi } = useGetDistributionByTypeQuery();
+
+  const movementStats = movementStatsApi && typeof movementStatsApi === "object"
+    ? [
+        { label: "Total Movimientos", value: String(movementStatsApi.totalMovements ?? "1,284"), icon: "sync_alt" as const, trend: `+${movementStatsApi.totalMovementsTrend ?? 12}% vs mes ant.`, trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+        { label: "Entradas (Stock)", value: String(movementStatsApi.entriesCount ?? 842), icon: "add_circle_outline" as const, trend: `+${movementStatsApi.entriesTrend ?? 5}% hoy`, trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+        { label: "Salidas (Stock)", value: String(movementStatsApi.exitsCount ?? 442), icon: "remove_circle_outline" as const, trend: `${(movementStatsApi.exitsTrend as number ?? -2) >= 0 ? "+" : ""}${movementStatsApi.exitsTrend ?? -2}% hoy`, trendUp: (movementStatsApi.exitsTrend as number ?? 0) >= 0, iconBg: "#FEF2F2", iconColor: theme.error },
+        { label: "Ajustes Manuales", value: String(movementStatsApi.adjustmentsCount ?? 12), icon: "tune" as const, trend: String(movementStatsApi.adjustmentsLabel ?? "Estable"), trendUp: true, iconBg: "#F5F3FF", iconColor: theme.accent },
+      ]
+    : [
+        { label: "Total Movimientos", value: "1,284", icon: "sync_alt" as const, trend: "+12% vs mes ant.", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+        { label: "Entradas (Stock)", value: "842", icon: "add_circle_outline" as const, trend: "+5% hoy", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+        { label: "Salidas (Stock)", value: "442", icon: "remove_circle_outline" as const, trend: "-2% hoy", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
+        { label: "Ajustes Manuales", value: "12", icon: "tune" as const, trend: "Estable", trendUp: true, iconBg: "#F5F3FF", iconColor: theme.accent },
+      ];
+  const flowWithCumulative = (flowCumulativeApi && flowCumulativeApi.length > 0) ? flowCumulativeApi : [
     { label: "Lun", value: 45, lineValue: 45 },
     { label: "Mar", value: 52, lineValue: 97 },
     { label: "Mié", value: 38, lineValue: 135 },
@@ -122,9 +157,47 @@ export default function MovementsPage() {
     { label: "Sáb", value: 72, lineValue: 320 },
     { label: "Dom", value: 58, lineValue: 378 },
   ];
-  const typePie = [
+  const typePie = (typePieApi && typePieApi.length > 0) ? typePieApi : [
     { name: "Entradas", value: 65 }, { name: "Salidas", value: 30 }, { name: "Ajustes", value: 5 },
   ];
+
+  const filteredProducts = useMemo(() => {
+    const term = productSearch.trim().toLowerCase();
+    if (!term) return products;
+    return products.filter(
+      (p) =>
+        String(p.code ?? "").toLowerCase().includes(term) ||
+        String(p.name ?? "").toLowerCase().includes(term)
+    );
+  }, [products, productSearch]);
+
+  const selectedProduct = useMemo(
+    () => (form.productId ? products.find((p) => p.id === Number(form.productId)) : null),
+    [products, form.productId]
+  );
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node)) {
+        setProductDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const movementToolbar = (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <button type="button" className="dt-btn-add" onClick={() => openCreate(0)} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <Icon name="add_circle_outline" />
+        Registrar entrada
+      </button>
+      <button type="button" className="dt-btn-add" onClick={() => openCreate(1)} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#FEF2F2", color: "#B91C1C" }}>
+        <Icon name="remove_circle_outline" />
+        Registrar salida
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -139,14 +212,13 @@ export default function MovementsPage() {
       </div>
       <DataTable
         data={filteredData}
-        columns={COLUMNS}
+        columns={columns}
         loading={isLoading}
         title="Movimientos de inventario"
         titleIcon="swap_horiz"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel="Nuevo movimiento"
-        onAdd={openCreate}
+        toolbarExtra={movementToolbar}
         pagination={result?.pagination ?? undefined}
         pageSize={pageSize}
         onPageChange={setPage}
@@ -163,29 +235,76 @@ export default function MovementsPage() {
         <FormModal
           open={formOpen}
           onClose={closeForm}
-          title="Nuevo movimiento"
-          icon="swap_horiz"
+          title={form.type === 1 ? "Registrar salida" : "Registrar entrada"}
+          icon={form.type === 1 ? "remove_circle_outline" : "add_circle_outline"}
           onSubmit={handleSubmit}
           submitting={formSubmitting}
           submitLabel="Registrar"
           error={formErrors.submit}
         >
-          <div className="modal-field field-full">
-            <label htmlFor="productId">Producto *</label>
-            <select
-              id="productId"
-              value={form.productId}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, productId: e.target.value === "" ? "" : Number(e.target.value) }))
-              }
-            >
-              <option value="">Seleccionar</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.code} - {p.name}
-                </option>
-              ))}
-            </select>
+          <div className="modal-field field-full" ref={productDropdownRef}>
+            <label htmlFor="productSearch">Producto *</label>
+            <input
+              id="productSearch"
+              type="text"
+              autoComplete="off"
+              placeholder="Escribe para buscar por código o nombre..."
+              value={productDropdownOpen ? productSearch : (selectedProduct ? `${selectedProduct.code} - ${selectedProduct.name}` : productSearch)}
+              onChange={(e) => {
+                setProductSearch(e.target.value);
+                setProductDropdownOpen(true);
+                if (form.productId) setForm((f) => ({ ...f, productId: "" }));
+              }}
+              onFocus={() => {
+                setProductDropdownOpen(true);
+                if (selectedProduct && !productSearch) setProductSearch(`${selectedProduct.code} - ${selectedProduct.name}`);
+              }}
+            />
+            {productDropdownOpen && (
+              <ul
+                className="modal-product-dropdown"
+                style={{
+                  listStyle: "none",
+                  margin: 0,
+                  padding: 0,
+                  marginTop: 4,
+                  maxHeight: 220,
+                  overflowY: "auto",
+                  border: `1px solid ${theme.divider}`,
+                  borderRadius: 8,
+                  background: theme.surface,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                }}
+              >
+                {filteredProducts.length === 0 ? (
+                  <li style={{ padding: "12px 14px", color: theme.secondaryText, fontSize: 14 }}>Sin coincidencias</li>
+                ) : (
+                  filteredProducts.map((p: ProductResponse) => (
+                    <li
+                      key={p.id}
+                      role="option"
+                      aria-selected={form.productId === p.id}
+                      style={{
+                        padding: "10px 14px",
+                        cursor: "pointer",
+                        fontSize: 14,
+                        color: theme.primaryText,
+                        borderBottom: `1px solid ${theme.divider}`,
+                        background: form.productId === p.id ? "#EEF2FF" : "transparent",
+                      }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setForm((f) => ({ ...f, productId: p.id }));
+                        setProductSearch("");
+                        setProductDropdownOpen(false);
+                      }}
+                    >
+                      {p.code} - {p.name}
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
             {formErrors.productId && <p className="form-error">{formErrors.productId}</p>}
           </div>
           <div className="modal-field">
@@ -230,26 +349,6 @@ export default function MovementsPage() {
               onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
             />
             {formErrors.quantity && <p className="form-error">{formErrors.quantity}</p>}
-          </div>
-          <div className="modal-field">
-            <label htmlFor="unitCost">Costo unitario</label>
-            <input
-              id="unitCost"
-              type="number"
-              step="0.01"
-              value={form.unitCost}
-              onChange={(e) => setForm((f) => ({ ...f, unitCost: e.target.value }))}
-            />
-          </div>
-          <div className="modal-field">
-            <label htmlFor="unitPrice">Precio unitario</label>
-            <input
-              id="unitPrice"
-              type="number"
-              step="0.01"
-              value={form.unitPrice}
-              onChange={(e) => setForm((f) => ({ ...f, unitPrice: e.target.value }))}
-            />
           </div>
           <div className="modal-field field-full">
             <label htmlFor="reason">Razón</label>

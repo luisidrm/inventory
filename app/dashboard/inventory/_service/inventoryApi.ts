@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { getApiUrl, getToken } from "@/lib/auth-api";
-import { parsePaginated } from "@/lib/api-utils";
+import { parsePaginated, parseChartResult, parseSummaryResult } from "@/lib/api-utils";
 import type {
   InventoryResponse,
   CreateInventoryRequest,
@@ -64,6 +64,22 @@ export const inventoryApi = createApi({
       query: (id) => ({ url: `/inventory?id=${id}`, method: "DELETE" }),
       invalidatesTags: (_r, _e, id) => [{ type: "Inventory", id }, { type: "Inventory", id: "LIST" }],
     }),
+    getInventoryStats: builder.query<Record<string, unknown> | null, void>({
+      query: () => "/inventory/stats",
+      transformResponse: parseSummaryResult<Record<string, unknown>>,
+    }),
+    getInventoryFlow: builder.query<{ label: string; value: number }[], { days?: number } | void>({
+      query: (arg) => `/inventory/flow?days=${(arg as { days?: number })?.days ?? 7}`,
+      transformResponse: (raw: unknown) => parseChartResult<{ label: string; value: number }>(raw),
+    }),
+    getStockByLocation: builder.query<{ label: string; value: number }[], void>({
+      query: () => "/inventory/stock-by-location",
+      transformResponse: (raw: unknown) => parseChartResult<{ label: string; value: number }>(raw),
+    }),
+    getInventoryCategoryDistribution: builder.query<{ name: string; value: number }[], void>({
+      query: () => "/inventory/category-distribution",
+      transformResponse: (raw: unknown) => parseChartResult<{ name: string; value: number }>(raw),
+    }),
   }),
 });
 
@@ -72,4 +88,8 @@ export const {
   useCreateInventoryMutation,
   useUpdateInventoryMutation,
   useDeleteInventoryMutation,
+  useGetInventoryStatsQuery,
+  useGetInventoryFlowQuery,
+  useGetStockByLocationQuery,
+  useGetInventoryCategoryDistributionQuery,
 } = inventoryApi;

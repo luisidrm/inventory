@@ -6,6 +6,9 @@ import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
 import {
   useGetSuppliersQuery,
+  useGetSupplierStatsQuery,
+  useGetDeliveryTimelineQuery,
+  useGetSupplierCategoryDistributionQuery,
   useCreateSupplierMutation,
   useUpdateSupplierMutation,
   useDeleteSupplierMutation,
@@ -146,16 +149,27 @@ export default function SuppliersPage() {
     }
   };
 
-  const supplierStats = [
-    { label: "Total Proveedores", value: "124", icon: "group", trend: "+12%", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-    { label: "Órdenes Activas", value: "48", icon: "shopping_cart", trend: "+8%", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
-    { label: "Cumplimiento", value: "94%", icon: "check_circle", trend: "+3%", trendUp: true, iconBg: "#FFFBEB", iconColor: "#F59E0B" },
-    { label: "Gastos Mes", value: "$12.4k", icon: "payment", trend: "+15%", trendUp: true, iconBg: "#FDF2F8", iconColor: "#EC4899" },
-  ];
-  const deliveryData = [
+  const { data: supplierStatsApi } = useGetSupplierStatsQuery();
+  const { data: deliveryApi } = useGetDeliveryTimelineQuery();
+  const { data: supplierPieApi } = useGetSupplierCategoryDistributionQuery();
+
+  const supplierStats = supplierStatsApi && typeof supplierStatsApi === "object"
+    ? [
+        { label: "Total Proveedores", value: String((supplierStatsApi as Record<string, unknown>).totalSuppliers ?? "124"), icon: "group" as const, trend: `+${(supplierStatsApi as Record<string, unknown>).totalSuppliersTrend ?? 12}%`, trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+        { label: "Órdenes Activas", value: String((supplierStatsApi as Record<string, unknown>).activeOrders ?? "48"), icon: "shopping_cart" as const, trend: `+${(supplierStatsApi as Record<string, unknown>).activeOrdersTrend ?? 8}%`, trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+        { label: "Cumplimiento", value: `${(supplierStatsApi as Record<string, unknown>).compliancePercent ?? 94}%`, icon: "check_circle" as const, trend: `+${(supplierStatsApi as Record<string, unknown>).complianceTrend ?? 3}%`, trendUp: true, iconBg: "#FFFBEB", iconColor: "#F59E0B" },
+        { label: "Gastos Mes", value: (supplierStatsApi as Record<string, unknown>).monthlyExpenses != null ? `$${(Number((supplierStatsApi as Record<string, unknown>).monthlyExpenses) / 1000).toFixed(1)}k` : "$12.4k", icon: "payment" as const, trend: `+${(supplierStatsApi as Record<string, unknown>).monthlyExpensesTrend ?? 15}%`, trendUp: true, iconBg: "#FDF2F8", iconColor: "#EC4899" },
+      ]
+    : [
+        { label: "Total Proveedores", value: "124", icon: "group" as const, trend: "+12%", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+        { label: "Órdenes Activas", value: "48", icon: "shopping_cart" as const, trend: "+8%", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+        { label: "Cumplimiento", value: "94%", icon: "check_circle" as const, trend: "+3%", trendUp: true, iconBg: "#FFFBEB", iconColor: "#F59E0B" },
+        { label: "Gastos Mes", value: "$12.4k", icon: "payment" as const, trend: "+15%", trendUp: true, iconBg: "#FDF2F8", iconColor: "#EC4899" },
+      ];
+  const deliveryData = (deliveryApi && deliveryApi.length > 0) ? deliveryApi : [
     { label: "Lun", value: 45 }, { label: "Mar", value: 70 }, { label: "Mié", value: 55 }, { label: "Jue", value: 90 }, { label: "Vie", value: 65 }, { label: "Sáb", value: 80 },
   ];
-  const supplierPie = [
+  const supplierPie = (supplierPieApi && supplierPieApi.length > 0) ? supplierPieApi : [
     { name: "Electrónica", value: 40 }, { name: "Hogar", value: 30 }, { name: "Textil", value: 20 }, { name: "Otros", value: 10 },
   ];
 

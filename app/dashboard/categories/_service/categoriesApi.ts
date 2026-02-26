@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { getApiUrl, getToken } from "@/lib/auth-api";
-import { parsePaginated } from "@/lib/api-utils";
+import { parsePaginated, parseChartResult, parseSummaryResult } from "@/lib/api-utils";
 import type {
   ProductCategoryResponse,
   CreateProductCategoryRequest,
@@ -66,6 +66,24 @@ export const categoriesApi = createApi({
       query: (id) => ({ url: "/product-category?id=" + id, method: "DELETE" }),
       invalidatesTags: (_r, _e, id) => [{ type: "ProductCategory", id }, { type: "ProductCategory", id: "LIST" }],
     }),
+    getCategoryStats: builder.query<Record<string, unknown> | null, void>({
+      query: () => "/product-category/stats",
+      transformResponse: parseSummaryResult<Record<string, unknown>>,
+    }),
+    getItemDistribution: builder.query<{ label: string; value: number }[], { period?: string; days?: number } | void>({
+      query: (arg) => {
+        const params = new URLSearchParams();
+        if (arg?.period) params.set("period", arg.period);
+        if (arg?.days != null) params.set("days", String(arg.days));
+        const q = params.toString();
+        return `/product-category/item-distribution${q ? `?${q}` : ""}`;
+      },
+      transformResponse: (raw: unknown) => parseChartResult<{ label: string; value: number }>(raw),
+    }),
+    getStorageUsage: builder.query<{ name: string; value: number }[], void>({
+      query: () => "/product-category/storage-usage",
+      transformResponse: (raw: unknown) => parseChartResult<{ name: string; value: number }>(raw),
+    }),
   }),
 });
 
@@ -74,4 +92,7 @@ export const {
   useCreateCategoryMutation,
   useUpdateCategoryMutation,
   useDeleteCategoryMutation,
+  useGetCategoryStatsQuery,
+  useGetItemDistributionQuery,
+  useGetStorageUsageQuery,
 } = categoriesApi;

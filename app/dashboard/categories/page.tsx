@@ -6,6 +6,9 @@ import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
 import {
   useGetCategoriesQuery,
+  useGetCategoryStatsQuery,
+  useGetItemDistributionQuery,
+  useGetStorageUsageQuery,
   useCreateCategoryMutation,
   useUpdateCategoryMutation,
   useDeleteCategoryMutation,
@@ -135,16 +138,27 @@ export default function CategoriesPage() {
     }
   };
 
-  const categoryStats = [
-    { label: "Total Categorías", value: "24", icon: "category", iconBg: "#EEF2FF", iconColor: theme.accent },
-    { label: "Más Activa", value: "Comida", icon: "trending_up", iconBg: "#F0FDF4", iconColor: theme.success },
-    { label: "Última Edición", value: "2h ago", icon: "schedule", iconBg: "#FFFBEB", iconColor: "#F59E0B" },
-    { label: "Items Totales", value: "1,240", icon: "bar_chart", iconBg: "#ECFEFF", iconColor: "#06B6D4" },
-  ];
-  const distributionData = [
+  const { data: categoryStatsApi } = useGetCategoryStatsQuery();
+  const { data: distributionApi } = useGetItemDistributionQuery();
+  const { data: storageApi } = useGetStorageUsageQuery();
+
+  const categoryStats = categoryStatsApi && typeof categoryStatsApi === "object"
+    ? [
+        { label: "Total Categorías", value: String((categoryStatsApi as Record<string, unknown>).totalCategories ?? "24"), icon: "category" as const, iconBg: "#EEF2FF", iconColor: theme.accent },
+        { label: "Más Activa", value: String((categoryStatsApi as Record<string, unknown>).mostActiveCategoryName ?? "Comida"), icon: "trending_up" as const, iconBg: "#F0FDF4", iconColor: theme.success },
+        { label: "Última Edición", value: String((categoryStatsApi as Record<string, unknown>).lastEditedAgo ?? "2h"), icon: "schedule" as const, iconBg: "#FFFBEB", iconColor: "#F59E0B" },
+        { label: "Items Totales", value: String((categoryStatsApi as Record<string, unknown>).totalItems ?? "1,240"), icon: "bar_chart" as const, iconBg: "#ECFEFF", iconColor: "#06B6D4" },
+      ]
+    : [
+        { label: "Total Categorías", value: "24", icon: "category" as const, iconBg: "#EEF2FF", iconColor: theme.accent },
+        { label: "Más Activa", value: "Comida", icon: "trending_up" as const, iconBg: "#F0FDF4", iconColor: theme.success },
+        { label: "Última Edición", value: "2h ago", icon: "schedule" as const, iconBg: "#FFFBEB", iconColor: "#F59E0B" },
+        { label: "Items Totales", value: "1,240", icon: "bar_chart" as const, iconBg: "#ECFEFF", iconColor: "#06B6D4" },
+      ];
+  const distributionData = (distributionApi && distributionApi.length > 0) ? distributionApi : [
     { label: "Liq", value: 45 }, { label: "Sol", value: 32 }, { label: "Tec", value: 67 }, { label: "Ase", value: 23 }, { label: "Com", value: 89 }, { label: "Per", value: 12 }, { label: "Mis", value: 54 },
   ];
-  const storagePie = [
+  const storagePie = (storageApi && storageApi.length > 0) ? storageApi : [
     { name: "Comida", value: 40 }, { name: "Tecno", value: 25 }, { name: "Aseo", value: 20 }, { name: "Otros", value: 15 },
   ];
 

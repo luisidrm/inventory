@@ -1,5 +1,6 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { getApiUrl, getToken } from "@/lib/auth-api";
+import { parseChartResult, parseSummaryResult } from "@/lib/api-utils";
 import type {
   ProductResponse,
   ProductCategoryResponse,
@@ -143,6 +144,33 @@ export const productsApi = createApi({
       providesTags: [{ type: "ProductCategory", id: "LIST" }],
     }),
 
+    // GET /product/stats (KPIs)
+    getProductStats: builder.query<Record<string, unknown> | null, { from?: string; to?: string } | void>({
+      query: (arg) => {
+        const params = new URLSearchParams();
+        if (arg?.from) params.set("from", arg.from);
+        if (arg?.to) params.set("to", arg.to);
+        const q = params.toString();
+        return `/product/stats${q ? `?${q}` : ""}`;
+      },
+      transformResponse: parseSummaryResult<Record<string, unknown>>,
+    }),
+    // GET /product/performance (barras)
+    getProductPerformance: builder.query<{ label: string; value: number; date?: string }[], { days?: number; from?: string; to?: string } | void>({
+      query: (arg) => {
+        const params = new URLSearchParams();
+        params.set("days", String(arg?.days ?? 7));
+        if (arg?.from) params.set("from", arg.from);
+        if (arg?.to) params.set("to", arg.to);
+        return `/product/performance?${params.toString()}`;
+      },
+      transformResponse: (raw: unknown) => parseChartResult<{ label: string; value: number; date?: string }>(raw),
+    }),
+    // GET /product/stock-by-category (dona)
+    getProductStockByCategory: builder.query<{ name: string; value: number }[], void>({
+      query: () => "/product/stock-by-category",
+      transformResponse: (raw: unknown) => parseChartResult<{ name: string; value: number }>(raw),
+    }),
   }),
 });
 
@@ -154,4 +182,7 @@ export const {
   useUpdateProductMutation,
   useDeleteProductMutation,
   useGetProductCategoriesQuery,
+  useGetProductStatsQuery,
+  useGetProductPerformanceQuery,
+  useGetProductStockByCategoryQuery,
 } = productsApi;

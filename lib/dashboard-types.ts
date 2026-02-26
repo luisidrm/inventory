@@ -152,6 +152,7 @@ export interface UpdateInventoryRequest {
 export interface InventoryMovementResponse {
   id: number;
   productId: number;
+  productName?: string;
   locationId: number;
   locationName?: string;
   type: string;
