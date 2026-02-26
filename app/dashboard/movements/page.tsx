@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import type { InventoryMovementResponse, CreateInventoryMovementRequest, ProductResponse } from "@/lib/dashboard-types";
+import type { InventoryMovementResponse, CreateInventoryMovementRequest, CreateProductRequest, ProductResponse } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
 import { useGetMovementsQuery, useGetMovementStatsQuery, useGetFlowWithCumulativeQuery, useGetDistributionByTypeQuery, useCreateMovementMutation } from "./_service/movementsApi";
-import { useGetProductsQuery } from "../products/_service/productsApi";
+import { useGetProductsQuery, useCreateProductMutation, useGetProductCategoriesQuery } from "../products/_service/productsApi";
 import { useGetLocationsQuery } from "../locations/_service/locationsApi";
 import { FormModal } from "@/components/FormModal";
 import { StatCard, ComposedChartCard, PieChartCard, theme } from "@/components/dashboard";
@@ -35,6 +35,13 @@ const initialForm = {
   referenceDocument: "",
 };
 
+const initialNewProduct = {
+  code: "",
+  name: "",
+  description: "",
+  categoryId: "" as number | string,
+};
+
 export default function MovementsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -46,14 +53,19 @@ export default function MovementsPage() {
   const [productSearch, setProductSearch] = useState("");
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const productDropdownRef = useRef<HTMLDivElement>(null);
+  const [productMode, setProductMode] = useState<"existing" | "new">("existing");
+  const [newProductForm, setNewProductForm] = useState(initialNewProduct);
 
   const { data: result, isLoading } = useGetMovementsQuery({ page, perPage: pageSize });
   const { data: productsResult } = useGetProductsQuery({ page: 1, perPage: 100 });
   const { data: locationsResult } = useGetLocationsQuery({ page: 1, perPage: 100 });
+  const { data: categoriesResult } = useGetProductCategoriesQuery({ perPage: 100 });
   const [createMovement] = useCreateMovementMutation();
+  const [createProduct] = useCreateProductMutation();
 
   const products = productsResult?.data ?? [];
   const locations = locationsResult?.data ?? [];
+  const categories = categoriesResult?.data ?? [];
   const allRows = result?.data ?? [];
   const filteredData = searchTerm.trim()
     ? allRows.filter((r) =>
@@ -93,6 +105,8 @@ export default function MovementsPage() {
     setFormErrors({});
     setProductSearch("");
     setProductDropdownOpen(false);
+    setProductMode("existing");
+    setNewProductForm(initialNewProduct);
     setFormOpen(true);
   };
 
@@ -100,7 +114,12 @@ export default function MovementsPage() {
 
   const validate = () => {
     const err: Record<string, string> = {};
-    if (form.productId === "" || form.productId === null) err.productId = "Producto requerido";
+    if (productMode === "existing") {
+      if (form.productId === "" || form.productId === null) err.productId = "Producto requerido";
+    } else {
+      if (!newProductForm.code.trim()) err.newProductCode = "Código requerido";
+      if (!newProductForm.name.trim()) err.newProductName = "Nombre requerido";
+    }
     if (form.locationId === "" || form.locationId === null) err.locationId = "Ubicación requerida";
     const q = Number(form.quantity);
     if (Number.isNaN(q) || q <= 0) err.quantity = "Cantidad inválida";
@@ -113,8 +132,25 @@ export default function MovementsPage() {
     if (!validate()) return;
     setFormSubmitting(true);
     try {
+      let productId: number;
+      if (productMode === "new") {
+        const productPayload: CreateProductRequest = {
+          code: newProductForm.code.trim(),
+          name: newProductForm.name.trim(),
+          description: newProductForm.description.trim(),
+          categoryId: newProductForm.categoryId === "" ? null : Number(newProductForm.categoryId),
+          precio: 0,
+          costo: 0,
+          imagenUrl: "",
+          isAvailable: true,
+        };
+        const newProduct = await createProduct(productPayload).unwrap();
+        productId = newProduct.id;
+      } else {
+        productId = Number(form.productId);
+      }
       const payload: CreateInventoryMovementRequest = {
-        productId: Number(form.productId),
+        productId,
         locationId: Number(form.locationId),
         type: form.type,
         quantity: Number(form.quantity),
@@ -242,70 +278,160 @@ export default function MovementsPage() {
           submitLabel="Registrar"
           error={formErrors.submit}
         >
-          <div className="modal-field field-full" ref={productDropdownRef}>
-            <label htmlFor="productSearch">Producto *</label>
-            <input
-              id="productSearch"
-              type="text"
-              autoComplete="off"
-              placeholder="Escribe para buscar por código o nombre..."
-              value={productDropdownOpen ? productSearch : (selectedProduct ? `${selectedProduct.code} - ${selectedProduct.name}` : productSearch)}
-              onChange={(e) => {
-                setProductSearch(e.target.value);
-                setProductDropdownOpen(true);
-                if (form.productId) setForm((f) => ({ ...f, productId: "" }));
-              }}
-              onFocus={() => {
-                setProductDropdownOpen(true);
-                if (selectedProduct && !productSearch) setProductSearch(`${selectedProduct.code} - ${selectedProduct.name}`);
-              }}
-            />
-            {productDropdownOpen && (
-              <ul
-                className="modal-product-dropdown"
+          <div className="modal-field field-full">
+            <label>Producto</label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <button
+                type="button"
+                onClick={() => setProductMode("existing")}
                 style={{
-                  listStyle: "none",
-                  margin: 0,
-                  padding: 0,
-                  marginTop: 4,
-                  maxHeight: 220,
-                  overflowY: "auto",
-                  border: `1px solid ${theme.divider}`,
+                  padding: "8px 14px",
                   borderRadius: 8,
-                  background: theme.surface,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  border: `1px solid ${productMode === "existing" ? theme.accent : theme.divider}`,
+                  background: productMode === "existing" ? "#EEF2FF" : theme.surface,
+                  color: productMode === "existing" ? theme.accent : theme.secondaryText,
+                  cursor: "pointer",
+                  fontSize: 14,
+                  fontWeight: 500,
                 }}
               >
-                {filteredProducts.length === 0 ? (
-                  <li style={{ padding: "12px 14px", color: theme.secondaryText, fontSize: 14 }}>Sin coincidencias</li>
-                ) : (
-                  filteredProducts.map((p: ProductResponse) => (
-                    <li
-                      key={p.id}
-                      role="option"
-                      aria-selected={form.productId === p.id}
-                      style={{
-                        padding: "10px 14px",
-                        cursor: "pointer",
-                        fontSize: 14,
-                        color: theme.primaryText,
-                        borderBottom: `1px solid ${theme.divider}`,
-                        background: form.productId === p.id ? "#EEF2FF" : "transparent",
-                      }}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setForm((f) => ({ ...f, productId: p.id }));
-                        setProductSearch("");
-                        setProductDropdownOpen(false);
-                      }}
-                    >
-                      {p.code} - {p.name}
-                    </li>
-                  ))
+                Producto existente
+              </button>
+              <button
+                type="button"
+                onClick={() => setProductMode("new")}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  border: `1px solid ${productMode === "new" ? theme.accent : theme.divider}`,
+                  background: productMode === "new" ? "#EEF2FF" : theme.surface,
+                  color: productMode === "new" ? theme.accent : theme.secondaryText,
+                  cursor: "pointer",
+                  fontSize: 14,
+                  fontWeight: 500,
+                }}
+              >
+                Crear producto nuevo
+              </button>
+            </div>
+            {productMode === "existing" ? (
+              <div ref={productDropdownRef}>
+                <input
+                  id="productSearch"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="Escribe para buscar por código o nombre..."
+                  value={productDropdownOpen ? productSearch : (selectedProduct ? `${selectedProduct.code} - ${selectedProduct.name}` : productSearch)}
+                  onChange={(e) => {
+                    setProductSearch(e.target.value);
+                    setProductDropdownOpen(true);
+                    if (form.productId) setForm((f) => ({ ...f, productId: "" }));
+                  }}
+                  onFocus={() => {
+                    setProductDropdownOpen(true);
+                    if (selectedProduct && !productSearch) setProductSearch(`${selectedProduct.code} - ${selectedProduct.name}`);
+                  }}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${theme.divider}` }}
+                />
+                {productDropdownOpen && (
+                  <ul
+                    className="modal-product-dropdown"
+                    style={{
+                      listStyle: "none",
+                      margin: 0,
+                      padding: 0,
+                      marginTop: 4,
+                      maxHeight: 220,
+                      overflowY: "auto",
+                      border: `1px solid ${theme.divider}`,
+                      borderRadius: 8,
+                      background: theme.surface,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    }}
+                  >
+                    {filteredProducts.length === 0 ? (
+                      <li style={{ padding: "12px 14px", color: theme.secondaryText, fontSize: 14 }}>Sin coincidencias</li>
+                    ) : (
+                      filteredProducts.map((p: ProductResponse) => (
+                        <li
+                          key={p.id}
+                          role="option"
+                          aria-selected={form.productId === p.id}
+                          style={{
+                            padding: "10px 14px",
+                            cursor: "pointer",
+                            fontSize: 14,
+                            color: theme.primaryText,
+                            borderBottom: `1px solid ${theme.divider}`,
+                            background: form.productId === p.id ? "#EEF2FF" : "transparent",
+                          }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setForm((f) => ({ ...f, productId: p.id }));
+                            setProductSearch("");
+                            setProductDropdownOpen(false);
+                          }}
+                        >
+                          {p.code} - {p.name}
+                        </li>
+                      ))
+                    )}
+                  </ul>
                 )}
-              </ul>
+                {formErrors.productId && <p className="form-error">{formErrors.productId}</p>}
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="modal-field">
+                  <label htmlFor="newProductCode">Código *</label>
+                  <input
+                    id="newProductCode"
+                    value={newProductForm.code}
+                    onChange={(e) => setNewProductForm((f) => ({ ...f, code: e.target.value }))}
+                    placeholder="Código del producto"
+                  />
+                  {formErrors.newProductCode && <p className="form-error">{formErrors.newProductCode}</p>}
+                </div>
+                <div className="modal-field">
+                  <label htmlFor="newProductName">Nombre *</label>
+                  <input
+                    id="newProductName"
+                    value={newProductForm.name}
+                    onChange={(e) => setNewProductForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="Nombre del producto"
+                  />
+                  {formErrors.newProductName && <p className="form-error">{formErrors.newProductName}</p>}
+                </div>
+                <div className="modal-field field-full">
+                  <label htmlFor="newProductDescription">Descripción</label>
+                  <textarea
+                    id="newProductDescription"
+                    value={newProductForm.description}
+                    onChange={(e) => setNewProductForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="Descripción (opcional)"
+                    rows={2}
+                  />
+                </div>
+                <div className="modal-field">
+                  <label htmlFor="newProductCategoryId">Categoría</label>
+                  <select
+                    id="newProductCategoryId"
+                    value={newProductForm.categoryId}
+                    onChange={(e) =>
+                      setNewProductForm((f) => ({
+                        ...f,
+                        categoryId: e.target.value === "" ? "" : Number(e.target.value),
+                      }))
+                    }
+                  >
+                    <option value="">Sin categoría</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             )}
-            {formErrors.productId && <p className="form-error">{formErrors.productId}</p>}
           </div>
           <div className="modal-field">
             <label htmlFor="locationId">Ubicación *</label>
