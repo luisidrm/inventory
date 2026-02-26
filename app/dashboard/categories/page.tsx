@@ -21,12 +21,38 @@ import "../products/products-modal.css";
 const COLUMNS: DataTableColumn<ProductCategoryResponse>[] = [
   { key: "name", label: "Nombre" },
   { key: "description", label: "Descripción" },
-  { key: "color", label: "Color" },
-  { key: "icon", label: "Icono" },
+  {
+    key: "color",
+    label: "Color",
+    render: (row) => {
+      const color = row.color ?? "#6366f1";
+      return (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: "50%",
+              backgroundColor: color,
+              border: "1px solid rgba(0,0,0,0.15)",
+              flexShrink: 0,
+            }}
+            title={color}
+          />
+        </span>
+      );
+    },
+  },
   { key: "createdAt", label: "Creado", type: "date" },
 ];
 
-const initialForm = { name: "", description: "", color: "#6366f1", icon: "category" };
+const initialForm = { name: "", description: "", color: "#6366f1" };
 
 export default function CategoriesPage() {
   const [page, setPage] = useState(1);
@@ -66,7 +92,6 @@ export default function CategoriesPage() {
       name: item.name,
       description: item.description ?? "",
       color: item.color ?? "#6366f1",
-      icon: item.icon ?? "category",
     });
     setFormErrors({});
     setFormOpen(true);
@@ -96,7 +121,6 @@ export default function CategoriesPage() {
             name: form.name.trim(),
             description: form.description.trim() || undefined,
             color: form.color,
-            icon: form.icon.trim() || undefined,
           },
         }).unwrap();
       } else {
@@ -104,7 +128,6 @@ export default function CategoriesPage() {
           name: form.name.trim(),
           description: form.description.trim() || undefined,
           color: form.color,
-          icon: form.icon.trim() || undefined,
         }).unwrap();
         setPage(1);
       }
@@ -203,7 +226,6 @@ export default function CategoriesPage() {
           open={formOpen}
           onClose={closeForm}
           title={editing ? "Editar categoría" : "Nueva categoría"}
-          icon={editing ? "edit" : "category"}
           onSubmit={handleSubmit}
           submitting={formSubmitting}
           submitLabel={editing ? "Guardar" : "Crear"}
@@ -236,15 +258,6 @@ export default function CategoriesPage() {
               type="color"
               value={form.color}
               onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
-            />
-          </div>
-          <div className="modal-field">
-            <label htmlFor="icon">Icono (Material)</label>
-            <input
-              id="icon"
-              value={form.icon}
-              onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}
-              placeholder="category"
             />
           </div>
           {formErrors.submit && (

@@ -63,6 +63,8 @@ export default function ProductsPage() {
   const [deleting, setDeleting] = useState<ProductResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
 
+  const [confirmCostHigherOpen, setConfirmCostHigherOpen] = useState(false);
+
   // ─── Queries ──────────────────────────────────────────────────────────────
 
   const { data: result, isLoading, isFetching } = useGetProductsQuery({ page, perPage: pageSize });
@@ -152,32 +154,54 @@ export default function ProductsPage() {
     return Object.keys(err).length === 0;
   };
 
+  const performSubmit = async () => {
+    const payload: CreateProductRequest = {
+      code: form.code.trim(),
+      name: form.name.trim(),
+      description: form.description.trim(),
+      categoryId: form.categoryId === "" ? null : Number(form.categoryId),
+      precio: Number(form.precio),
+      costo: Number(form.costo),
+      imagenUrl: form.imagenUrl.trim(),
+      isAvailable: form.isAvailable,
+    };
+    if (editing) {
+      await updateProduct({ id: editing.id, body: payload }).unwrap();
+    } else {
+      await createProduct(payload).unwrap();
+      setPage(1);
+      setAllRows([]);
+    }
+    closeForm();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    const costo = Number(form.costo);
+    const precio = Number(form.precio);
+    if (costo > precio) {
+      setConfirmCostHigherOpen(true);
+      return;
+    }
     setFormSubmitting(true);
     try {
-      const payload: CreateProductRequest = {
-        code: form.code.trim(),
-        name: form.name.trim(),
-        description: form.description.trim(),
-        categoryId: form.categoryId === "" ? null : Number(form.categoryId),
-        precio: Number(form.precio),
-        costo: Number(form.costo),
-        imagenUrl: form.imagenUrl.trim(),
-        isAvailable: form.isAvailable,
-      };
-      if (editing) {
-        await updateProduct({ id: editing.id, body: payload }).unwrap();
-      } else {
-        await createProduct(payload).unwrap();
-        // Reset to first page so new item appears
-        setPage(1);
-        setAllRows([]);
-      }
-      closeForm();
+      await performSubmit();
     } catch (err) {
       setFormErrors({ submit: err instanceof Error ? err.message : "Error al guardar" });
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
+  const handleConfirmCostHigher = async () => {
+    setConfirmCostHigherOpen(false);
+    setFormSubmitting(true);
+    try {
+      await performSubmit();
+    } catch (err) {
+      setFormErrors({ submit: err instanceof Error ? err.message : "Error al guardar" });
+      setFormOpen(true);
     } finally {
       setFormSubmitting(false);
     }
@@ -388,6 +412,37 @@ export default function ProductsPage() {
         itemName={deleting?.name}
         error={deleteError}
       />
+
+      {/* ── Confirmar costo mayor que precio ── */}
+      {confirmCostHigherOpen && (
+        <div className="modal-overlay" onClick={() => setConfirmCostHigherOpen(false)}>
+          <div className="modal-box confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="confirm-icon confirm-icon--warning">
+              <Icon name="warning_amber" />
+            </div>
+            <h3 className="confirm-title">¿Estás seguro?</h3>
+            <p className="confirm-msg">
+              El costo es mayor que el precio de venta (por ejemplo en un remate). ¿Deseas guardar así?
+            </p>
+            <div className="confirm-actions">
+              <button
+                type="button"
+                className="confirm-btn confirm-btn--cancel"
+                onClick={() => setConfirmCostHigherOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="confirm-btn confirm-btn--primary"
+                onClick={handleConfirmCostHigher}
+              >
+                Sí, guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

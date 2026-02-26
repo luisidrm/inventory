@@ -52,7 +52,7 @@ export function PieChartCard({
               innerRadius="55%"
               outerRadius="80%"
               paddingAngle={2}
-              label={({ name, percentLabel }: { name?: string; percentLabel?: string }) => (percentLabel ? `${name ?? ""} ${percentLabel}` : (name ?? ""))}
+              label={false}
             >
               {withPercent.map((_, i) => (
                 <Cell key={i} fill={colors[i % colors.length]} stroke={theme.surface} strokeWidth={2} />

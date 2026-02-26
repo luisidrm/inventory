@@ -68,7 +68,18 @@ export default function UsersPage() {
     { key: "email", label: "Email" },
     { key: "phone", label: "Telefono" },
     { key: "gender", label: "Genero" },
-    { key: "status", label: "Estado" },
+    {
+      key: "status",
+      label: "Estado",
+      render: (row) => {
+        const isActive = String(row.status ?? "").toUpperCase() === "ACTIVE";
+        return (
+          <span className={`dt-tag ${isActive ? "dt-tag--green" : "dt-tag--red"}`}>
+            {isActive ? "Activo" : "Inactivo"}
+          </span>
+        );
+      },
+    },
     isAdmin
       ? {
           key: "organization.name",
