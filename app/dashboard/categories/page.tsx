@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { ProductCategoryResponse } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
@@ -66,18 +66,56 @@ export default function CategoriesPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState<ProductCategoryResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
+  const isLoadingMore = useRef(false);
 
-  const { data: result, isLoading } = useGetCategoriesQuery({ page, perPage: pageSize });
+  const { data: result, isLoading, isFetching } = useGetCategoriesQuery({ page, perPage: pageSize });
   const [createCategory] = useCreateCategoryMutation();
   const [updateCategory] = useUpdateCategoryMutation();
   const [deleteCategory] = useDeleteCategoryMutation();
 
-  const allRows = result?.data ?? [];
+  const [allRows, setAllRows] = useState<ProductCategoryResponse[]>([]);
+
+  // Acumular resultados de páginas (infinite scroll) con deduplicación por id
+  useEffect(() => {
+    if (!result?.data) return;
+    setAllRows((prev) => {
+      if (page === 1) return result.data;
+      const existingIds = new Set(prev.map((r) => r.id));
+      const fresh = result.data.filter((r) => !existingIds.has(r.id));
+      return [...prev, ...fresh];
+    });
+  }, [result?.data, page]);
+
+  // Reset guard cuando termina el fetch
+  useEffect(() => {
+    if (!isFetching) {
+      isLoadingMore.current = false;
+    }
+  }, [isFetching]);
+
+  // Reset al cambiar búsqueda
+  useEffect(() => {
+    setPage(1);
+    setAllRows([]);
+  }, [searchTerm]);
+
   const filteredData = searchTerm.trim()
     ? allRows.filter((r) =>
-        Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(searchTerm.toLowerCase()))
+        Object.values(r).some((v) =>
+          String(v ?? "").toLowerCase().includes(searchTerm.toLowerCase())
+        )
       )
     : allRows;
+
+  const hasMore = result?.pagination
+    ? page < result.pagination.totalPages
+    : false;
+
+  const handleLoadMore = () => {
+    if (isLoadingMore.current || !hasMore) return;
+    isLoadingMore.current = true;
+    setPage((p) => p + 1);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -199,7 +237,7 @@ export default function CategoriesPage() {
       <DataTable
         data={filteredData}
         columns={COLUMNS}
-        loading={isLoading}
+        loading={isLoading && page === 1}
         title="Categorías"
         titleIcon="category"
         searchTerm={searchTerm}
@@ -210,13 +248,10 @@ export default function CategoriesPage() {
           { icon: "edit", label: "Editar", onClick: openEdit },
           { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger" },
         ]}
-        pagination={result?.pagination ?? undefined}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={(s) => {
-          setPageSize(s);
-          setPage(1);
-        }}
+        infiniteScroll
+        onLoadMore={handleLoadMore}
+        hasMore={hasMore}
+        loadingMore={isFetching && page > 1}
         emptyIcon="category"
         emptyTitle="Sin registros"
         emptyDesc={searchTerm ? "No se encontraron resultados" : "Aún no hay categorías"}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { InventoryResponse, CreateInventoryRequest } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
@@ -49,8 +49,9 @@ export default function InventoryPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState<InventoryResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
+  const isLoadingMore = useRef(false);
 
-  const { data: result, isLoading } = useGetInventoriesQuery({ page, perPage: pageSize });
+  const { data: result, isLoading, isFetching } = useGetInventoriesQuery({ page, perPage: pageSize });
   const { data: productsResult } = useGetProductsQuery({ page: 1, perPage: 100 });
   const { data: locationsResult } = useGetLocationsQuery({ page: 1, perPage: 100 });
 
@@ -60,7 +61,29 @@ export default function InventoryPage() {
 
   const products = productsResult?.data ?? [];
   const locations = locationsResult?.data ?? [];
-  const allRows = result?.data ?? [];
+  const [allRows, setAllRows] = useState<InventoryResponse[]>([]);
+
+  useEffect(() => {
+    if (!result?.data) return;
+    setAllRows((prev) => {
+      if (page === 1) return result.data;
+      const existingIds = new Set(prev.map((r) => r.id));
+      const fresh = result.data.filter((r) => !existingIds.has(r.id));
+      return [...prev, ...fresh];
+    });
+  }, [result?.data, page]);
+
+  useEffect(() => {
+    if (!isFetching) {
+      isLoadingMore.current = false;
+    }
+  }, [isFetching]);
+
+  useEffect(() => {
+    setPage(1);
+    setAllRows([]);
+  }, [searchTerm]);
+
   const filteredData = searchTerm.trim()
     ? allRows.filter((row) =>
         Object.values(row).some((val) =>
@@ -68,6 +91,16 @@ export default function InventoryPage() {
         )
       )
     : allRows;
+
+  const hasMore = result?.pagination
+    ? page < result.pagination.totalPages
+    : false;
+
+  const handleLoadMore = () => {
+    if (isLoadingMore.current || !hasMore) return;
+    isLoadingMore.current = true;
+    setPage((p) => p + 1);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -192,7 +225,7 @@ export default function InventoryPage() {
       <DataTable
         data={filteredData}
         columns={COLUMNS}
-        loading={isLoading}
+        loading={isLoading && page === 1}
         title="Inventario"
         titleIcon="inventory"
         searchTerm={searchTerm}
@@ -203,13 +236,10 @@ export default function InventoryPage() {
           { icon: "edit", label: "Editar", onClick: openEdit },
           { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger" },
         ]}
-        pagination={result?.pagination ?? undefined}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={(s) => {
-          setPageSize(s);
-          setPage(1);
-        }}
+        infiniteScroll
+        onLoadMore={handleLoadMore}
+        hasMore={hasMore}
+        loadingMore={isFetching && page > 1}
         emptyIcon="inventory"
         emptyTitle="Sin registros"
         emptyDesc={searchTerm ? "No se encontraron resultados" : "Aún no hay inventario"}

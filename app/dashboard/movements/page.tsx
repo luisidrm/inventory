@@ -55,8 +55,9 @@ export default function MovementsPage() {
   const productDropdownRef = useRef<HTMLDivElement>(null);
   const [productMode, setProductMode] = useState<"existing" | "new">("existing");
   const [newProductForm, setNewProductForm] = useState(initialNewProduct);
+  const isLoadingMore = useRef(false);
 
-  const { data: result, isLoading } = useGetMovementsQuery({ page, perPage: pageSize });
+  const { data: result, isLoading, isFetching } = useGetMovementsQuery({ page, perPage: pageSize });
   const { data: productsResult } = useGetProductsQuery({ page: 1, perPage: 100 });
   const { data: locationsResult } = useGetLocationsQuery({ page: 1, perPage: 100 });
   const { data: categoriesResult } = useGetProductCategoriesQuery({ perPage: 100 });
@@ -66,12 +67,44 @@ export default function MovementsPage() {
   const products = productsResult?.data ?? [];
   const locations = locationsResult?.data ?? [];
   const categories = categoriesResult?.data ?? [];
-  const allRows = result?.data ?? [];
+  const [allRows, setAllRows] = useState<InventoryMovementResponse[]>([]);
+
+  useEffect(() => {
+    if (!result?.data) return;
+    setAllRows((prev) => {
+      if (page === 1) return result.data;
+      const existingIds = new Set(prev.map((r) => r.id));
+      const fresh = result.data.filter((r) => !existingIds.has(r.id));
+      return [...prev, ...fresh];
+    });
+  }, [result?.data, page]);
+
+  useEffect(() => {
+    if (!isFetching) {
+      isLoadingMore.current = false;
+    }
+  }, [isFetching]);
+
+  useEffect(() => {
+    setPage(1);
+    setAllRows([]);
+  }, [searchTerm]);
+
   const filteredData = searchTerm.trim()
     ? allRows.filter((r) =>
         Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(searchTerm.toLowerCase()))
       )
     : allRows;
+
+  const hasMore = result?.pagination
+    ? page < result.pagination.totalPages
+    : false;
+
+  const handleLoadMore = () => {
+    if (isLoadingMore.current || !hasMore) return;
+    isLoadingMore.current = true;
+    setPage((p) => p + 1);
+  };
 
   const columns: DataTableColumn<InventoryMovementResponse>[] = useMemo(
     () => [
@@ -249,19 +282,16 @@ export default function MovementsPage() {
       <DataTable
         data={filteredData}
         columns={columns}
-        loading={isLoading}
+        loading={isLoading && page === 1}
         title="Movimientos de inventario"
         titleIcon="swap_horiz"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         toolbarExtra={movementToolbar}
-        pagination={result?.pagination ?? undefined}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={(s) => {
-          setPageSize(s);
-          setPage(1);
-        }}
+        infiniteScroll
+        onLoadMore={handleLoadMore}
+        hasMore={hasMore}
+        loadingMore={isFetching && page > 1}
         emptyIcon="swap_horiz"
         emptyTitle="Sin registros"
         emptyDesc={searchTerm ? "No se encontraron resultados" : "Aún no hay movimientos"}
@@ -297,7 +327,7 @@ export default function MovementsPage() {
               >
                 Producto existente
               </button>
-              <button
+              {form.type===2&&<button
                 type="button"
                 onClick={() => setProductMode("new")}
                 style={{
@@ -312,7 +342,7 @@ export default function MovementsPage() {
                 }}
               >
                 Crear producto nuevo
-              </button>
+              </button>}
             </div>
             {productMode === "existing" ? (
               <div ref={productDropdownRef}>

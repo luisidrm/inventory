@@ -9,10 +9,40 @@ export function parsePaginated<T>(body: unknown, perPage: number): PaginatedResu
   let items: T[] = [];
   let pagination: PaginationInfo | null = null;
 
-  if (Array.isArray(body)) {
-    items = body as T[];
+  // Muchos endpoints ahora envuelven así:
+  // { statusCode, customStatusCode, result, pagination }
+  let payload: unknown = body;
+  let paginationSource: Record<string, unknown> | null = null;
+
+  if (body && typeof body === "object" && "result" in (body as Record<string, unknown>)) {
+    const outer = body as Record<string, unknown>;
+    payload = outer.result;
+
+    const outerPag = outer.pagination;
+    if (outerPag && typeof outerPag === "object") {
+      paginationSource = outerPag as Record<string, unknown>;
+    } else if (
+      payload &&
+      typeof payload === "object" &&
+      "pagination" in (payload as Record<string, unknown>) &&
+      typeof (payload as Record<string, unknown>).pagination === "object"
+    ) {
+      paginationSource = (payload as Record<string, unknown>)
+        .pagination as Record<string, unknown>;
+    } else {
+      // Fallback: intentamos leer campos planos desde el envoltorio
+      paginationSource = outer;
+    }
   } else if (body && typeof body === "object") {
-    const b = body as Record<string, unknown>;
+    payload = body;
+    paginationSource = body as Record<string, unknown>;
+  }
+
+  // Extraer items desde payload (que puede ser result, result.data, etc.)
+  if (Array.isArray(payload)) {
+    items = payload as T[];
+  } else if (payload && typeof payload === "object") {
+    const b = payload as Record<string, unknown>;
     if (Array.isArray(b.data)) {
       items = b.data as T[];
     } else {
@@ -23,15 +53,45 @@ export function parsePaginated<T>(body: unknown, perPage: number): PaginatedResu
         }
       }
     }
+  }
+
+  // Extraer paginación desde paginationSource (outer.pagination o similar)
+  if (paginationSource) {
+    const p = paginationSource;
     pagination = {
-      currentPage: Number(b.currentPage ?? b.CurrentPage ?? 1),
-      totalPages: Number(b.totalPages ?? b.TotalPages ?? 1),
-      totalCount: Number(b.totalCount ?? b.TotalCount ?? items.length),
-      pageSize: Number(b.pageSize ?? b.PageSize ?? perPage),
-      hasPreviousPage: Boolean(b.hasPreviousPage ?? b.HasPreviousPage ?? false),
-      hasNextPage: Boolean(b.hasNextPage ?? b.HasNextPage ?? false),
+      currentPage: Number(
+        (p.currentPage as number | undefined) ??
+          (p.CurrentPage as number | undefined) ??
+          1,
+      ),
+      totalPages: Number(
+        (p.totalPages as number | undefined) ??
+          (p.TotalPages as number | undefined) ??
+          1,
+      ),
+      totalCount: Number(
+        (p.totalCount as number | undefined) ??
+          (p.TotalCount as number | undefined) ??
+          items.length,
+      ),
+      pageSize: Number(
+        (p.pageSize as number | undefined) ??
+          (p.PageSize as number | undefined) ??
+          perPage,
+      ),
+      hasPreviousPage: Boolean(
+        (p.hasPreviousPage as boolean | undefined) ??
+          (p.HasPreviousPage as boolean | undefined) ??
+          false,
+      ),
+      hasNextPage: Boolean(
+        (p.hasNextPage as boolean | undefined) ??
+          (p.HasNextPage as boolean | undefined) ??
+          false,
+      ),
     };
   }
+
   return { data: items, pagination };
 }
 

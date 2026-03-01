@@ -1,0 +1,130 @@
+/* Permisos: chips + selector múltiple */
+.roles-permissions-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.roles-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 36px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.roles-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #4f6ef7;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.roles-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: 0;
+  margin-left: 2px;
+  border: none;
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: background 0.15s;
+  margin-bottom: 2px;
+}
+
+.roles-chip-remove:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.roles-selector {
+  position: relative;
+}
+
+.roles-selector-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: #475569;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.roles-selector-trigger:hover {
+  border-color: #cbd5e1;
+}
+
+.roles-selector-trigger.open {
+  border-color: #4f6ef7;
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.12);
+}
+
+.roles-selector-trigger span {
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
+.roles-selector-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+  z-index: 10;
+}
+
+.roles-option {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  font-size: 0.88rem;
+  color: #1e293b;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.roles-option:hover {
+  background: #f1f5f9;
+}
+
+.roles-option:not(:last-child) {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.roles-selector-empty {
+  padding: 14px;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  text-align: center;
+}

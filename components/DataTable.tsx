@@ -72,13 +72,14 @@ function getNestedValue(row: object, key: string): unknown {
     .reduce((obj: unknown, k) => (obj as Record<string, unknown>)?.[k], row);
 }
 
-// Resolves the key regardless of whether it's a string or a function
-function resolveValue<T extends object>(row: T, key: string | ((row: T) => string | number)): unknown {
+function resolveValue<T extends object>(
+  row: T,
+  key: string | ((row: T) => string | number)
+): unknown {
   if (typeof key === "function") return key(row);
   return getNestedValue(row, key);
 }
 
-// Generates a stable string to use in React's key prop and for column identification
 function resolveColKey<T>(col: DataTableColumn<T>, index: number): string {
   if (typeof col.key === "string") return col.key;
   return `col-${index}`;
@@ -169,7 +170,7 @@ export function DataTable<T extends { id: string | number }>({
   pageSizeOptions = PAGE_SIZES_DEFAULT,
   onPageChange,
   onPageSizeChange,
-  infiniteScroll = true,
+  infiniteScroll,
   onLoadMore,
   hasMore = false,
   loadingMore = false,
@@ -184,16 +185,23 @@ export function DataTable<T extends { id: string | number }>({
   useEffect(() => {
     if (!infiniteScroll || !onLoadMore) return;
 
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore && !loadingMore) {
           onLoadMore();
         }
       },
-      { threshold: 0.1 }
+      {
+        root: null,
+        rootMargin: "0px",
+        threshold: 0,
+      }
     );
 
-    if (sentinelRef.current) observer.observe(sentinelRef.current);
+    observer.observe(sentinel);
     return () => observer.disconnect();
   }, [infiniteScroll, onLoadMore, hasMore, loadingMore]);
 
@@ -314,16 +322,17 @@ export function DataTable<T extends { id: string | number }>({
           {/* ── Infinite scroll footer ── */}
           {infiniteScroll ? (
             <>
-              <div ref={sentinelRef} style={{ height: 1 }} />
               {loadingMore && (
                 <div className="dt-load-more">
                   <div className="dt-state__spinner" />
                   <span>Cargando más...</span>
                 </div>
               )}
-              {!hasMore && (
+              {!hasMore && data.length > 0 && (
                 <div className="dt-end-msg">— Fin de los registros —</div>
               )}
+              {/* Sentinel always last so it's truly at the bottom */}
+              <div ref={sentinelRef} style={{ height: "20px", width: "100%" }} />
             </>
 
           /* ── Traditional pagination footer ── */

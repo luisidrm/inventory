@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { UserResponse } from "@/lib/auth-types";
 import type { CreateUserRequest } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
@@ -40,13 +40,14 @@ export default function UsersPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState<UserResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
+  const isLoadingMore = useRef(false);
 
   const user = useAppSelector((s) => s.auth);
   const organizationId = user?.organizationId ?? 0;
   const isAdmin =
     user?.roleId === 2;
 
-  const { data: result, isLoading } = useGetUsersQuery({
+  const { data: result, isLoading, isFetching } = useGetUsersQuery({
     page,
     perPage: pageSize,
   });
@@ -92,7 +93,30 @@ export default function UsersPage() {
           render: (row) => row.location?.name ?? "—",
         },
   ];
-  const allRows = result?.data ?? [];
+
+  const [allRows, setAllRows] = useState<UserResponse[]>([]);
+
+  useEffect(() => {
+    if (!result?.data) return;
+    setAllRows((prev) => {
+      if (page === 1) return result.data;
+      const existingIds = new Set(prev.map((r) => r.id));
+      const fresh = result.data.filter((r) => !existingIds.has(r.id));
+      return [...prev, ...fresh];
+    });
+  }, [result?.data, page]);
+
+  useEffect(() => {
+    if (!isFetching) {
+      isLoadingMore.current = false;
+    }
+  }, [isFetching]);
+
+  useEffect(() => {
+    setPage(1);
+    setAllRows([]);
+  }, [searchTerm]);
+
   const filteredData = searchTerm.trim()
     ? allRows.filter((r) =>
         Object.values(r).some((v) =>
@@ -102,6 +126,16 @@ export default function UsersPage() {
         ),
       )
     : allRows;
+
+  const hasMore = result?.pagination
+    ? page < result.pagination.totalPages
+    : false;
+
+  const handleLoadMore = () => {
+    if (isLoadingMore.current || !hasMore) return;
+    isLoadingMore.current = true;
+    setPage((p) => p + 1);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -202,7 +236,7 @@ export default function UsersPage() {
       <DataTable
         data={filteredData}
         columns={columns}
-        loading={isLoading}
+        loading={isLoading && page === 1}
         title="Usuarios"
         titleIcon="group"
         searchTerm={searchTerm}
@@ -218,13 +252,10 @@ export default function UsersPage() {
             variant: "danger",
           },
         ]}
-        pagination={result?.pagination ?? undefined}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={(s) => {
-          setPageSize(s);
-          setPage(1);
-        }}
+        infiniteScroll
+        onLoadMore={handleLoadMore}
+        hasMore={hasMore}
+        loadingMore={isFetching && page > 1}
         emptyIcon="group"
         emptyTitle="Sin registros"
         emptyDesc="Aun no hay usuarios"

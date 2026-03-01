@@ -8,6 +8,7 @@ import type {
   UpdateRoleRequest,
   PaginationInfo,
 } from "@/lib/dashboard-types";
+import { ApiResponse } from "@/lib/auth-types";
 
 export interface PaginatedResult<T> {
   data: T[];
@@ -51,10 +52,8 @@ export const rolesApi = createApi({
             ]
           : [{ type: "Role", id: "LIST" }],
     }),
-    getPermissions: builder.query<PermissionResponse[], void>({
+    getPermissions: builder.query<ApiResponse<PermissionResponse[]>, void>({
       query: () => "/role/permissions",
-      transformResponse: (raw: PermissionResponse[] | { data: PermissionResponse[] }) =>
-        Array.isArray(raw) ? raw : (raw?.data ?? []),
       providesTags: ["Permission"],
     }),
     createRole: builder.mutation<RoleResponse, CreateRoleRequest>({

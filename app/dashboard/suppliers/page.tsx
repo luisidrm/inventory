@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { SupplierResponse, CreateSupplierRequest } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
@@ -50,13 +50,36 @@ export default function SuppliersPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState<SupplierResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
+  const isLoadingMore = useRef(false);
 
-  const { data: result, isLoading } = useGetSuppliersQuery({ page, perPage: pageSize });
+  const { data: result, isLoading, isFetching } = useGetSuppliersQuery({ page, perPage: pageSize });
   const [createSupplier] = useCreateSupplierMutation();
   const [updateSupplier] = useUpdateSupplierMutation();
   const [deleteSupplier] = useDeleteSupplierMutation();
 
-  const allRows = result?.data ?? [];
+  const [allRows, setAllRows] = useState<SupplierResponse[]>([]);
+
+  useEffect(() => {
+    if (!result?.data) return;
+    setAllRows((prev) => {
+      if (page === 1) return result.data;
+      const existingIds = new Set(prev.map((r) => r.id));
+      const fresh = result.data.filter((r) => !existingIds.has(r.id));
+      return [...prev, ...fresh];
+    });
+  }, [result?.data, page]);
+
+  useEffect(() => {
+    if (!isFetching) {
+      isLoadingMore.current = false;
+    }
+  }, [isFetching]);
+
+  useEffect(() => {
+    setPage(1);
+    setAllRows([]);
+  }, [searchTerm]);
+
   const filteredData = searchTerm.trim()
     ? allRows.filter((row) =>
         Object.values(row).some((val) =>
@@ -64,6 +87,16 @@ export default function SuppliersPage() {
         )
       )
     : allRows;
+
+  const hasMore = result?.pagination
+    ? page < result.pagination.totalPages
+    : false;
+
+  const handleLoadMore = () => {
+    if (isLoadingMore.current || !hasMore) return;
+    isLoadingMore.current = true;
+    setPage((p) => p + 1);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -187,7 +220,7 @@ export default function SuppliersPage() {
       <DataTable
         data={filteredData}
         columns={COLUMNS}
-        loading={isLoading}
+        loading={isLoading && page === 1}
         title="Proveedores"
         titleIcon="local_shipping"
         searchTerm={searchTerm}
@@ -198,13 +231,10 @@ export default function SuppliersPage() {
           { icon: "edit", label: "Editar", onClick: openEdit },
           { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger" },
         ]}
-        pagination={result?.pagination ?? undefined}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={(s) => {
-          setPageSize(s);
-          setPage(1);
-        }}
+        infiniteScroll
+        onLoadMore={handleLoadMore}
+        hasMore={hasMore}
+        loadingMore={isFetching && page > 1}
         emptyIcon="local_shipping"
         emptyTitle="Sin registros"
         emptyDesc={searchTerm ? "No se encontraron resultados" : "Aún no hay proveedores"}

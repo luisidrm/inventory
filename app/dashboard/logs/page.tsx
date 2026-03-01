@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { LogResponse } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
@@ -22,20 +22,53 @@ export default function LogsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [logType, setLogType] = useState(-1);
   const [eventType, setEventType] = useState(-1);
+  const isLoadingMore = useRef(false);
 
-  const { data: result, isLoading } = useGetLogsQuery({
+  const { data: result, isLoading, isFetching } = useGetLogsQuery({
     page,
     perPage: pageSize,
     logType: logType >= 0 ? logType : undefined,
     eventTypeLog: eventType >= 0 ? eventType : undefined,
   });
 
-  const allRows = result?.data ?? [];
+  const [allRows, setAllRows] = useState<LogResponse[]>([]);
+
+  useEffect(() => {
+    if (!result?.data) return;
+    setAllRows((prev) => {
+      if (page === 1) return result.data;
+      const existingIds = new Set(prev.map((r) => r.id));
+      const fresh = result.data.filter((r) => !existingIds.has(r.id));
+      return [...prev, ...fresh];
+    });
+  }, [result?.data, page]);
+
+  useEffect(() => {
+    if (!isFetching) {
+      isLoadingMore.current = false;
+    }
+  }, [isFetching]);
+
+  useEffect(() => {
+    setPage(1);
+    setAllRows([]);
+  }, [searchTerm, logType, eventType]);
+
   const filteredData = searchTerm.trim()
     ? allRows.filter((r) =>
         Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(searchTerm.toLowerCase()))
       )
     : allRows;
+
+  const hasMore = result?.pagination
+    ? page < result.pagination.totalPages
+    : false;
+
+  const handleLoadMore = () => {
+    if (isLoadingMore.current || !hasMore) return;
+    isLoadingMore.current = true;
+    setPage((p) => p + 1);
+  };
 
   return (
     <>
@@ -94,18 +127,15 @@ export default function LogsPage() {
       <DataTable
         data={filteredData}
         columns={COLUMNS}
-        loading={isLoading}
+        loading={isLoading && page === 1}
         title="Logs"
         titleIcon="receipt_long"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        pagination={result?.pagination ?? undefined}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={(s) => {
-          setPageSize(s);
-          setPage(1);
-        }}
+        infiniteScroll
+        onLoadMore={handleLoadMore}
+        hasMore={hasMore}
+        loadingMore={isFetching && page > 1}
         emptyIcon="receipt_long"
         emptyTitle="Sin registros"
         emptyDesc={searchTerm ? "No se encontraron resultados" : "No hay logs"}
