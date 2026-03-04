@@ -18,6 +18,7 @@ import { FormModal } from "@/components/FormModal";
 import Switch from "@/components/Switch";
 import { StatCard, LineChartCard, PieChartCard, theme } from "@/components/dashboard";
 import "../products/products-modal.css";
+import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
 const COLUMNS: DataTableColumn<SupplierResponse>[] = [
   { key: "name", label: "Nombre" },
@@ -51,6 +52,13 @@ export default function SuppliersPage() {
   const [deleting, setDeleting] = useState<SupplierResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const isLoadingMore = useRef(false);
+
+  // ─── Permissions ──────────────────────────────────────────────────────────
+
+  const { has: hasPermission } = useUserPermissionCodes();
+  const canCreateSupplier = hasPermission("supplier.create");
+  const canEditSupplier = hasPermission("supplier.update");
+  const canDeleteSupplier = hasPermission("supplier.delete");
 
   const { data: result, isLoading, isFetching } = useGetSuppliersQuery({ page, perPage: pageSize });
   const [createSupplier] = useCreateSupplierMutation();
@@ -225,11 +233,22 @@ export default function SuppliersPage() {
         titleIcon="local_shipping"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel="Nuevo proveedor"
-        onAdd={openCreate}
+        addLabel={canCreateSupplier ? "Nuevo proveedor" : undefined}
+        onAdd={canCreateSupplier ? openCreate : undefined}
         actions={[
-          { icon: "edit", label: "Editar", onClick: openEdit },
-          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger" },
+          {
+            icon: "edit",
+            label: "Editar",
+            onClick: openEdit,
+            hidden: () => !canEditSupplier,
+          },
+          {
+            icon: "delete_outline",
+            label: "Eliminar",
+            onClick: openDelete,
+            variant: "danger",
+            hidden: () => !canDeleteSupplier,
+          },
         ]}
         infiniteScroll
         onLoadMore={handleLoadMore}

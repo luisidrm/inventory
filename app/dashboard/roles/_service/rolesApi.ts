@@ -52,6 +52,11 @@ export const rolesApi = createApi({
             ]
           : [{ type: "Role", id: "LIST" }],
     }),
+    /** Fetches a single role by id. Use for "my permissions" to avoid 403 from listing all roles (role.read). */
+    getRoleById: builder.query<ApiResponse<RoleResponse>, number>({
+      query: (id) => `/role/id?id=${id}`,
+      providesTags: (_result, _err, id) => [{ type: "Role", id }],
+    }),
     getPermissions: builder.query<ApiResponse<PermissionResponse[]>, void>({
       query: () => "/role/permissions",
       providesTags: ["Permission"],
@@ -75,6 +80,7 @@ export const rolesApi = createApi({
 
 export const {
   useGetRolesQuery,
+  useGetRoleByIdQuery,
   useGetPermissionsQuery,
   useCreateRoleMutation,
   useUpdateRoleMutation,

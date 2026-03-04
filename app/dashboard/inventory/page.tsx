@@ -19,6 +19,7 @@ import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
 import { StatCard, LineChartCard, BarChartCard, PieChartCard, theme } from "@/components/dashboard";
 import "../products/products-modal.css";
+import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
 const COLUMNS: DataTableColumn<InventoryResponse>[] = [
   { key: "productName", label: "Producto", width: "180px" },
@@ -62,6 +63,11 @@ export default function InventoryPage() {
   const products = productsResult?.data ?? [];
   const locations = locationsResult?.data ?? [];
   const [allRows, setAllRows] = useState<InventoryResponse[]>([]);
+
+  // ─── Permissions ──────────────────────────────────────────────────────────
+
+  const { has: hasPermission } = useUserPermissionCodes();
+  const canManageInventory = hasPermission("inventory.manage");
 
   useEffect(() => {
     if (!result?.data) return;
@@ -230,11 +236,22 @@ export default function InventoryPage() {
         titleIcon="inventory"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel="Nuevo inventario"
-        onAdd={openCreate}
+        addLabel={canManageInventory ? "Nuevo inventario" : undefined}
+        onAdd={canManageInventory ? openCreate : undefined}
         actions={[
-          { icon: "edit", label: "Editar", onClick: openEdit },
-          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger" },
+          {
+            icon: "edit",
+            label: "Editar",
+            onClick: openEdit,
+            hidden: () => !canManageInventory,
+          },
+          {
+            icon: "delete_outline",
+            label: "Eliminar",
+            onClick: openDelete,
+            variant: "danger",
+            hidden: () => !canManageInventory,
+          },
         ]}
         infiniteScroll
         onLoadMore={handleLoadMore}

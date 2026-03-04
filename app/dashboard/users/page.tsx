@@ -17,6 +17,7 @@ import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
 import { useAppSelector } from "@/store/store";
 import "../products/products-modal.css";
+import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
 const initialForm = {
   fullName: "",
@@ -46,6 +47,13 @@ export default function UsersPage() {
   const organizationId = user?.organizationId ?? 0;
   const isAdmin =
     user?.roleId === 2;
+
+  // ─── Permissions ──────────────────────────────────────────────────────────
+
+  const { has: hasPermission } = useUserPermissionCodes();
+  const canCreateUser = hasPermission("user.create");
+  const canEditUser = hasPermission("user.update");
+  const canDeleteUser = hasPermission("user.delete");
 
   const { data: result, isLoading, isFetching } = useGetUsersQuery({
     page,
@@ -241,15 +249,21 @@ export default function UsersPage() {
         titleIcon="group"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel="Nuevo usuario"
-        onAdd={openCreate}
+        addLabel={canCreateUser ? "Nuevo usuario" : undefined}
+        onAdd={canCreateUser ? openCreate : undefined}
         actions={[
-          { icon: "edit", label: "Editar", onClick: openEdit },
+          {
+            icon: "edit",
+            label: "Editar",
+            onClick: openEdit,
+            hidden: () => !canEditUser,
+          },
           {
             icon: "delete_outline",
             label: "Eliminar",
             onClick: openDelete,
             variant: "danger",
+            hidden: () => !canDeleteUser,
           },
         ]}
         infiniteScroll

@@ -1,22 +1,75 @@
 import { isRejectedWithValue, isFulfilled, type Middleware } from "@reduxjs/toolkit";
-import { create } from "domain";
 import { toast } from "sonner";
 
 // Endpoints that should stay silent (e.g. background fetches)
+// All RTK Query GET endpoints go here so they don't disparar toasts en éxito/error.
 const SILENT_ENDPOINTS = new Set([
+  // ── Auth ──
+  "refreshToken",
+
+  // ── Productos ──
   "getProducts",
   "getProductCategories",
-  "refreshToken",
-  "getInventory",
+  "getProductStats",
+  "getProductPerformance",
+  "getProductStockByCategory",
+
+  // ── Categorías ──
   "getCategories",
+  "getCategoryStats",
+  "getItemDistribution",
+  "getStorageUsage",
+
+  // ── Proveedores ──
   "getSuppliers",
+  "getSupplierStats",
+  "getDeliveryTimeline",
+  "getSupplierCategoryDistribution",
+
+  // ── Ubicaciones ──
   "getLocations",
+
+  // ── Inventario ──
+  "getInventories",
+  "getInventoryStats",
+  "getInventoryFlow",              // también usado por dashboardApi
+  "getStockByLocation",
+  "getInventoryCategoryDistribution",
+
+  // ── Movimientos ──
   "getMovements",
+  "getMovementStats",
+  "getFlowWithCumulative",
+  "getDistributionByType",
+
+  // ── Usuarios y roles ──
   "getUsers",
   "getRoles",
+  "getRoleById",
+  "getPermissions",
+
+  // ── Logs ──
   "getLogs",
+
+  // ── Settings ──
+  "getGroupedSettings",
+
+  // ── Dashboard ──
+  "getSummary",
+  "getCategoryDistribution",
+  "getInventoryValueEvolution",
+  "getStockStatus",
+  "getEntriesVsExits",
+  "getLowStockAlertsByDay",
+  "getListTopMovements",
+  "getListLowStock",
+  "getListLatestMovements",
+  "getListValueByLocation",
+  "getListRecentProducts",
+
+  // Legacy names (por si acaso, aunque ahora no se usan)
+  "getInventory",
   "getSettings",
-  // add any GET/query endpoints you don't want toasting
 ]);
 
 // Custom messages per endpoint — optional

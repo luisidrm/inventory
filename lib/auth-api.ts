@@ -39,6 +39,18 @@ export function saveUser(user: UserResponse): void {
   localStorage.setItem("user", JSON.stringify(user));
 }
 
+/** User saved in localStorage (same shape as login result). Used to restore session after reload. */
+export function getStoredUser(): UserResponse | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw) return null;
+    return JSON.parse(raw) as UserResponse;
+  } catch {
+    return null;
+  }
+}
+
 export function clearSession(): void {
   if (typeof window === "undefined") return;
   logoutSuccessfull()

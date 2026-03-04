@@ -17,6 +17,7 @@ import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
 import { StatCard, BarChartCard, PieChartCard, theme } from "@/components/dashboard";
 import "../products/products-modal.css";
+import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
 const COLUMNS: DataTableColumn<ProductCategoryResponse>[] = [
   { key: "name", label: "Nombre" },
@@ -67,6 +68,13 @@ export default function CategoriesPage() {
   const [deleting, setDeleting] = useState<ProductCategoryResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const isLoadingMore = useRef(false);
+
+  // ─── Permissions ──────────────────────────────────────────────────────────
+
+  const { has: hasPermission } = useUserPermissionCodes();
+  const canCreateCategory = hasPermission("productcategory.create");
+  const canEditCategory = hasPermission("productcategory.update");
+  const canDeleteCategory = hasPermission("productcategory.delete");
 
   const { data: result, isLoading, isFetching } = useGetCategoriesQuery({ page, perPage: pageSize });
   const [createCategory] = useCreateCategoryMutation();
@@ -242,11 +250,22 @@ export default function CategoriesPage() {
         titleIcon="category"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel="Nueva categoría"
-        onAdd={openCreate}
+        addLabel={canCreateCategory ? "Nueva categoría" : undefined}
+        onAdd={canCreateCategory ? openCreate : undefined}
         actions={[
-          { icon: "edit", label: "Editar", onClick: openEdit },
-          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger" },
+          {
+            icon: "edit",
+            label: "Editar",
+            onClick: openEdit,
+            hidden: () => !canEditCategory,
+          },
+          {
+            icon: "delete_outline",
+            label: "Eliminar",
+            onClick: openDelete,
+            variant: "danger",
+            hidden: () => !canDeleteCategory,
+          },
         ]}
         infiniteScroll
         onLoadMore={handleLoadMore}

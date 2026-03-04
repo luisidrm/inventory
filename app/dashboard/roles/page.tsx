@@ -16,6 +16,7 @@ import { FormModal } from "@/components/FormModal";
 import { PERMISSIONS } from "@/lib/utils";
 import "../products/products-modal.css";
 import "./roles-modal.css";
+import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
 const COLUMNS: DataTableColumn<RoleResponse>[] = [
   { key: "name", label: "Nombre" },
@@ -50,6 +51,13 @@ export default function RolesPage() {
   const isLoadingMore = useRef(false);
   const [selectorOpen, setSelectorOpen] = useState(false);
   const selectorRef = useRef<HTMLDivElement>(null);
+
+  // ─── Permissions ──────────────────────────────────────────────────────────
+
+  const { has: hasPermission } = useUserPermissionCodes();
+  const canCreateRole = hasPermission("role.create");
+  const canEditRole = hasPermission("role.update");
+  const canDeleteRole = hasPermission("role.delete");
 
   const { data: permissions, isLoading: loadingPermissions } =
     useGetPermissionsQuery();
@@ -214,16 +222,21 @@ export default function RolesPage() {
         titleIcon="admin_panel_settings"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel="Nuevo rol"
-        onAdd={openCreate}
+        addLabel={canCreateRole ? "Nuevo rol" : undefined}
+        onAdd={canCreateRole ? openCreate : undefined}
         actions={[
-          { icon: "edit", label: "Editar", onClick: openEdit },
+          {
+            icon: "edit",
+            label: "Editar",
+            onClick: openEdit,
+            hidden: () => !canEditRole,
+          },
           {
             icon: "delete_outline",
             label: "Eliminar",
             onClick: openDelete,
             variant: "danger",
-            hidden: (row) => row.isSystem,
+            hidden: (row) => row.isSystem || !canDeleteRole,
           },
         ]}
         infiniteScroll

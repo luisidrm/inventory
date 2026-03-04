@@ -8,6 +8,7 @@ import { clearSession } from "@/lib/auth-api";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 import "./dashboard.css";
 import { useAppSelector } from "@/store/store";
+import { useLogoutMutation } from "../login/_service/authApi";
 
 interface NavItem {
   icon: string;
@@ -49,6 +50,8 @@ export default function DashboardLayout({
   const user = useAppSelector((state) => state.auth) || null;
   const { has: hasPermission } = useUserPermissionCodes();
 
+  const [logout] = useLogoutMutation()
+
   const visibleNavItems = useMemo(
     () =>
       navItems.filter(
@@ -70,6 +73,7 @@ export default function DashboardLayout({
   };
 
   const handleLogout = () => {
+    logout();
     clearSession();
     router.push("/login");
     router.refresh();

@@ -76,13 +76,11 @@ export const authApi = createApi({
     }),
 
     logout: builder.mutation<void, void>({
-      queryFn: () => {
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("token");
-          localStorage.removeItem("refreshToken");
-          localStorage.removeItem("user");
-        }
-        return { data: undefined };
+      query: () => {
+        return {
+          url: '/account/logout',
+          method: 'POST',
+        };
       },
       invalidatesTags: ['User'],
     }),

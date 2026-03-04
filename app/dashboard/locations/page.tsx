@@ -15,6 +15,7 @@ import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
 import { useAppSelector } from "@/store/store";
 import "../products/products-modal.css";
+import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
 const COLUMNS: DataTableColumn<LocationResponse>[] = [
   { key: "name", label: "Nombre" },
@@ -46,6 +47,13 @@ export default function LocationsPage() {
 
   const user = useAppSelector((s) => s.auth);
   const organizationId = user?.organizationId ?? 0;
+
+  // ─── Permissions ──────────────────────────────────────────────────────────
+
+  const { has: hasPermission } = useUserPermissionCodes();
+  const canCreateLocation = hasPermission("location.create");
+  const canEditLocation = hasPermission("location.update");
+  const canDeleteLocation = hasPermission("location.delete");
 
   const { data: result, isLoading, isFetching } = useGetLocationsQuery({
     page,
@@ -192,11 +200,22 @@ export default function LocationsPage() {
         titleIcon="warehouse"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel="Nueva ubicación"
-        onAdd={openCreate}
+        addLabel={canCreateLocation ? "Nueva ubicación" : undefined}
+        onAdd={canCreateLocation ? openCreate : undefined}
         actions={[
-          { icon: "edit", label: "Editar", onClick: openEdit },
-          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger" },
+          {
+            icon: "edit",
+            label: "Editar",
+            onClick: openEdit,
+            hidden: () => !canEditLocation,
+          },
+          {
+            icon: "delete_outline",
+            label: "Eliminar",
+            onClick: openDelete,
+            variant: "danger",
+            hidden: () => !canDeleteLocation,
+          },
         ]}
         infiniteScroll
         onLoadMore={handleLoadMore}

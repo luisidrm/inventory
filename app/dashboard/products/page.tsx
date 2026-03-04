@@ -20,6 +20,7 @@ import {
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
 import Switch from "@/components/Switch";
+import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +80,13 @@ export default function ProductsPage() {
   const [deleteProduct] = useDeleteProductMutation();
 
   const categories = categoriesResult?.data ?? [];
+
+  // ─── Permissions ──────────────────────────────────────────────────────────
+
+  const { has: hasPermission } = useUserPermissionCodes();
+  const canCreateProduct = hasPermission("product.create");
+  const canEditProduct = hasPermission("product.update");
+  const canDeleteProduct = hasPermission("product.delete");
 
   // ─── Infinite scroll data management ──────────────────────────────────────
 
@@ -302,11 +310,22 @@ export default function ProductsPage() {
         titleIcon="inventory_2"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel="Nuevo Producto"
-        onAdd={openCreate}
+        addLabel={canCreateProduct ? "Nuevo Producto" : undefined}
+        onAdd={canCreateProduct ? openCreate : undefined}
         actions={[
-          { icon: "edit",           label: "Editar",   onClick: openEdit },
-          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger" },
+          {
+            icon: "edit",
+            label: "Editar",
+            onClick: openEdit,
+            hidden: () => !canEditProduct,
+          },
+          {
+            icon: "delete_outline",
+            label: "Eliminar",
+            onClick: openDelete,
+            variant: "danger",
+            hidden: () => !canDeleteProduct,
+          },
         ]}
         infiniteScroll
         onLoadMore={handleLoadMore}

@@ -11,6 +11,7 @@ import { FormModal } from "@/components/FormModal";
 import { StatCard, ComposedChartCard, PieChartCard, theme } from "@/components/dashboard";
 import { Icon } from "@/components/ui/Icon";
 import "../products/products-modal.css";
+import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
 const MOVEMENT_TYPE_LABELS: Record<string, string> = {
   "0": "Entrada",
@@ -68,6 +69,11 @@ export default function MovementsPage() {
   const locations = locationsResult?.data ?? [];
   const categories = categoriesResult?.data ?? [];
   const [allRows, setAllRows] = useState<InventoryMovementResponse[]>([]);
+
+  // ─── Permissions ──────────────────────────────────────────────────────────
+
+  const { has: hasPermission } = useUserPermissionCodes();
+  const canCreateMovement = hasPermission("inventorymovement.create");
 
   useEffect(() => {
     if (!result?.data) return;
@@ -255,18 +261,34 @@ export default function MovementsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const movementToolbar = (
+  const movementToolbar = canCreateMovement ? (
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-      <button type="button" className="dt-btn-add" onClick={() => openCreate(0)} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <button
+        type="button"
+        className="dt-btn-add"
+        onClick={() => openCreate(0)}
+        style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+      >
         <Icon name="add_circle_outline" />
         Registrar entrada
       </button>
-      <button type="button" className="dt-btn-add" onClick={() => openCreate(1)} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#FEF2F2", color: "#B91C1C" }}>
+      <button
+        type="button"
+        className="dt-btn-add"
+        onClick={() => openCreate(1)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          background: "#FEF2F2",
+          color: "#B91C1C",
+        }}
+      >
         <Icon name="remove_circle_outline" />
         Registrar salida
       </button>
     </div>
-  );
+  ) : undefined;
 
   return (
     <>
@@ -327,7 +349,7 @@ export default function MovementsPage() {
               >
                 Producto existente
               </button>
-              {form.type===2&&<button
+              {form.type===0&&<button
                 type="button"
                 onClick={() => setProductMode("new")}
                 style={{
