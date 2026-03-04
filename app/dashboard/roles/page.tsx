@@ -11,9 +11,16 @@ import {
   useDeleteRoleMutation,
   useGetPermissionsQuery,
 } from "./_service/rolesApi";
+import { Icon } from "@/components/ui/Icon";
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
+import Switch from "@/components/Switch";
 import { PERMISSIONS } from "@/lib/utils";
+import {
+  buildEntityGroups,
+  getReadPermission,
+  getOtherPermissions,
+} from "@/lib/permissions-by-entity";
 import "../products/products-modal.css";
 import "./roles-modal.css";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
@@ -49,8 +56,6 @@ export default function RolesPage() {
   const [deleting, setDeleting] = useState<RoleResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const isLoadingMore = useRef(false);
-  const [selectorOpen, setSelectorOpen] = useState(false);
-  const selectorRef = useRef<HTMLDivElement>(null);
 
   // ─── Permissions ──────────────────────────────────────────────────────────
 
@@ -62,10 +67,20 @@ export default function RolesPage() {
   const { data: permissions, isLoading: loadingPermissions } =
     useGetPermissionsQuery();
   const permissionList = useMemo(() => {
-    const raw = permissions as { result?: { id: number; code: string; name: string }[] } | undefined;
+    const raw = permissions as { result?: { id?: number; Id?: number; code?: string; Code?: string; name?: string; Name?: string }[] } | undefined;
     const fromApi = raw?.result ?? [];
-    return fromApi.length > 0 ? fromApi : PERMISSIONS;
+    const list = fromApi.length > 0 ? fromApi : PERMISSIONS;
+    return list.map((p) => {
+      const id = p.id ?? (p as { Id?: number }).Id ?? 0;
+      const code = p.code ?? (p as { Code?: string }).Code ?? "";
+      const name = p.name ?? (p as { Name?: string }).Name ?? PERMISSIONS.find((x) => x.id === id || x.code === code)?.name ?? code;
+      return { id, code, name };
+    });
   }, [permissions]);
+  const entityGroups = useMemo(
+    () => buildEntityGroups(permissionList),
+    [permissionList],
+  );
   const {
     data: result,
     isLoading,
@@ -96,18 +111,6 @@ export default function RolesPage() {
     setPage(1);
     setAllRows([]);
   }, [searchTerm]);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (selectorRef.current && !selectorRef.current.contains(e.target as Node)) {
-        setSelectorOpen(false);
-      }
-    }
-    if (selectorOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [selectorOpen]);
 
   const filteredData = searchTerm.trim()
     ? allRows.filter((r) =>
@@ -203,14 +206,47 @@ export default function RolesPage() {
     }
   };
 
-  const getPermissionName = (id: number) =>
-    PERMISSIONS.find((p) => p.id === id)?.name ??
-    `Permiso #${id}`;
-
-  const availablePermissions = useMemo(
-    () => permissionList.filter((p) => !form.permissions.includes(p.id)),
-    [permissionList, form.permissions],
+  const allPermissionIds = useMemo(
+    () => permissionList.map((p) => p.id),
+    [permissionList],
   );
+
+  const toggleEntityRead = (groupId: string, on: boolean) => {
+    const group = entityGroups.find((g) => g.key === groupId);
+    if (!group) return;
+    const idsToRemove = group.permissions.map((p) => p.id);
+    if (groupId === "admin" && on) {
+      setForm((f) => ({ ...f, permissions: [...allPermissionIds] }));
+      return;
+    }
+    if (groupId === "admin" && !on) {
+      const adminId = group.permissions[0]?.id;
+      if (adminId != null)
+        setForm((f) => ({ ...f, permissions: f.permissions.filter((id) => id !== adminId) }));
+      return;
+    }
+    if (on) {
+      const readPerm = getReadPermission(group);
+      if (readPerm)
+        setForm((f) => ({
+          ...f,
+          permissions: [...f.permissions.filter((id) => !idsToRemove.includes(id)), readPerm.id],
+        }));
+    } else {
+      setForm((f) => ({
+        ...f,
+        permissions: f.permissions.filter((id) => !idsToRemove.includes(id)),
+      }));
+    }
+  };
+
+  const togglePermission = (permId: number, checked: boolean) => {
+    setForm((f) =>
+      checked
+        ? { ...f, permissions: [...f.permissions, permId] }
+        : { ...f, permissions: f.permissions.filter((id) => id !== permId) },
+    );
+  };
 
   return (
     <>
@@ -257,6 +293,7 @@ export default function RolesPage() {
           submitting={formSubmitting}
           submitLabel={editing ? "Guardar" : "Crear"}
           error={formErrors.submit}
+          maxWidth="800px"
         >
           <div className="modal-field field-full">
             <label htmlFor="name">Nombre *</label>
@@ -277,76 +314,57 @@ export default function RolesPage() {
                 setForm((f) => ({ ...f, description: e.target.value }))
               }
               rows={3}
+              placeholder="Descripción del rol"
             />
           </div>
-          <div className="modal-field field-full">
-            <label>Permisos</label>
-            <div className="roles-permissions-wrap">
-              <div className="roles-chips">
-                {form.permissions.length === 0 && (
-                  <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>
-                    Sin permisos asignados
-                  </span>
-                )}
-                {form.permissions.map((permId) => (
-                  <span key={permId} className="roles-chip">
-                    {getPermissionName(permId)}
-                    <button
-                      type="button"
-                      className="roles-chip-remove"
-                      aria-label="Quitar permiso"
-                      onClick={() =>
-                        setForm((f) => ({
-                          ...f,
-                          permissions: f.permissions.filter((id) => id !== permId),
-                        }))
-                      }
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              {loadingPermissions ? (
-                <p style={{ fontSize: "0.85rem", color: "#64748b" }}>Cargando permisos...</p>
-              ) : (
-                <div className="roles-selector" ref={selectorRef}>
-                  <button
-                    type="button"
-                    className={`roles-selector-trigger ${selectorOpen ? "open" : ""}`}
-                    onClick={() => setSelectorOpen((o) => !o)}
-                  >
-                    <span>Agregar permisos</span>
-                    <span>{selectorOpen ? "▲" : "▼"}</span>
-                  </button>
-                  {selectorOpen && (
-                    <div className="roles-selector-dropdown">
-                      {availablePermissions.length === 0 ? (
-                        <div className="roles-selector-empty">
-                          Todos los permisos ya están asignados
+          <div className="modal-field field-full roles-permissions-field">
+            <label className="roles-permissions-label">Permisos</label>
+            <p className="roles-permissions-hint">Activa la vista por entidad y marca las operaciones permitidas.</p>
+            {loadingPermissions ? (
+              <p className="roles-permissions-loading">Cargando permisos...</p>
+            ) : (
+              <div className="roles-entity-list">
+                {entityGroups.map((group) => {
+                  const readPerm = getReadPermission(group);
+                  const otherPerms = getOtherPermissions(group);
+                  const hasRead = readPerm ? form.permissions.includes(readPerm.id) : false;
+                  return (
+                    <div key={group.key} className="roles-entity-card">
+                      <div className="roles-entity-header">
+                        <div className="roles-entity-title-wrap">
+                          <h4 className="roles-entity-title">{group.label}</h4>
+                          {group.description && (
+                            <p className="roles-entity-desc">{group.description}</p>
+                          )}
                         </div>
-                      ) : (
-                        availablePermissions.map((perm) => (
-                          <button
-                            key={perm.id}
-                            type="button"
-                            className="roles-option"
-                            onClick={() => {
-                              setForm((f) => ({
-                                ...f,
-                                permissions: [...f.permissions, perm.id],
-                              }));
-                            }}
-                          >
-                            {getPermissionName(perm.id)}
-                          </button>
-                        ))
+                        <Switch
+                          checked={hasRead}
+                          onChange={(checked) => toggleEntityRead(group.key, checked)}
+                        />
+                      </div>
+                      {hasRead && otherPerms.length > 0 && (
+                        <ul className="roles-entity-ops">
+                          {otherPerms.map((p) => (
+                            <li key={p.id} className="roles-entity-op">
+                              <label className="roles-op-label">
+                                <input
+                                  type="checkbox"
+                                  checked={form.permissions.includes(p.id)}
+                                  onChange={(e) =>
+                                    togglePermission(p.id, e.target.checked)
+                                  }
+                                />
+                                <span>{p.name}</span>
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
           {formErrors.submit && (
             <p className="form-error" style={{ marginTop: 12 }}>
