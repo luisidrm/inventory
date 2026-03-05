@@ -70,8 +70,13 @@ export const productsApi = createApi({
         method: "POST",
         body,
       }),
-      transformResponse: (raw: ProductResponse | { data: ProductResponse }) =>
-        "data" in raw ? raw.data : raw,
+      transformResponse: (raw: ProductResponse | { data?: ProductResponse; result?: ProductResponse }) => {
+        const obj = raw as Record<string, unknown>;
+        if (obj && typeof obj === "object" && (obj.data != null || obj.result != null)) {
+          return (obj.data ?? obj.result) as ProductResponse;
+        }
+        return raw as ProductResponse;
+      },
       invalidatesTags: [{ type: "Product", id: "LIST" }],
     }),
 

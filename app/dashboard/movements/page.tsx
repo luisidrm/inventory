@@ -41,6 +41,8 @@ const initialNewProduct = {
   name: "",
   description: "",
   categoryId: "" as number | string,
+  precio: "0",
+  costo: "0",
 };
 
 export default function MovementsPage() {
@@ -158,6 +160,10 @@ export default function MovementsPage() {
     } else {
       if (!newProductForm.code.trim()) err.newProductCode = "Código requerido";
       if (!newProductForm.name.trim()) err.newProductName = "Nombre requerido";
+      const precio = Number(newProductForm.precio);
+      const costo = Number(newProductForm.costo);
+      if (Number.isNaN(precio) || precio < 0) err.newProductPrecio = "Precio inválido";
+      if (Number.isNaN(costo) || costo < 0) err.newProductCosto = "Costo inválido";
     }
     if (form.locationId === "" || form.locationId === null) err.locationId = "Ubicación requerida";
     const q = Number(form.quantity);
@@ -172,22 +178,32 @@ export default function MovementsPage() {
     setFormSubmitting(true);
     try {
       let productId: number;
+
       if (productMode === "new") {
+        // 1) Orden: primero crear producto y esperar respuesta correcta (mismo token/organización).
         const productPayload: CreateProductRequest = {
           code: newProductForm.code.trim(),
           name: newProductForm.name.trim(),
           description: newProductForm.description.trim(),
           categoryId: newProductForm.categoryId === "" ? null : Number(newProductForm.categoryId),
-          precio: 0,
-          costo: 0,
+          precio: Number(newProductForm.precio) || 0,
+          costo: Number(newProductForm.costo) || 0,
           imagenUrl: "",
           isAvailable: true,
         };
-        const newProduct = await createProduct(productPayload).unwrap();
-        productId = newProduct.id;
+        const createdProduct = await createProduct(productPayload).unwrap();
+        // 2) productId del movimiento = id exacto devuelto por el endpoint de creación (ej. response.data.id).
+        productId = Number(createdProduct.id);
+        if (Number.isNaN(productId) || productId <= 0) {
+          setFormErrors({ submit: "El producto se creó pero no se pudo obtener su ID. Cree el movimiento manualmente." });
+          setFormSubmitting(false);
+          return;
+        }
       } else {
         productId = Number(form.productId);
       }
+
+      // 3) Crear movimiento después de tener productId válido (mismo contexto/token que la creación del producto).
       const payload: CreateInventoryMovementRequest = {
         productId,
         locationId: Number(form.locationId),
@@ -481,6 +497,32 @@ export default function MovementsPage() {
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
+                </div>
+                <div className="modal-field">
+                  <label htmlFor="newProductPrecio">Precio *</label>
+                  <input
+                    id="newProductPrecio"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={newProductForm.precio}
+                    onChange={(e) => setNewProductForm((f) => ({ ...f, precio: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                  {formErrors.newProductPrecio && <p className="form-error">{formErrors.newProductPrecio}</p>}
+                </div>
+                <div className="modal-field">
+                  <label htmlFor="newProductCosto">Costo *</label>
+                  <input
+                    id="newProductCosto"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={newProductForm.costo}
+                    onChange={(e) => setNewProductForm((f) => ({ ...f, costo: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                  {formErrors.newProductCosto && <p className="form-error">{formErrors.newProductCosto}</p>}
                 </div>
               </div>
             )}
