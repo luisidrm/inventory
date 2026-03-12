@@ -1,5 +1,6 @@
 import { fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query';
+import { setAuthCookie, removeAuthCookie } from '@/app/login/_service/sessionCookie';
 
 const BACKEND_URL = "https://unequivocally-shrinelike-zara.ngrok-free.dev/api";
 
@@ -25,7 +26,9 @@ function getToken(): string | null {
  */
 export function saveToken(token: string): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem("token", token.replace("Bearer ", ""));
+  const normalized = token.replace("Bearer ", "");
+  localStorage.setItem("token", normalized);
+  setAuthCookie(normalized);
 }
 
 /**
@@ -44,6 +47,7 @@ export function clearSession(): void {
   localStorage.removeItem("token");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("user");
+  removeAuthCookie();
 }
 
 /**
@@ -51,6 +55,7 @@ export function clearSession(): void {
  */
 const baseQuery = fetchBaseQuery({
   baseUrl: getApiUrl(),
+  timeout: 10000,
   prepareHeaders: (headers) => {
     const token = getToken();
     if (token) {

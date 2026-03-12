@@ -18,9 +18,8 @@ export function useUserPermissionCodes(): {
   has: (code: string) => boolean;
 } {
   const user = useAppSelector((state) => state.auth);
-  const { data: role, isLoading } = useGetRoleByIdQuery(user?.roleId ?? 0, {
-    skip: !user?.roleId,
-  });
+  const roleId = user?.roleId ?? 0;
+  const { data: role, isLoading } = useGetRoleByIdQuery(roleId, { skip: !roleId });
 
   const permissionCodes = useMemo(() => {
     if (!user?.roleId || !role) return new Set<string>();
