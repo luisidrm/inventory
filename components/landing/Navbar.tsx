@@ -60,6 +60,9 @@ export function Navbar() {
         </ul>
 
         <div className="navbar__actions">
+          <Link href="/catalog" className="btn-ghost">
+            Catálogo
+          </Link>
           <Link href="/login" className="btn-ghost">
             Iniciar Sesión
           </Link>
@@ -93,6 +96,12 @@ export function Navbar() {
           <a onClick={() => handleNavClick("cta")} role="button">
             Precios
           </a>
+          <Link
+            href="/catalog"
+            onClick={() => setMobileOpen(false)}
+          >
+            Catálogo
+          </Link>
           <div className="navbar__mobile-actions">
             <Link
               href="/login"

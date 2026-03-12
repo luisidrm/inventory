@@ -20,6 +20,7 @@ import { rolesApi } from "@/app/dashboard/roles/_service/rolesApi";
 import { logsApi } from "@/app/dashboard/logs/_service/logsApi";
 import { settingsApi } from "@/app/dashboard/settings/_service/settingsApi";
 import { dashboardApi } from "@/app/dashboard/_service/dashboardApi";
+import { catalogApi } from "@/app/catalog/_service/catalogApi";
 import { toastMiddleware } from "@/lib/toastMiddleware";
 
 // Only persist the auth slice — API cache doesn't need persistence
@@ -43,6 +44,7 @@ const rootReducer = combineReducers({
   [logsApi.reducerPath]: logsApi.reducer,
   [settingsApi.reducerPath]: settingsApi.reducer,
   [dashboardApi.reducerPath]: dashboardApi.reducer,
+  [catalogApi.reducerPath]: catalogApi.reducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
@@ -60,6 +62,7 @@ const apiMiddleware = [
   logsApi.middleware,
   settingsApi.middleware,
   dashboardApi.middleware,
+  catalogApi.middleware,
 ];
 
 export const store = configureStore({

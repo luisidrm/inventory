@@ -17,6 +17,7 @@ export interface ProductResponse {
   costo: number;
   imagenUrl: string;
   isAvailable: boolean;
+  isForSale: boolean;
   createdAt: string;
   modifiedAt: string;
 }
@@ -30,17 +31,19 @@ export interface CreateProductRequest {
   costo: number;
   imagenUrl: string;
   isAvailable: boolean;
+  isForSale: boolean;
 }
 
 export interface UpdateProductRequest {
   code?: string;
   name?: string;
   description?: string;
-  categoryId?: number | null;  // ← add null
+  categoryId?: number | null;
   precio?: number;
   costo?: number;
   imagenUrl?: string;
   isAvailable?: boolean;
+  isForSale?: boolean;
 }
 
 export interface ProductCategoryResponse {
@@ -282,6 +285,29 @@ export interface LogResponse {
   createdAt: string;
   userId: number;
   description: string;
+}
+
+// ─── Catálogo público ─────────────────────────────────────────────────────────
+
+export interface PublicLocation {
+  id: number;
+  name: string;
+  description: string | null;
+  organizationId: number;
+  organizationName: string;
+}
+
+export interface PublicCatalogItem {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  imagenUrl: string | null;
+  precio: number;
+  categoryId: number;
+  categoryName: string | null;
+  categoryColor: string | null;
+  stockAtLocation: number;
 }
 
 // ─── Tabla genérica ───────────────────────────────────────────────────────────
