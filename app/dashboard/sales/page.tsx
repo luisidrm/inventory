@@ -275,8 +275,9 @@ export default function SalesPage() {
   });
   const { data: stats } = useGetOrderStatsQuery(30);
 
-  const [confirmOrder] = useConfirmOrderMutation();
-  const [cancelOrder]  = useCancelOrderMutation();
+  const [confirmOrder, { isLoading: isConfirming }] = useConfirmOrderMutation();
+  const [cancelOrder,  { isLoading: isCancelling }]  = useCancelOrderMutation();
+  const [processingId, setProcessingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!result?.data) return;
@@ -346,32 +347,47 @@ export default function SalesPage() {
     },
   ];
 
+  const isBusy = isConfirming || isCancelling;
+
   const actions: DataTableAction<SaleOrderResponse>[] = [
     {
       icon: "visibility",
       label: "Ver detalle",
       onClick: (row) => setDetailId(row.id),
+      disabled: () => isBusy,
     },
     {
-      icon: "check_circle",
-      label: "Confirmar",
+      icon: processingId !== null && isConfirming ? "hourglass_empty" : "check_circle",
+      label: isConfirming ? "Confirmando…" : "Confirmar",
       onClick: async (row) => {
-        await confirmOrder(row.id).unwrap();
-        setPage(1);
-        setAllRows([]);
+        setProcessingId(row.id);
+        try {
+          await confirmOrder(row.id).unwrap();
+          setPage(1);
+          setAllRows([]);
+        } finally {
+          setProcessingId(null);
+        }
       },
       hidden: (row) => row.status !== "Draft",
+      disabled: (row) => isBusy && processingId !== row.id,
     },
     {
-      icon: "cancel",
-      label: "Cancelar",
+      icon: processingId !== null && isCancelling ? "hourglass_empty" : "cancel",
+      label: isCancelling ? "Cancelando…" : "Cancelar",
       onClick: async (row) => {
-        await cancelOrder(row.id).unwrap();
-        setPage(1);
-        setAllRows([]);
+        setProcessingId(row.id);
+        try {
+          await cancelOrder(row.id).unwrap();
+          setPage(1);
+          setAllRows([]);
+        } finally {
+          setProcessingId(null);
+        }
       },
       variant: "danger",
       hidden: (row) => row.status === "Cancelled",
+      disabled: (row) => isBusy && processingId !== row.id,
     },
   ];
 
