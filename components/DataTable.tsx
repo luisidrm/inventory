@@ -48,6 +48,7 @@ export interface DataTableProps<T extends { id: string | number }> {
   addLabel?: string;
   addIcon?: string;
   onAdd?: () => void;
+  addButtonDataTutorial?: string;
   toolbarExtra?: React.ReactNode;
   actions?: DataTableAction<T>[];
   pagination?: PaginationMeta;
@@ -163,6 +164,7 @@ export function DataTable<T extends { id: string | number }>({
   addLabel,
   addIcon = "add",
   onAdd,
+  addButtonDataTutorial,
   toolbarExtra,
   actions,
   pagination,
@@ -238,7 +240,12 @@ export function DataTable<T extends { id: string | number }>({
           {toolbarExtra}
           <div className="dt-toolbar__spacer" />
           {onAdd && addLabel && (
-            <button type="button" className="dt-btn-add" onClick={onAdd}>
+            <button
+              type="button"
+              className="dt-btn-add"
+              onClick={onAdd}
+              data-tutorial={addButtonDataTutorial}
+            >
               <Icon name={addIcon} />
               {addLabel}
             </button>
