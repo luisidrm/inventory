@@ -190,6 +190,7 @@ export default function MovementsPage() {
           costo: Number(newProductForm.costo) || 0,
           imagenUrl: "",
           isAvailable: true,
+          isForSale: false,
         };
         const createdProduct = await createProduct(productPayload).unwrap();
         // 2) productId del movimiento = id exacto devuelto por el endpoint de creación (ej. response.data.id).
