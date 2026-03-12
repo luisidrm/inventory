@@ -7,7 +7,7 @@ import { removeItem, updateQuantity, clearCart } from "@/store/cartSlice";
 import { getApiUrl } from "@/lib/auth-api";
 import type { CreateSaleOrderRequest } from "@/lib/dashboard-types";
 
-function formatPrice(v: number) {
+function fmt(v: number) {
   return `$${v.toFixed(2)}`;
 }
 
@@ -25,7 +25,7 @@ function buildWaMessage(
   customer: CustomerInfo
 ): string {
   const lines = items
-    .map((i) => `- ${i.name} x ${i.quantity} — ${formatPrice(i.unitPrice)} c/u`)
+    .map((i) => `- ${i.name} x ${i.quantity} — ${fmt(i.unitPrice)} c/u`)
     .join("\n");
   const total = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
   const parts = [
@@ -33,174 +33,133 @@ function buildWaMessage(
     ``,
     lines,
     ``,
-    `Total: ${formatPrice(total)}`,
+    `Total: ${fmt(total)}`,
     `Ubicación: ${locationName}`,
     `Ref. orden: ${folio}`,
   ];
-  if (customer.name)    parts.push(`Nombre: ${customer.name}`);
-  if (customer.phone)   parts.push(`Teléfono: ${customer.phone}`);
+  if (customer.name) parts.push(`Nombre: ${customer.name}`);
+  if (customer.phone) parts.push(`Teléfono: ${customer.phone}`);
   if (customer.address) parts.push(`Dirección de entrega: ${customer.address}`);
-  if (customer.notes)   parts.push(`Notas: ${customer.notes}`);
+  if (customer.notes) parts.push(`Notas: ${customer.notes}`);
   return parts.join("\n");
 }
 
-// ─── Modal de confirmación ────────────────────────────────────────────────────
+/* ─── Confirm Order Modal ─── */
 
-interface ConfirmModalProps {
+interface ConfirmProps {
   onClose: () => void;
-  onConfirm: (customer: CustomerInfo) => Promise<void>;
+  onConfirm: (c: CustomerInfo) => Promise<void>;
   submitting: boolean;
   error: string;
 }
 
-function ConfirmOrderModal({ onClose, onConfirm, submitting, error }: ConfirmModalProps) {
+function ConfirmOrderModal({ onClose, onConfirm, submitting, error }: ConfirmProps) {
   const cart = useAppSelector((s) => s.cart);
   const total = cart.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
 
-  const [customer, setCustomer] = useState<CustomerInfo>({
+  const [cust, setCust] = useState<CustomerInfo>({
     name: "", phone: "", address: "", notes: "",
   });
-  const [fieldErrors, setFieldErrors] = useState<Partial<CustomerInfo>>({});
+  const [errs, setErrs] = useState<Partial<CustomerInfo>>({});
 
-  const set = (field: keyof CustomerInfo) =>
+  const upd = (f: keyof CustomerInfo) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setCustomer((prev) => ({ ...prev, [field]: e.target.value }));
+      setCust((p) => ({ ...p, [f]: e.target.value }));
 
   const validate = () => {
-    const errs: Partial<CustomerInfo> = {};
-    if (!customer.name.trim())    errs.name    = "Requerido";
-    if (!customer.address.trim()) errs.address = "Requerido";
-    setFieldErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
-
-  const handleSubmit = () => {
-    if (validate()) onConfirm(customer);
+    const e: Partial<CustomerInfo> = {};
+    if (!cust.name.trim()) e.name = "Requerido";
+    if (!cust.address.trim()) e.address = "Requerido";
+    setErrs(e);
+    return Object.keys(e).length === 0;
   };
 
   return (
-    <div className="order-confirm-overlay" onClick={onClose}>
-      <div className="order-confirm-modal" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="order-confirm-modal__header">
-          <span className="order-confirm-modal__icon">
+    <div className="confirm-overlay" onClick={onClose}>
+      <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="confirm-modal__head">
+          <span className="confirm-modal__icon">
             <Icon name="receipt_long" />
           </span>
-          <h2 className="order-confirm-modal__title">Confirmar pedido</h2>
-          <button type="button" className="order-confirm-modal__close" onClick={onClose} aria-label="Cerrar">
+          <h2 className="confirm-modal__title">Confirmar pedido</h2>
+          <button type="button" className="confirm-modal__x" onClick={onClose} aria-label="Cerrar">
             <Icon name="close" />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="order-confirm-modal__body">
-          <div className="order-confirm-location">
+        <div className="confirm-modal__body">
+          <div className="confirm-loc">
             <Icon name="location_on" />
             {cart.locationName}
           </div>
 
-          {/* Resumen productos */}
-          <table className="order-confirm-table">
+          <table className="confirm-table">
             <thead>
               <tr>
                 <th>Producto</th>
                 <th className="td-right">Cant.</th>
-                <th className="td-right">P. Unit.</th>
+                <th className="td-right">P.U.</th>
                 <th className="td-right">Subtotal</th>
               </tr>
             </thead>
             <tbody>
-              {cart.items.map((item) => (
-                <tr key={item.productId}>
-                  <td>{item.name}</td>
-                  <td className="td-right">{item.quantity}</td>
-                  <td className="td-right">{formatPrice(item.unitPrice)}</td>
-                  <td className="td-right">{formatPrice(item.quantity * item.unitPrice)}</td>
+              {cart.items.map((it) => (
+                <tr key={it.productId}>
+                  <td>{it.name}</td>
+                  <td className="td-right">{it.quantity}</td>
+                  <td className="td-right">{fmt(it.unitPrice)}</td>
+                  <td className="td-right">{fmt(it.quantity * it.unitPrice)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          <div className="order-confirm-total">
+          <div className="confirm-total">
             <span>Total estimado</span>
-            <strong>{formatPrice(total)}</strong>
+            <strong>{fmt(total)}</strong>
           </div>
 
-          {/* Datos del cliente */}
-          <div className="order-confirm-section-title">
+          <div className="confirm-section">
             <Icon name="person" />
-            Tus datos de contacto
+            Datos de contacto
           </div>
 
-          <div className="order-confirm-fields">
-            <div className="order-confirm-field">
+          <div className="confirm-fields">
+            <div className="confirm-field">
               <label>Nombre *</label>
-              <input
-                type="text"
-                value={customer.name}
-                onChange={set("name")}
-                placeholder="Tu nombre completo"
-                disabled={submitting}
-              />
-              {fieldErrors.name && <span className="order-confirm-field-err">{fieldErrors.name}</span>}
+              <input value={cust.name} onChange={upd("name")} placeholder="Tu nombre" disabled={submitting} />
+              {errs.name && <span className="confirm-field-err">{errs.name}</span>}
             </div>
-
-            <div className="order-confirm-field">
+            <div className="confirm-field">
               <label>Teléfono</label>
-              <input
-                type="tel"
-                value={customer.phone}
-                onChange={set("phone")}
-                placeholder="Tu número de teléfono"
-                disabled={submitting}
-              />
+              <input type="tel" value={cust.phone} onChange={upd("phone")} placeholder="Número" disabled={submitting} />
             </div>
-
-            <div className="order-confirm-field order-confirm-field--full">
-              <label>Dirección de entrega *</label>
-              <input
-                type="text"
-                value={customer.address}
-                onChange={set("address")}
-                placeholder="Calle, número, colonia, ciudad…"
-                disabled={submitting}
-              />
-              {fieldErrors.address && <span className="order-confirm-field-err">{fieldErrors.address}</span>}
+            <div className="confirm-field confirm-field--full">
+              <label>Dirección *</label>
+              <input value={cust.address} onChange={upd("address")} placeholder="Calle, número, colonia…" disabled={submitting} />
+              {errs.address && <span className="confirm-field-err">{errs.address}</span>}
             </div>
-
-            <div className="order-confirm-field order-confirm-field--full">
-              <label>Notas adicionales</label>
-              <textarea
-                value={customer.notes}
-                onChange={set("notes")}
-                placeholder="Indicaciones especiales, horario de entrega, etc."
-                rows={2}
-                disabled={submitting}
-              />
+            <div className="confirm-field confirm-field--full">
+              <label>Notas</label>
+              <textarea value={cust.notes} onChange={upd("notes")} placeholder="Indicaciones especiales" rows={2} disabled={submitting} />
             </div>
           </div>
 
-          {error && <p className="order-confirm-error">{error}</p>}
+          {error && <p className="confirm-error">{error}</p>}
         </div>
 
-        {/* Footer */}
-        <div className="order-confirm-modal__footer">
-          <button
-            type="button"
-            className="order-confirm-btn order-confirm-btn--ghost"
-            onClick={onClose}
-            disabled={submitting}
-          >
+        <div className="confirm-modal__foot">
+          <button type="button" className="confirm-btn confirm-btn--back" onClick={onClose} disabled={submitting}>
             Volver
           </button>
           <button
             type="button"
-            className="order-confirm-btn order-confirm-btn--wa"
-            onClick={handleSubmit}
+            className="confirm-btn confirm-btn--send"
+            onClick={() => validate() && onConfirm(cust)}
             disabled={submitting}
           >
             <Icon name={submitting ? "hourglass_empty" : "chat"} />
-            {submitting ? "Registrando…" : "Confirmar y enviar por WhatsApp"}
+            {submitting ? "Registrando…" : "Confirmar y enviar"}
           </button>
         </div>
       </div>
@@ -208,44 +167,41 @@ function ConfirmOrderModal({ onClose, onConfirm, submitting, error }: ConfirmMod
   );
 }
 
-// ─── Cart Drawer ──────────────────────────────────────────────────────────────
+/* ─── Cart Drawer ─── */
 
-export function CartDrawer() {
+interface CartDrawerProps {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}
+
+export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
   const dispatch = useAppDispatch();
   const cart = useAppSelector((s) => s.cart);
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
+  const [submitErr, setSubmitErr] = useState("");
 
-  const itemCount = cart.items.reduce((s, i) => s + i.quantity, 0);
+  const count = cart.items.reduce((s, i) => s + i.quantity, 0);
   const total = cart.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
 
-  const handleClear = () => dispatch(clearCart());
-
-  const openConfirm = () => {
-    setSubmitError("");
-    setConfirmOpen(true);
-  };
-
-  const handleConfirmAndSend = async (customer: CustomerInfo) => {
+  const handleConfirm = async (customer: CustomerInfo) => {
     if (!cart.locationId) return;
     setSubmitting(true);
-    setSubmitError("");
+    setSubmitErr("");
 
     try {
-      const customerNote = [
-        customer.name    ? `Nombre: ${customer.name}`              : "",
-        customer.phone   ? `Teléfono: ${customer.phone}`           : "",
-        customer.address ? `Dirección: ${customer.address}`        : "",
-        customer.notes   ? `Notas: ${customer.notes}`              : "",
+      const note = [
+        customer.name ? `Nombre: ${customer.name}` : "",
+        customer.phone ? `Teléfono: ${customer.phone}` : "",
+        customer.address ? `Dirección: ${customer.address}` : "",
+        customer.notes ? `Notas: ${customer.notes}` : "",
       ].filter(Boolean).join(" | ");
 
       const body: CreateSaleOrderRequest = {
         locationId: cart.locationId,
         contactId: null,
-        notes: customerNote || null,
+        notes: note || null,
         discountAmount: 0,
         items: cart.items.map((i) => ({
           productId: i.productId,
@@ -272,15 +228,18 @@ export function CartDrawer() {
 
       if (cart.whatsAppContact) {
         const msg = buildWaMessage(cart.items, cart.locationName, folio, customer);
-        const waUrl = `https://wa.me/${cart.whatsAppContact}?text=${encodeURIComponent(msg)}`;
-        window.open(waUrl, "_blank", "noopener,noreferrer");
+        window.open(
+          `https://wa.me/${cart.whatsAppContact}?text=${encodeURIComponent(msg)}`,
+          "_blank",
+          "noopener,noreferrer"
+        );
       }
 
       dispatch(clearCart());
       setConfirmOpen(false);
-      setDrawerOpen(false);
+      onOpenChange(false);
     } catch {
-      setSubmitError("No se pudo registrar la orden. Intenta de nuevo.");
+      setSubmitErr("No se pudo registrar la orden. Intenta de nuevo.");
     } finally {
       setSubmitting(false);
     }
@@ -288,101 +247,87 @@ export function CartDrawer() {
 
   return (
     <>
-      {/* ── Floating Action Button ── */}
+      {/* FAB for mobile */}
       <button
         type="button"
         className="cart-fab"
-        onClick={() => setDrawerOpen(true)}
-        aria-label={`Carrito (${itemCount} producto${itemCount !== 1 ? "s" : ""})`}
+        onClick={() => onOpenChange(true)}
+        aria-label={`Carrito (${count})`}
       >
         <Icon name="shopping_cart" />
-        {itemCount > 0 && (
-          <span className="cart-fab__badge">{itemCount > 99 ? "99+" : itemCount}</span>
+        {count > 0 && (
+          <span className="cart-fab__badge">{count > 99 ? "99+" : count}</span>
         )}
       </button>
 
-      {/* ── Backdrop + Drawer ── */}
-      {drawerOpen && (
+      {/* Slide-over panel */}
+      {open && (
         <>
-          <div className="cart-backdrop" onClick={() => setDrawerOpen(false)} aria-hidden />
+          <div className="cart-overlay" onClick={() => onOpenChange(false)} aria-hidden />
 
-          <aside className="cart-drawer" role="dialog" aria-label="Tu pedido">
-            {/* Header */}
-            <div className="cart-drawer__header">
-              <span className="cart-drawer__title">
+          <aside className="cart-panel" role="dialog" aria-label="Tu pedido">
+            <div className="cart-panel__head">
+              <span className="cart-panel__title">
                 <Icon name="shopping_cart" />
-                Tu pedido
-                {itemCount > 0 && ` (${itemCount})`}
+                Tu pedido {count > 0 && `(${count})`}
               </span>
               {cart.items.length > 0 && (
-                <button type="button" className="cart-drawer__clear" onClick={handleClear}>
+                <button type="button" className="cart-panel__clear" onClick={() => dispatch(clearCart())}>
                   Vaciar
                 </button>
               )}
-              <button
-                type="button"
-                className="cart-drawer__close"
-                onClick={() => setDrawerOpen(false)}
-                aria-label="Cerrar carrito"
-              >
+              <button type="button" className="cart-panel__x" onClick={() => onOpenChange(false)} aria-label="Cerrar">
                 <Icon name="close" />
               </button>
             </div>
 
-            {/* Items */}
-            <div className="cart-drawer__body">
+            <div className="cart-panel__list">
               {cart.items.length === 0 ? (
-                <div className="cart-drawer__empty">
+                <div className="cart-panel__empty">
                   <Icon name="remove_shopping_cart" />
                   <p>Tu carrito está vacío</p>
                 </div>
               ) : (
-                cart.items.map((item) => (
-                  <div key={item.productId} className="cart-item">
-                    {item.imagenUrl ? (
-                      <img src={item.imagenUrl} alt={item.name} className="cart-item__img" />
+                cart.items.map((it) => (
+                  <div key={it.productId} className="cart-row">
+                    {it.imagenUrl ? (
+                      <img src={it.imagenUrl} alt={it.name} className="cart-row__img" />
                     ) : (
-                      <div className="cart-item__img-placeholder">
+                      <div className="cart-row__no-img">
                         <Icon name="inventory_2" />
                       </div>
                     )}
 
-                    <div className="cart-item__info">
-                      <div className="cart-item__name">{item.name}</div>
-                      <div className="cart-item__price-unit">{formatPrice(item.unitPrice)} c/u</div>
-                      <div className="cart-item__controls">
+                    <div className="cart-row__body">
+                      <div className="cart-row__name">{it.name}</div>
+                      <div className="cart-row__unit">{fmt(it.unitPrice)} c/u</div>
+                      <div className="cart-row__stepper">
                         <button
                           type="button"
-                          className="cart-item__qty-btn"
-                          onClick={() =>
-                            dispatch(updateQuantity({ productId: item.productId, quantity: item.quantity - 1 }))
-                          }
+                          className="cart-row__step-btn"
+                          onClick={() => dispatch(updateQuantity({ productId: it.productId, quantity: it.quantity - 1 }))}
                         >
                           −
                         </button>
-                        <span className="cart-item__qty-val">{item.quantity}</span>
+                        <span className="cart-row__step-val">{it.quantity}</span>
                         <button
                           type="button"
-                          className="cart-item__qty-btn"
-                          disabled={item.quantity >= item.stockAtLocation}
-                          onClick={() =>
-                            dispatch(updateQuantity({ productId: item.productId, quantity: item.quantity + 1 }))
-                          }
+                          className="cart-row__step-btn"
+                          disabled={it.quantity >= it.stockAtLocation}
+                          onClick={() => dispatch(updateQuantity({ productId: it.productId, quantity: it.quantity + 1 }))}
                         >
                           +
                         </button>
                       </div>
                     </div>
 
-                    <span className="cart-item__subtotal">
-                      {formatPrice(item.quantity * item.unitPrice)}
-                    </span>
+                    <span className="cart-row__subtotal">{fmt(it.quantity * it.unitPrice)}</span>
 
                     <button
                       type="button"
-                      className="cart-item__remove"
-                      onClick={() => dispatch(removeItem(item.productId))}
-                      aria-label={`Quitar ${item.name}`}
+                      className="cart-row__del"
+                      onClick={() => dispatch(removeItem(it.productId))}
+                      aria-label={`Quitar ${it.name}`}
                     >
                       <Icon name="delete_outline" />
                     </button>
@@ -391,27 +336,25 @@ export function CartDrawer() {
               )}
             </div>
 
-            {/* Footer */}
             {cart.items.length > 0 && (
-              <div className="cart-drawer__footer">
-                <div className="cart-drawer__total-row">
-                  <span className="cart-drawer__total-label">Total estimado</span>
-                  <span className="cart-drawer__total-value">{formatPrice(total)}</span>
+              <div className="cart-panel__foot">
+                <div className="cart-panel__total">
+                  <span className="cart-panel__total-label">Total estimado</span>
+                  <span className="cart-panel__total-value">{fmt(total)}</span>
                 </div>
 
                 {cart.whatsAppContact ? (
                   <button
                     type="button"
-                    className="cart-drawer__wa-btn"
-                    onClick={openConfirm}
+                    className="cart-panel__wa"
+                    onClick={() => { setSubmitErr(""); setConfirmOpen(true); }}
                   >
                     <Icon name="chat" />
                     Enviar pedido por WhatsApp
                   </button>
                 ) : (
-                  <div className="cart-drawer__wa-disabled">
+                  <div className="cart-panel__wa-off">
                     Esta ubicación no tiene WhatsApp configurado.
-                    Contacta al negocio directamente.
                   </div>
                 )}
               </div>
@@ -420,13 +363,12 @@ export function CartDrawer() {
         </>
       )}
 
-      {/* ── Modal de confirmación ── */}
       {confirmOpen && (
         <ConfirmOrderModal
           onClose={() => setConfirmOpen(false)}
-          onConfirm={handleConfirmAndSend}
+          onConfirm={handleConfirm}
           submitting={submitting}
-          error={submitError}
+          error={submitErr}
         />
       )}
     </>

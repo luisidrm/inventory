@@ -5,12 +5,7 @@ import type {
   PublicCatalogItem,
 } from "@/lib/dashboard-types";
 
-/** Extrae un array de la respuesta estándar de la API:
- *  - array directo
- *  - { result: [...] }
- *  - { data: [...] }
- *  - { result: { data: [...] } }
- */
+
 function parseList<T>(raw: unknown): T[] {
   if (Array.isArray(raw)) return raw as T[];
   const obj = raw as Record<string, unknown> | null;

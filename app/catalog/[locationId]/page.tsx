@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
@@ -10,19 +10,189 @@ import {
   useGetPublicCatalogQuery,
   useGetPublicLocationsQuery,
 } from "../_service/catalogApi";
+import { useCatalogCtx } from "../layout";
 import type { PublicCatalogItem } from "@/lib/dashboard-types";
 
-function ProductSkeletons() {
+function fmt(v: number) {
+  const [int, dec] = v.toFixed(2).split(".");
+  return { int, dec, full: `$${v.toFixed(2)}` };
+}
+
+function hexToRgb(hex: string): string {
+  const h = hex.replace("#", "");
+  return `${parseInt(h.substring(0, 2), 16)}, ${parseInt(h.substring(2, 4), 16)}, ${parseInt(h.substring(4, 6), 16)}`;
+}
+
+type SortKey = "default" | "price-asc" | "price-desc" | "name-asc" | "name-desc";
+type ViewMode = "grid" | "list";
+
+const LOW_STOCK_THRESHOLD = 5;
+
+/* ── Dual-thumb price slider ── */
+function PriceRangeSlider({
+  min,
+  max,
+  value,
+  onChange,
+}: {
+  min: number;
+  max: number;
+  value: [number, number];
+  onChange: (v: [number, number]) => void;
+}) {
+  const range = max - min || 1;
+  const leftPct = ((value[0] - min) / range) * 100;
+  const rightPct = ((value[1] - min) / range) * 100;
+
   return (
-    <div className="catalog-grid">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="catalog-skeleton--card">
-          <div className="catalog-skeleton--card-img" />
-          <div className="catalog-skeleton--card-body">
-            <div className="catalog-skeleton--line catalog-skeleton--line-sm" />
-            <div className="catalog-skeleton--line catalog-skeleton--line-lg" />
-            <div className="catalog-skeleton--line catalog-skeleton--line-md" />
-            <div className="catalog-skeleton--line catalog-skeleton--line-price" />
+    <>
+      <div className="filter-price-display">
+        <span>${value[0].toFixed(2)}</span>
+        <span>${value[1].toFixed(2)}</span>
+      </div>
+      <div className="filter-range-wrap">
+        <div className="filter-range-track" />
+        <div
+          className="filter-range-fill"
+          style={{ left: `${leftPct}%`, width: `${rightPct - leftPct}%` }}
+        />
+        <input
+          type="range"
+          className="filter-range-input"
+          min={min}
+          max={max}
+          step={0.01}
+          value={value[0]}
+          onChange={(e) => {
+            const v = Math.min(Number(e.target.value), value[1] - 0.01);
+            onChange([v, value[1]]);
+          }}
+        />
+        <input
+          type="range"
+          className="filter-range-input"
+          min={min}
+          max={max}
+          step={0.01}
+          value={value[1]}
+          onChange={(e) => {
+            const v = Math.max(Number(e.target.value), value[0] + 0.01);
+            onChange([value[0], v]);
+          }}
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Sidebar filters (reused in desktop & mobile drawer) ── */
+function FilterBody({
+  categories,
+  cat,
+  setCat,
+  sort,
+  setSort,
+  hideOutOfStock,
+  setHideOutOfStock,
+  priceRange,
+  setPriceRange,
+  priceExtent,
+}: {
+  categories: { name: string; color: string; count: number }[];
+  cat: string | null;
+  setCat: (v: string | null) => void;
+  sort: SortKey;
+  setSort: (v: SortKey) => void;
+  hideOutOfStock: boolean;
+  setHideOutOfStock: (v: boolean) => void;
+  priceRange: [number, number];
+  setPriceRange: (v: [number, number]) => void;
+  priceExtent: [number, number];
+}) {
+  return (
+    <>
+      {/* Categories */}
+      {categories.length > 0 && (
+        <div className="filter-section">
+          <div className="filter-title">Categorías</div>
+          <div className="filter-cat-list">
+            <button
+              type="button"
+              className={`filter-cat${!cat ? " filter-cat--active" : ""}`}
+              onClick={() => setCat(null)}
+            >
+              Todos
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c.name}
+                type="button"
+                className={`filter-cat${cat === c.name ? " filter-cat--active" : ""}`}
+                onClick={() => setCat(cat === c.name ? null : c.name)}
+              >
+                <span className="filter-cat__dot" style={{ background: c.color }} />
+                {c.name}
+                <span className="filter-cat__count">{c.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Price range */}
+      <div className="filter-section">
+        <div className="filter-title">Precio</div>
+        <PriceRangeSlider
+          min={priceExtent[0]}
+          max={priceExtent[1]}
+          value={priceRange}
+          onChange={setPriceRange}
+        />
+      </div>
+
+      {/* Availability */}
+      <div className="filter-section">
+        <div className="filter-title">Disponibilidad</div>
+        <label className="filter-check">
+          <input
+            type="checkbox"
+            checked={hideOutOfStock}
+            onChange={(e) => setHideOutOfStock(e.target.checked)}
+          />
+          Solo en stock
+        </label>
+      </div>
+
+      {/* Sort */}
+      <div className="filter-section">
+        <div className="filter-title">Ordenar por</div>
+        <select
+          className="filter-select"
+          value={sort}
+          onChange={(e) => setSort(e.target.value as SortKey)}
+        >
+          <option value="default">Relevancia</option>
+          <option value="price-asc">Precio: menor a mayor</option>
+          <option value="price-desc">Precio: mayor a menor</option>
+          <option value="name-asc">Nombre: A-Z</option>
+          <option value="name-desc">Nombre: Z-A</option>
+        </select>
+      </div>
+    </>
+  );
+}
+
+/* ── Skeletons ── */
+function Skeletons() {
+  return (
+    <div className="prod-grid">
+      {Array.from({ length: 10 }).map((_, i) => (
+        <div key={i} className="skel-card">
+          <div className="skel-card__img" />
+          <div className="skel-card__body">
+            <div className="skel-line skel-line--lg" />
+            <div className="skel-line skel-line--md" />
+            <div className="skel-line skel-line--price" />
           </div>
         </div>
       ))}
@@ -30,28 +200,107 @@ function ProductSkeletons() {
   );
 }
 
-function formatPrice(value: number): string {
-  return `$${value.toFixed(2)}`;
+/* ── Quick-view Modal ── */
+function QuickView({
+  item,
+  onClose,
+  onAdd,
+}: {
+  item: PublicCatalogItem;
+  onClose: () => void;
+  onAdd: () => void;
+}) {
+  const sold = item.stockAtLocation === 0;
+  const low = !sold && item.stockAtLocation <= LOW_STOCK_THRESHOLD;
+  const cc = item.categoryColor ?? "#3b82f6";
+
+  return (
+    <div className="quickview-overlay" onClick={onClose}>
+      <div className="quickview" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="quickview__close" onClick={onClose}>
+          <Icon name="close" />
+        </button>
+
+        <div className="quickview__img-side">
+          {item.imagenUrl ? (
+            <img src={item.imagenUrl} alt={item.name} className="quickview__img" />
+          ) : (
+            <div className="quickview__no-img"><Icon name="inventory_2" /></div>
+          )}
+        </div>
+
+        <div className="quickview__body">
+          {item.categoryName && (
+            <span
+              className="quickview__cat"
+              style={{
+                background: `rgba(${hexToRgb(cc)}, 0.1)`,
+                color: cc,
+                border: `1px solid rgba(${hexToRgb(cc)}, 0.2)`,
+              }}
+            >
+              {item.categoryName}
+            </span>
+          )}
+          <h2 className="quickview__name">{item.name}</h2>
+          {item.description && <p className="quickview__desc">{item.description}</p>}
+          <div className="quickview__price">{fmt(item.precio).full}</div>
+
+          {sold ? (
+            <div className="quickview__stock quickview__stock--out">
+              <Icon name="block" /> No disponible
+            </div>
+          ) : low ? (
+            <div className="quickview__stock quickview__stock--low">
+              <Icon name="warning" /> ¡Solo quedan {item.stockAtLocation} unidades!
+            </div>
+          ) : (
+            <div className="quickview__stock quickview__stock--ok">
+              <Icon name="check_circle" /> En stock ({item.stockAtLocation} disponibles)
+            </div>
+          )}
+
+          {item.code && (
+            <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
+              SKU: {item.code}
+            </div>
+          )}
+
+          <div className="quickview__actions">
+            <button
+              type="button"
+              className="quickview__add-btn"
+              onClick={() => { onAdd(); onClose(); }}
+              disabled={sold}
+            >
+              <Icon name="add_shopping_cart" />
+              {sold ? "Agotado" : "Agregar al carrito"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function hexToRgb(hex: string): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.substring(0, 2), 16);
-  const g = parseInt(h.substring(2, 4), 16);
-  const b = parseInt(h.substring(4, 6), 16);
-  return `${r}, ${g}, ${b}`;
-}
-
-function ProductCard({ item }: { item: PublicCatalogItem }) {
+/* ── Product Card ── */
+function Card({
+  item,
+  onQuickView,
+}: {
+  item: PublicCatalogItem;
+  onQuickView: (item: PublicCatalogItem) => void;
+}) {
   const dispatch = useAppDispatch();
-  const cartItem = useAppSelector((s) =>
+  const inCart = useAppSelector((s) =>
     s.cart.items.find((i) => i.productId === item.id)
   );
+  const sold = item.stockAtLocation === 0;
+  const low = !sold && item.stockAtLocation <= LOW_STOCK_THRESHOLD;
+  const cc = item.categoryColor ?? "#3b82f6";
+  const p = fmt(item.precio);
 
-  const soldOut = item.stockAtLocation === 0;
-  const catColor = item.categoryColor ?? "#6366f1";
-
-  const handleAdd = () => {
+  const add = () =>
     dispatch(
       addItem({
         productId: item.id,
@@ -62,97 +311,64 @@ function ProductCard({ item }: { item: PublicCatalogItem }) {
         stockAtLocation: item.stockAtLocation,
       })
     );
-  };
 
-  const handleQty = (newQty: number) =>
-    dispatch(updateQuantity({ productId: item.id, quantity: newQty }));
+  const qty = (q: number) =>
+    dispatch(updateQuantity({ productId: item.id, quantity: q }));
 
   return (
-    <div className={`product-card ${soldOut ? "product-card--soldout" : ""}`}>
-      <div className="product-card__img-wrap">
+    <div className={`p-card${sold ? " p-card--sold" : ""}`}>
+      <div className="p-card__img-area" onClick={() => onQuickView(item)}>
         {item.imagenUrl ? (
-          <img
-            src={item.imagenUrl}
-            alt={item.name}
-            className="product-card__img"
-            loading="lazy"
-          />
+          <img src={item.imagenUrl} alt={item.name} className="p-card__img" loading="lazy" />
         ) : (
-          <div className="product-card__img-placeholder">
-            <Icon name="inventory_2" />
-          </div>
+          <div className="p-card__no-img"><Icon name="inventory_2" /></div>
         )}
-        {soldOut && (
-          <div className="product-card__soldout-overlay">
-            <span className="product-card__soldout-badge">Agotado</span>
-          </div>
-        )}
-      </div>
-
-      <div className="product-card__body">
+        {sold && <span className="p-card__sold-tag">Agotado</span>}
         {item.categoryName && (
           <span
-            className="product-card__category"
+            className="p-card__cat-tag"
             style={{
-              background: `rgba(${hexToRgb(catColor)}, 0.1)`,
-              color: catColor,
-              border: `1px solid rgba(${hexToRgb(catColor)}, 0.2)`,
+              background: `rgba(${hexToRgb(cc)}, 0.1)`,
+              color: cc,
+              border: `1px solid rgba(${hexToRgb(cc)}, 0.2)`,
             }}
           >
             {item.categoryName}
           </span>
         )}
-
-        <div className="product-card__name">{item.name}</div>
-
-        {item.description && (
-          <p className="product-card__desc">{item.description}</p>
+        {low && (
+          <span className="p-card__low-stock">
+            ¡Quedan {item.stockAtLocation}!
+          </span>
         )}
+      </div>
 
-        <div className="product-card__footer">
-          <span className="product-card__price">{formatPrice(item.precio)}</span>
-          {soldOut ? (
-            <span className="product-card__stock-badge product-card__stock-badge--soldout">
-              <Icon name="block" />
-              Agotado
-            </span>
-          ) : (
-            <span className="product-card__stock-badge product-card__stock-badge--available">
-              <Icon name="check_circle" />
-              Disponible
-            </span>
-          )}
+      <div className="p-card__info">
+        <div className="p-card__name" onClick={() => onQuickView(item)}>{item.name}</div>
+        {item.description && <p className="p-card__desc">{item.description}</p>}
+
+        <div className="p-card__price-row">
+          <span className="p-card__currency">$</span>
+          <span className="p-card__price">{p.int}</span>
+          <span className="p-card__currency">{p.dec}</span>
         </div>
 
-        {/* Cart controls */}
-        {!soldOut && (
-          cartItem ? (
-            <div className="product-card__qty-ctrl">
-              <button
-                type="button"
-                className="product-card__qty-btn"
-                onClick={() => handleQty(cartItem.quantity - 1)}
-              >
-                −
-              </button>
-              <span className="product-card__qty-display">{cartItem.quantity}</span>
-              <button
-                type="button"
-                className="product-card__qty-btn"
-                disabled={cartItem.quantity >= item.stockAtLocation}
-                onClick={() => handleQty(cartItem.quantity + 1)}
-              >
-                +
-              </button>
+        {sold ? (
+          <div className="p-card__avail p-card__avail--no">No disponible</div>
+        ) : (
+          <div className="p-card__avail p-card__avail--yes">En stock</div>
+        )}
+
+        {!sold && (
+          inCart ? (
+            <div className="p-card__qty">
+              <button type="button" className="p-card__qty-btn" onClick={() => qty(inCart.quantity - 1)}>−</button>
+              <span className="p-card__qty-val">{inCart.quantity}</span>
+              <button type="button" className="p-card__qty-btn" disabled={inCart.quantity >= item.stockAtLocation} onClick={() => qty(inCart.quantity + 1)}>+</button>
             </div>
           ) : (
-            <button
-              type="button"
-              className="product-card__add-btn"
-              onClick={handleAdd}
-            >
-              <Icon name="add_shopping_cart" />
-              Agregar
+            <button type="button" className="p-card__add" onClick={add}>
+              <Icon name="add_shopping_cart" /> Agregar
             </button>
           )
         )}
@@ -161,182 +377,231 @@ function ProductCard({ item }: { item: PublicCatalogItem }) {
   );
 }
 
+/* ── Page ── */
 export default function CatalogProductsPage() {
   const params = useParams();
   const locationId = Number(params.locationId);
   const dispatch = useAppDispatch();
+  const { search } = useCatalogCtx();
 
-  const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [cat, setCat] = useState<string | null>(null);
+  const [sort, setSort] = useState<SortKey>("default");
+  const [hideOutOfStock, setHideOutOfStock] = useState(false);
+  const [view, setView] = useState<ViewMode>("grid");
+  const [quickViewItem, setQuickViewItem] = useState<PublicCatalogItem | null>(null);
+  const [mobileFilters, setMobileFilters] = useState(false);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 0]);
 
-  const {
-    data: products,
-    isLoading,
-    isError,
-    refetch,
-  } = useGetPublicCatalogQuery(locationId);
-
+  const { data: products, isLoading, isError, refetch } = useGetPublicCatalogQuery(locationId);
   const { data: locations } = useGetPublicLocationsQuery();
-  const currentLocation = locations?.find((l) => l.id === locationId);
+  const loc = locations?.find((l) => l.id === locationId);
 
-  // Sync cart location when location data loads
   useEffect(() => {
-    if (currentLocation) {
-      dispatch(
-        setLocation({
-          id: currentLocation.id,
-          name: currentLocation.name,
-          whatsAppContact: currentLocation.whatsAppContact ?? null,
-        })
-      );
+    if (loc) {
+      dispatch(setLocation({ id: loc.id, name: loc.name, whatsAppContact: loc.whatsAppContact ?? null }));
     }
-  }, [currentLocation?.id, dispatch]);
+  }, [loc?.id, dispatch]);
+
+  const priceExtent = useMemo<[number, number]>(() => {
+    if (!products || products.length === 0) return [0, 100];
+    let mn = Infinity;
+    let mx = -Infinity;
+    for (const p of products) {
+      if (p.precio < mn) mn = p.precio;
+      if (p.precio > mx) mx = p.precio;
+    }
+    return [Math.floor(mn), Math.ceil(mx)];
+  }, [products]);
+
+  useEffect(() => {
+    setPriceRange(priceExtent);
+  }, [priceExtent]);
 
   const categories = useMemo(() => {
     if (!products) return [];
-    const map = new Map<string, { name: string; color: string }>();
+    const m = new Map<string, { name: string; color: string; count: number }>();
     for (const p of products) {
-      if (p.categoryName && !map.has(p.categoryName)) {
-        map.set(p.categoryName, {
-          name: p.categoryName,
-          color: p.categoryColor ?? "#6366f1",
-        });
+      if (p.categoryName) {
+        const existing = m.get(p.categoryName);
+        if (existing) {
+          existing.count++;
+        } else {
+          m.set(p.categoryName, { name: p.categoryName, color: p.categoryColor ?? "#3b82f6", count: 1 });
+        }
       }
     }
-    return Array.from(map.values());
+    return Array.from(m.values());
   }, [products]);
 
   const filtered = useMemo(() => {
     if (!products) return [];
-    let result = products;
-    if (selectedCategory)
-      result = result.filter((p) => p.categoryName === selectedCategory);
+    let r = [...products];
+    if (cat) r = r.filter((p) => p.categoryName === cat);
+    if (hideOutOfStock) r = r.filter((p) => p.stockAtLocation > 0);
+    r = r.filter((p) => p.precio >= priceRange[0] && p.precio <= priceRange[1]);
     if (search.trim()) {
       const q = search.toLowerCase().trim();
-      result = result.filter((p) => p.name.toLowerCase().includes(q));
+      r = r.filter((p) => p.name.toLowerCase().includes(q));
     }
-    return result;
-  }, [products, selectedCategory, search]);
+    switch (sort) {
+      case "price-asc":  r.sort((a, b) => a.precio - b.precio); break;
+      case "price-desc": r.sort((a, b) => b.precio - a.precio); break;
+      case "name-asc":   r.sort((a, b) => a.name.localeCompare(b.name)); break;
+      case "name-desc":  r.sort((a, b) => b.name.localeCompare(a.name)); break;
+    }
+    return r;
+  }, [products, cat, hideOutOfStock, search, sort, priceRange]);
+
+  const addFromQuickView = useCallback(
+    (item: PublicCatalogItem) => {
+      dispatch(
+        addItem({
+          productId: item.id,
+          name: item.name,
+          unitPrice: item.precio,
+          quantity: 1,
+          imagenUrl: item.imagenUrl,
+          stockAtLocation: item.stockAtLocation,
+        })
+      );
+    },
+    [dispatch],
+  );
+
+  const filterProps = {
+    categories,
+    cat,
+    setCat,
+    sort,
+    setSort,
+    hideOutOfStock,
+    setHideOutOfStock,
+    priceRange,
+    setPriceRange,
+    priceExtent,
+  };
+
+  const hasProducts = !isLoading && !isError && products && products.length > 0;
 
   return (
     <>
-      <div className="catalog-header">
-        <div className="catalog-header__left">
-          <div className="catalog-header__location-icon">
-            <Icon name="store" />
-          </div>
-          <div>
-            <h1 className="catalog-header__title">
-              {currentLocation?.name ?? "Catálogo"}
-            </h1>
-            {currentLocation?.organizationName && (
-              <p className="catalog-header__org">
-                {currentLocation.organizationName}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <Link href="/catalog" className="catalog-topbar__btn">
-          <Icon name="arrow_back" />
-          <span>Cambiar local</span>
-        </Link>
+      {/* Breadcrumbs + top bar (full width, above the two-column layout) */}
+      <div className="breadcrumbs">
+        <Link href="/catalog">Tienda</Link>
+        <span className="breadcrumbs__sep">/</span>
+        <span className="breadcrumbs__current">{loc?.name ?? "Catálogo"}</span>
       </div>
 
-      {/* Search */}
-      <div className="catalog-search">
-        <div className="catalog-search__icon">
-          <Icon name="search" />
-        </div>
-        <input
-          type="text"
-          className="catalog-search__input"
-          placeholder="Buscar producto..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+      <div className="prod-topbar">
+        <button
+          type="button"
+          className="prod-mobile-filter-btn"
+          onClick={() => setMobileFilters(true)}
+        >
+          <Icon name="tune" /> Filtros
+        </button>
 
-      {/* Category chips */}
-      {!isLoading && !isError && categories.length > 0 && (
-        <div className="catalog-categories">
+        <h1 className="prod-topbar__title">{loc?.name ?? "Catálogo"}</h1>
+
+        {hasProducts && (
+          <span className="prod-topbar__count">
+            {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
+          </span>
+        )}
+
+        <div className="prod-topbar__view">
           <button
             type="button"
-            className={`catalog-chip ${!selectedCategory ? "catalog-chip--active" : ""}`}
-            style={
-              !selectedCategory
-                ? { background: "var(--gradient-primary)", borderColor: "transparent" }
-                : undefined
-            }
-            onClick={() => setSelectedCategory(null)}
+            className={`prod-topbar__view-btn${view === "grid" ? " prod-topbar__view-btn--active" : ""}`}
+            onClick={() => setView("grid")}
+            title="Vista cuadrícula"
           >
-            Todos
+            <Icon name="grid_view" />
           </button>
-          {categories.map((cat) => (
-            <button
-              key={cat.name}
-              type="button"
-              className={`catalog-chip ${selectedCategory === cat.name ? "catalog-chip--active" : ""}`}
-              style={
-                selectedCategory === cat.name
-                  ? { background: cat.color, borderColor: "transparent" }
-                  : undefined
-              }
-              onClick={() =>
-                setSelectedCategory(
-                  selectedCategory === cat.name ? null : cat.name
-                )
-              }
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {isLoading && <ProductSkeletons />}
-
-      {isError && (
-        <div className="catalog-error">
-          <div className="catalog-error__icon">
-            <Icon name="wifi_off" />
-          </div>
-          <p className="catalog-error__text">
-            No pudimos cargar el catálogo. Verifica tu conexión e intenta de nuevo.
-          </p>
-          <button type="button" className="catalog-error__retry" onClick={refetch}>
-            <Icon name="refresh" />
-            Reintentar
+          <button
+            type="button"
+            className={`prod-topbar__view-btn${view === "list" ? " prod-topbar__view-btn--active" : ""}`}
+            onClick={() => setView("list")}
+            title="Vista lista"
+          >
+            <Icon name="view_list" />
           </button>
         </div>
-      )}
+      </div>
 
-      {!isLoading && !isError && products && products.length === 0 && (
-        <div className="catalog-empty">
-          <div className="catalog-empty__icon">
-            <Icon name="inventory_2" />
+      {/* Two-column layout: sidebar aligned with products */}
+      <div className="prod-layout">
+        {/* LEFT: sidebar filters (desktop) */}
+        {hasProducts && (
+          <aside className="prod-sidebar">
+            <FilterBody {...filterProps} />
+          </aside>
+        )}
+
+        {/* RIGHT: products */}
+        <div className="prod-content">
+          {isLoading && <Skeletons />}
+
+          {isError && (
+            <div className="store-empty">
+              <div className="store-empty__icon"><Icon name="wifi_off" /></div>
+              <p className="store-empty__text">No pudimos cargar el catálogo.</p>
+              <button type="button" className="store-empty__btn" onClick={refetch}>
+                <Icon name="refresh" /> Reintentar
+              </button>
+            </div>
+          )}
+
+          {!isLoading && !isError && products && products.length === 0 && (
+            <div className="store-empty">
+              <div className="store-empty__icon"><Icon name="inventory_2" /></div>
+              <p className="store-empty__text">Este local no tiene productos</p>
+            </div>
+          )}
+
+          {hasProducts && filtered.length === 0 && (
+            <div className="store-empty">
+              <div className="store-empty__icon"><Icon name="search_off" /></div>
+              <p className="store-empty__text">No se encontraron productos con esos filtros</p>
+            </div>
+          )}
+
+          {hasProducts && filtered.length > 0 && (
+            <div className={`prod-grid${view === "list" ? " prod-grid--list" : ""}`}>
+              {filtered.map((item) => (
+                <Card key={item.id} item={item} onQuickView={setQuickViewItem} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile filter drawer */}
+      {mobileFilters && (
+        <div className="mobile-filter-overlay open" onClick={() => setMobileFilters(false)}>
+          <div className="mobile-filter-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="mobile-filter-head">
+              Filtros
+              <button
+                type="button"
+                className="mobile-filter-close"
+                onClick={() => setMobileFilters(false)}
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+            <FilterBody {...filterProps} />
           </div>
-          <p className="catalog-empty__text">
-            Este local no tiene productos disponibles por el momento
-          </p>
         </div>
       )}
 
-      {!isLoading && !isError && products && products.length > 0 && filtered.length === 0 && (
-        <div className="catalog-empty">
-          <div className="catalog-empty__icon">
-            <Icon name="search_off" />
-          </div>
-          <p className="catalog-empty__text">No se encontraron productos</p>
-        </div>
-      )}
-
-      {!isLoading && !isError && filtered.length > 0 && (
-        <div className="catalog-grid">
-          {filtered.map((item) => (
-            <ProductCard key={item.id} item={item} />
-          ))}
-        </div>
+      {/* Quick-view modal */}
+      {quickViewItem && (
+        <QuickView
+          item={quickViewItem}
+          onClose={() => setQuickViewItem(null)}
+          onAdd={() => addFromQuickView(quickViewItem)}
+        />
       )}
     </>
   );

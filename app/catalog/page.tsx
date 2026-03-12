@@ -4,11 +4,11 @@ import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
 import { useGetPublicLocationsQuery } from "./_service/catalogApi";
 
-function LocationSkeletons() {
+function LocSkeletons() {
   return (
-    <div className="catalog-locations__grid">
+    <div className="loc-grid">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="catalog-skeleton--location" />
+        <div key={i} className="skel-loc" />
       ))}
     </div>
   );
@@ -18,70 +18,55 @@ export default function CatalogLocationsPage() {
   const { data: locations, isLoading, isError, refetch } = useGetPublicLocationsQuery();
 
   return (
-    <>
-      <div className="catalog-locations__header">
-        <div className="catalog-locations__icon">
+    <div className="loc-page">
+      <div className="loc-page__heading">
+        <div className="loc-page__icon">
           <Icon name="storefront" />
         </div>
-        <h1 className="catalog-locations__title">¿En qué local estás?</h1>
-        <p className="catalog-locations__subtitle">
-          Selecciona una ubicación para ver los productos disponibles
+        <h1 className="loc-page__title">Elige tu tienda</h1>
+        <p className="loc-page__desc">
+          Selecciona una ubicación para explorar los productos
         </p>
       </div>
 
-      {isLoading && <LocationSkeletons />}
+      {isLoading && <LocSkeletons />}
 
       {isError && (
-        <div className="catalog-error">
-          <div className="catalog-error__icon">
-            <Icon name="wifi_off" />
-          </div>
-          <p className="catalog-error__text">
-            No pudimos cargar los locales. Verifica tu conexión e intenta de nuevo.
-          </p>
-          <button type="button" className="catalog-error__retry" onClick={refetch}>
-            <Icon name="refresh" />
-            Reintentar
+        <div className="store-empty">
+          <div className="store-empty__icon"><Icon name="wifi_off" /></div>
+          <p className="store-empty__text">No pudimos cargar los locales.</p>
+          <button type="button" className="store-empty__btn" onClick={refetch}>
+            <Icon name="refresh" /> Reintentar
           </button>
         </div>
       )}
 
       {!isLoading && !isError && locations && locations.length === 0 && (
-        <div className="catalog-empty">
-          <div className="catalog-empty__icon">
-            <Icon name="store" />
-          </div>
-          <p className="catalog-empty__text">
-            No hay locales disponibles por el momento
-          </p>
+        <div className="store-empty">
+          <div className="store-empty__icon"><Icon name="store" /></div>
+          <p className="store-empty__text">No hay locales disponibles</p>
         </div>
       )}
 
       {!isLoading && !isError && locations && locations.length > 0 && (
-        <div className="catalog-locations__grid">
+        <div className="loc-grid">
           {locations.map((loc) => (
-            <Link
-              key={loc.id}
-              href={`/catalog/${loc.id}`}
-              className="location-card"
-            >
-              <div className="location-card__icon-wrap">
+            <Link key={loc.id} href={`/catalog/${loc.id}`} className="loc-card">
+              <div className="loc-card__avatar">
                 <Icon name="store" />
               </div>
-              <div className="location-card__info">
-                <div className="location-card__name">{loc.name}</div>
-                <div className="location-card__org">{loc.organizationName}</div>
-                {loc.description && (
-                  <p className="location-card__desc">{loc.description}</p>
-                )}
+              <div className="loc-card__body">
+                <div className="loc-card__name">{loc.name}</div>
+                <div className="loc-card__org">{loc.organizationName}</div>
+                {loc.description && <p className="loc-card__desc">{loc.description}</p>}
               </div>
-              <div className="location-card__arrow">
-                <Icon name="arrow_forward_ios" />
+              <div className="loc-card__go">
+                <Icon name="chevron_right" />
               </div>
             </Link>
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
