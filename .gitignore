@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+components/Tutorial/
+context/
+lib/tutorialSteps.ts

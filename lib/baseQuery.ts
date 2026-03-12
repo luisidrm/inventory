@@ -1,19 +1,14 @@
 import { fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query';
 
-const BACKEND_URL = "http://inventorydevelop.us-east-2.elasticbeanstalk.com/api";
+const BACKEND_URL = "https://unequivocally-shrinelike-zara.ngrok-free.dev/api";
 
 /**
- * Get API URL based on environment:
- * - Client side (browser): use /api (Vercel proxy)
- * - Server side: use direct backend URL or env variable
+ * URL base de la API.
+ * Usamos siempre la URL remota (NEXT_PUBLIC_API_URL o BACKEND_URL),
+ * tanto en desarrollo como en producción (Vercel).
  */
 function getApiUrl(): string {
-  if (typeof window !== "undefined") {
-    // Client-side: use Vercel rewrite proxy
-    return "/api";
-  }
-  // Server-side: use env variable or fallback to direct URL
   return process.env.NEXT_PUBLIC_API_URL ?? BACKEND_URL;
 }
 
@@ -62,6 +57,7 @@ const baseQuery = fetchBaseQuery({
       headers.set('Authorization', `Bearer ${token}`);
     }
     headers.set('Content-Type', 'application/json');
+    headers.set('ngrok-skip-browser-warning', 'true');
     return headers;
   },
 });
