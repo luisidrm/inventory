@@ -4,16 +4,11 @@ import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolk
 const BACKEND_URL = "https://unequivocally-shrinelike-zara.ngrok-free.dev/api";
 
 /**
- * Get API URL based on environment:
- * - Client side (browser): use /api (Vercel proxy)
- * - Server side: use direct backend URL or env variable
+ * URL base de la API.
+ * Usamos siempre la URL remota (NEXT_PUBLIC_API_URL o BACKEND_URL),
+ * tanto en desarrollo como en producción (Vercel).
  */
 function getApiUrl(): string {
-  if (typeof window !== "undefined") {
-    // Client-side: use Vercel rewrite proxy
-    return "/api";
-  }
-  // Server-side: use env variable or fallback to direct URL
   return process.env.NEXT_PUBLIC_API_URL ?? BACKEND_URL;
 }
 

@@ -10,13 +10,12 @@ import type {
 
 const BACKEND_URL = "https://unequivocally-shrinelike-zara.ngrok-free.dev/api";
 
-/** URL base de la API. En producción (Vercel) el cliente usa /api (rewrite al backend). En local no hay rewrite, así que usamos la URL remota. */
+/** URL base de la API.
+ * Usamos siempre la URL remota (NEXT_PUBLIC_API_URL o BACKEND_URL),
+ * tanto en desarrollo como en producción (Vercel).
+ */
 export function getApiUrl(): string {
-  const remoteUrl = process.env.NEXT_PUBLIC_API_URL ?? BACKEND_URL;
-  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
-    return "/api";
-  }
-  return remoteUrl;
+  return process.env.NEXT_PUBLIC_API_URL ?? BACKEND_URL;
 }
 
 export function getToken(): string | null {
