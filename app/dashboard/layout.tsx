@@ -27,6 +27,7 @@ const navItems: NavItem[] = [
   { icon: "warehouse", label: "Ubicaciones", route: "/dashboard/locations", permission: "location.read" },
   { icon: "inventory", label: "Inventario", route: "/dashboard/inventory", permission: "inventory.read" },
   { icon: "swap_horiz", label: "Movimientos", route: "/dashboard/movements", permission: "inventorymovement.read" },
+  { icon: "point_of_sale", label: "Ventas", route: "/dashboard/sales", permission: "saleorder.read" },
 ];
 
 const adminItems: NavItem[] = [

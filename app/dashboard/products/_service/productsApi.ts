@@ -142,6 +142,22 @@ export const productsApi = createApi({
       query: () => "/product/stock-by-category",
       transformResponse: (raw: unknown) => parseChartResult<{ name: string; value: number }>(raw),
     }),
+
+    // POST /product/image (multipart/form-data, campo "file")
+    uploadProductImage: builder.mutation<string, File>({
+      query: (file) => {
+        const body = new FormData();
+        body.append("file", file);
+        return {
+          url: "/product/image",
+          method: "POST",
+          body,
+          formData: true,
+        };
+      },
+      transformResponse: (raw: { result?: { imagenUrl?: string } }) =>
+        raw?.result?.imagenUrl ?? "",
+    }),
   }),
 });
 
@@ -156,4 +172,5 @@ export const {
   useGetProductStatsQuery,
   useGetProductPerformanceQuery,
   useGetProductStockByCategoryQuery,
+  useUploadProductImageMutation,
 } = productsApi;

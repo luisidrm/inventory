@@ -18,17 +18,19 @@ import "../products/products-modal.css";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
 const COLUMNS: DataTableColumn<LocationResponse>[] = [
-  { key: "name", label: "Nombre" },
-  { key: "code", label: "Código" },
-  { key: "description", label: "Descripción" },
-  { key: "organizationName", label: "Organización" },
-  { key: "createdAt", label: "Creado", type: "date" },
+  { key: "name",            label: "Nombre" },
+  { key: "code",            label: "Código",        width: "110px" },
+  { key: "description",     label: "Descripción" },
+  { key: "organizationName",label: "Organización" },
+  { key: "whatsAppContact", label: "WhatsApp",      width: "150px" },
+  { key: "createdAt",       label: "Creado",        type: "date" },
 ];
 
 const initialForm = {
   name: "",
   code: "",
   description: "",
+  whatsAppContact: "",
 };
 
 export default function LocationsPage() {
@@ -118,6 +120,7 @@ export default function LocationsPage() {
       name: item.name,
       code: item.code,
       description: item.description ?? "",
+      whatsAppContact: item.whatsAppContact ?? "",
     });
     setFormErrors({});
     setFormOpen(true);
@@ -141,6 +144,8 @@ export default function LocationsPage() {
     if (!validate()) return;
     setFormSubmitting(true);
     try {
+      const wa = form.whatsAppContact.replace(/\D/g, "").trim() || undefined;
+
       if (editing) {
         await updateLocation({
           id: editing.id,
@@ -148,6 +153,7 @@ export default function LocationsPage() {
             name: form.name.trim(),
             code: form.code.trim(),
             description: form.description.trim() || undefined,
+            whatsAppContact: wa,
           },
         }).unwrap();
       } else {
@@ -156,6 +162,7 @@ export default function LocationsPage() {
           name: form.name.trim(),
           code: form.code.trim(),
           description: form.description.trim() || undefined,
+          whatsAppContact: wa,
         };
         await createLocation(payload).unwrap();
         setPage(1);
@@ -266,6 +273,23 @@ export default function LocationsPage() {
               placeholder="Descripción"
               rows={3}
             />
+          </div>
+          <div className="modal-field field-full">
+            <label htmlFor="whatsAppContact">WhatsApp de contacto</label>
+            <input
+              id="whatsAppContact"
+              type="tel"
+              value={form.whatsAppContact}
+              onChange={(e) => setForm((f) => ({ ...f, whatsAppContact: e.target.value }))}
+              placeholder="5215512345678"
+            />
+            <p style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: 4 }}>
+              Código de país + número, sin <code>+</code> ni espacios.&nbsp;
+              Ej: <strong>5215512345678</strong> (México). Se usa para el enlace de pedidos por WhatsApp.
+            </p>
+            {formErrors.whatsAppContact && (
+              <p className="form-error">{formErrors.whatsAppContact}</p>
+            )}
           </div>
           {formErrors.submit && (
             <p className="form-error" style={{ marginTop: 12 }}>

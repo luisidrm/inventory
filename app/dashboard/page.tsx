@@ -23,6 +23,7 @@ import {
   useGetListRecentProductsQuery,
 } from "./_service/dashboardApi";
 import type { DashboardSummary } from "./_service/dashboardApi";
+import { useGetOrderStatsQuery, useGetOrdersQuery } from "./sales/_service/salesApi";
 
 // ─── Fallbacks estáticos (si la API no está disponible o falla) ─────────────
 
@@ -127,6 +128,8 @@ export default function DashboardPage() {
   const { data: listMov } = useGetListLatestMovementsQuery();
   const { data: listLoc } = useGetListValueByLocationQuery();
   const { data: listRecent } = useGetListRecentProductsQuery();
+  const { data: salesStats } = useGetOrderStatsQuery(30);
+  const { data: recentOrdersResult } = useGetOrdersQuery({ page: 1, perPage: 5, sortOrder: "desc" });
 
   const kpis = buildKpisFromSummary(summary ?? null);
   const flow = (flowData && flowData.length > 0) ? flowData : FALLBACK_FLOW;
@@ -140,6 +143,64 @@ export default function DashboardPage() {
   const listLatestMov = (listMov && listMov.length > 0) ? listMov : FALLBACK_LIST_MOV;
   const listValLoc = (listLoc && listLoc.length > 0) ? listLoc : FALLBACK_LIST_LOC;
   const listRecentProd = (listRecent && listRecent.length > 0) ? listRecent : FALLBACK_LIST_RECENT;
+
+  // ── Ventas ──────────────────────────────────────────────────────────────────
+  const ss = salesStats as Record<string, number> | null | undefined;
+  const fmtMoney = (n: number | undefined) =>
+    n != null ? `$${n.toLocaleString("es", { minimumFractionDigits: 0 })}` : "—";
+  const fmtNum = (n: number | undefined) => (n != null ? String(n) : "—");
+
+  const salesKpis = [
+    {
+      label: "Órdenes (30 días)",
+      value: fmtNum(ss?.totalOrders),
+      icon: "receipt_long" as const,
+      trend: ss?.confirmedOrders != null ? `${ss.confirmedOrders} confirmadas` : "",
+      trendUp: true,
+      iconBg: "#EEF2FF",
+      iconColor: theme.accent,
+    },
+    {
+      label: "Ventas confirmadas",
+      value: fmtNum(ss?.confirmedOrders),
+      icon: "check_circle" as const,
+      trend: ss?.totalOrders != null && ss?.confirmedOrders != null
+        ? `${Math.round((ss.confirmedOrders / ss.totalOrders) * 100) || 0}% del total`
+        : "",
+      trendUp: true,
+      iconBg: "#F0FDF4",
+      iconColor: theme.success,
+    },
+    {
+      label: "Borradores pendientes",
+      value: fmtNum(ss?.draftOrders),
+      icon: "edit_note" as const,
+      trend: "Por confirmar o cancelar",
+      trendUp: false,
+      iconBg: "#FFFBEB",
+      iconColor: "#F59E0B",
+    },
+    {
+      label: "Total vendido",
+      value: fmtMoney(ss?.totalRevenue ?? ss?.totalAmount),
+      icon: "point_of_sale" as const,
+      trend: "Últimos 30 días",
+      trendUp: true,
+      iconBg: "#F0FDF4",
+      iconColor: theme.success,
+    },
+  ];
+
+  const recentOrdersList: { primary: string; secondary?: string }[] =
+    recentOrdersResult?.data && recentOrdersResult.data.length > 0
+      ? recentOrdersResult.data.map((o) => ({
+          primary: `${o.folio ?? `#${o.id}`} · ${o.locationName ?? "—"}`,
+          secondary: `${
+            o.status === "Confirmed" ? "Confirmada" :
+            o.status === "Cancelled" ? "Cancelada" : "Borrador"
+          } · $${(o.total ?? 0).toLocaleString("es")}`,
+        }))
+      : [{ primary: "Sin órdenes recientes" }];
 
   return (
     <div
@@ -165,11 +226,34 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {/* ── KPIs de inventario ─────────────────────────────────────────────── */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 16, width: "100%" }}>
         {kpis.map((kpi) => (
           <StatCard key={kpi.label} {...kpi} />
         ))}
       </div>
+
+      {/* ── Ventas ─────────────────────────────────────────────────────────── */}
+      <div>
+        <h2 style={{ fontSize: "1rem", fontWeight: 600, color: theme.primaryText, marginBottom: 12 }}>
+          Ventas · últimos 30 días
+        </h2>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, width: "100%" }}>
+          {salesKpis.map((kpi) => (
+            <StatCard key={kpi.label} {...kpi} />
+          ))}
+        </div>
+      </div>
+
+      <section style={{ display: "flex", flexWrap: "wrap", gap: 16, width: "100%" }}>
+        <ListCard
+          title="Órdenes de venta recientes"
+          items={recentOrdersList}
+          href="/dashboard/sales"
+          icon="receipt_long"
+          maxItems={5}
+        />
+      </section>
 
       <section style={{ display: "flex", flexWrap: "wrap", gap: 16, width: "100%" }}>
         <LineChartCard title="Flujo de Inventario" subtitle="Entradas vs salidas (últimos 7 días)" data={flow} height={280} />

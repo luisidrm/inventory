@@ -25,6 +25,7 @@ export interface DataTableAction<T = Record<string, unknown>> {
   onClick: (row: T) => void;
   variant?: "default" | "danger";
   hidden?: (row: T) => boolean;
+  disabled?: (row: T) => boolean;
 }
 
 export interface PaginationMeta {
@@ -310,9 +311,10 @@ export function DataTable<T extends { id: string | number }>({
                             <button
                               key={action.label}
                               type="button"
-                              className={`dt-icon-btn${action.variant === "danger" ? " dt-icon-btn--danger" : ""}`}
-                              onClick={() => action.onClick(row)}
+                              className={`dt-icon-btn${action.variant === "danger" ? " dt-icon-btn--danger" : ""}${action.disabled?.(row) ? " dt-icon-btn--disabled" : ""}`}
+                              onClick={() => { if (!action.disabled?.(row)) action.onClick(row); }}
                               title={action.label}
+                              disabled={action.disabled?.(row)}
                             >
                               <Icon name={action.icon} />
                             </button>

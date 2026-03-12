@@ -1,0 +1,80 @@
+import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import type { CartItem } from "@/lib/dashboard-types";
+
+interface CartState {
+  locationId: number | null;
+  locationName: string;
+  whatsAppContact: string | null;
+  items: CartItem[];
+}
+
+const initialState: CartState = {
+  locationId: null,
+  locationName: "",
+  whatsAppContact: null,
+  items: [],
+};
+
+export const cartSlice = createSlice({
+  name: "cart",
+  initialState,
+  reducers: {
+    setLocation(
+      state,
+      action: PayloadAction<{
+        id: number;
+        name: string;
+        whatsAppContact: string | null;
+      }>
+    ) {
+      if (state.locationId !== null && state.locationId !== action.payload.id) {
+        state.items = [];
+      }
+      state.locationId = action.payload.id;
+      state.locationName = action.payload.name;
+      state.whatsAppContact = action.payload.whatsAppContact;
+    },
+
+    addItem(state, action: PayloadAction<CartItem>) {
+      const existing = state.items.find(
+        (i) => i.productId === action.payload.productId
+      );
+      if (existing) {
+        existing.quantity = Math.min(
+          existing.quantity + 1,
+          action.payload.stockAtLocation
+        );
+      } else {
+        state.items.push({ ...action.payload, quantity: 1 });
+      }
+    },
+
+    removeItem(state, action: PayloadAction<number>) {
+      state.items = state.items.filter((i) => i.productId !== action.payload);
+    },
+
+    updateQuantity(
+      state,
+      action: PayloadAction<{ productId: number; quantity: number }>
+    ) {
+      const item = state.items.find(
+        (i) => i.productId === action.payload.productId
+      );
+      if (!item) return;
+      if (action.payload.quantity <= 0) {
+        state.items = state.items.filter(
+          (i) => i.productId !== action.payload.productId
+        );
+      } else {
+        item.quantity = Math.min(action.payload.quantity, item.stockAtLocation);
+      }
+    },
+
+    clearCart(state) {
+      state.items = [];
+    },
+  },
+});
+
+export const { setLocation, addItem, removeItem, updateQuantity, clearCart } =
+  cartSlice.actions;
