@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
 import type { ProductResponse, CreateProductRequest } from "@/lib/dashboard-types";
 import "./products-modal.css";
@@ -20,7 +20,6 @@ import {
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
 import Switch from "@/components/Switch";
-import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
 
@@ -30,7 +29,7 @@ const COLUMNS: DataTableColumn<ProductResponse>[] = [
   { key: "description", label: "Descripción" },
   { key: "precio",      label: "Precio",      type: "currency" },
   { key: "costo",       label: "Costo",       type: "currency" },
-  { key: "totalStock",  label: "Stock",       type: "number" },
+  { key: "totalStock", label: "totalStock" , type: "number" },
   { key: "isAvailable", label: "Estado",      type: "boolean" },
   { key: "createdAt",   label: "Creado",      type: "date" },
 ];
@@ -53,7 +52,6 @@ export default function ProductsPage() {
   const [pageSize] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [allRows, setAllRows] = useState<ProductResponse[]>([]);
-  const isLoadingMore = useRef(false);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ProductResponse | null>(null);
@@ -71,9 +69,6 @@ export default function ProductsPage() {
 
   const { data: result, isLoading, isFetching } = useGetProductsQuery({ page, perPage: pageSize });
   const { data: categoriesResult } = useGetProductCategoriesQuery({ perPage: 100 });
-  const { data: productStatsApi } = useGetProductStatsQuery();
-  const { data: performanceApi } = useGetProductPerformanceQuery();
-  const { data: stockByCategoryApi } = useGetProductStockByCategoryQuery();
 
   const [createProduct] = useCreateProductMutation();
   const [updateProduct] = useUpdateProductMutation();
@@ -81,39 +76,24 @@ export default function ProductsPage() {
 
   const categories = categoriesResult?.data ?? [];
 
-  // ─── Permissions ──────────────────────────────────────────────────────────
-
-  const { has: hasPermission } = useUserPermissionCodes();
-  const canCreateProduct = hasPermission("product.create");
-  const canEditProduct = hasPermission("product.update");
-  const canDeleteProduct = hasPermission("product.delete");
-
-  // ─── Infinite scroll data management ──────────────────────────────────────
-
+  
   const loadedRows =
     page === 1 && allRows.length === 0
       ? (result?.data ?? [])
       : allRows;
 
+  // Accumulate rows across pages
   useEffect(() => {
     if (!result?.data) return;
+    const resultPage = result.pagination?.currentPage ?? 1;
+    if (resultPage !== page) return;
     setAllRows((prev) => {
-      // Primera página: siempre reemplazar
       if (page === 1) return result.data;
-
-      // Páginas siguientes: solo agregar productos nuevos por id
       const existingIds = new Set(prev.map((r) => r.id));
-      const fresh = result.data.filter((r) => !existingIds.has(r.id));
-      return [...prev, ...fresh];
+      const newItems = result.data.filter((item) => !existingIds.has(item.id));
+      return [...prev, ...newItems];
     });
-  }, [result?.data, page]);
-
-  // Reset the loading guard when fetch completes
-  useEffect(() => {
-    if (!isFetching) {
-      isLoadingMore.current = false;
-    }
-  }, [isFetching]);
+  }, [result?.data, result?.pagination?.currentPage, page]);
 
   // Reset on search change
   useEffect(() => {
@@ -134,41 +114,8 @@ export default function ProductsPage() {
     : false;
 
   const handleLoadMore = () => {
-    if (isLoadingMore.current || !hasMore) return;
-    isLoadingMore.current = true;
-    setPage((p) => p + 1);
+    if (!isFetching && hasMore) setPage((p) => p + 1);
   };
-
-  // ─── Stats ─────────────────────────────────────────────────────────────────
-
-  const productStats = productStatsApi && typeof productStatsApi === "object"
-    ? [
-        { label: "Total Productos",  value: String((productStatsApi as Record<string, unknown>).totalProducts ?? "1,284"),   icon: "inventory_2" as const, trend: `+${(productStatsApi as Record<string, unknown>).totalProductsTrend ?? 12}% vs mes pasado`,    trendUp: true,  iconBg: "#EEF2FF", iconColor: theme.accent },
-        { label: "Valor Inventario", value: (productStatsApi as Record<string, unknown>).inventoryValue != null ? `$${Number((productStatsApi as Record<string, unknown>).inventoryValue).toLocaleString("es")}` : "$45,200", icon: "payment" as const, trend: `+${(productStatsApi as Record<string, unknown>).inventoryValueTrend ?? 4}% vs mes pasado`, trendUp: true,  iconBg: "#F0FDF4", iconColor: theme.success },
-        { label: "Stock Crítico",    value: String((productStatsApi as Record<string, unknown>).criticalStockCount ?? "18"), icon: "warning" as const,     trend: "↓2% vs mes pasado",                                                                              trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
-        { label: "Movimientos Hoy",  value: String((productStatsApi as Record<string, unknown>).movementsToday ?? "142"),   icon: "swap_horiz" as const,  trend: `+${(productStatsApi as Record<string, unknown>).movementsTodayTrend ?? 8}% vs mes pasado`,     trendUp: true,  iconBg: "#EEF2FF", iconColor: theme.accent },
-      ]
-    : [
-        { label: "Total Productos",  value: "1,284",  icon: "inventory_2" as const, trend: "+12% vs mes pasado", trendUp: true,  iconBg: "#EEF2FF", iconColor: theme.accent },
-        { label: "Valor Inventario", value: "$45,200", icon: "payment" as const,    trend: "+4% vs mes pasado",  trendUp: true,  iconBg: "#F0FDF4", iconColor: theme.success },
-        { label: "Stock Crítico",    value: "18",      icon: "warning" as const,    trend: "↓2% vs mes pasado",  trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
-        { label: "Movimientos Hoy",  value: "142",     icon: "swap_horiz" as const, trend: "+8% vs mes pasado",  trendUp: true,  iconBg: "#EEF2FF", iconColor: theme.accent },
-      ];
-
-  const performanceData = performanceApi && performanceApi.length > 0
-    ? performanceApi
-    : [
-        { label: "Lun", value: 45 }, { label: "Mar", value: 52 }, { label: "Mié", value: 38 },
-        { label: "Jue", value: 65 }, { label: "Vie", value: 48 }, { label: "Sáb", value: 80 },
-        { label: "Dom", value: 72 },
-      ];
-
-  const stockByCategory = stockByCategoryApi && stockByCategoryApi.length > 0
-    ? stockByCategoryApi
-    : [
-        { name: "Higiene", value: 40 }, { name: "Alimentos", value: 25 },
-        { name: "Limpieza", value: 20 }, { name: "Otros", value: 15 },
-      ];
 
   // ─── Form handlers ─────────────────────────────────────────────────────────
 
@@ -236,7 +183,9 @@ export default function ProductsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    if (Number(form.costo) > Number(form.precio)) {
+    const costo = Number(form.costo);
+    const precio = Number(form.precio);
+    if (costo > precio) {
       setConfirmCostHigherOpen(true);
       return;
     }
@@ -281,12 +230,38 @@ export default function ProductsPage() {
     if (!deleting) return;
     try {
       await deleteProduct(deleting.id).unwrap();
+      // Remove deleted item from local rows immediately
       setAllRows((prev) => prev.filter((r) => r.id !== deleting.id));
       closeConfirm();
     } catch {
       setDeleteError("Error al eliminar. Intenta de nuevo.");
     }
   };
+
+  // ─── Estadísticas desde API (fallback estático) ─────────────────────────────
+  const { data: productStatsApi } = useGetProductStatsQuery();
+  const { data: performanceApi } = useGetProductPerformanceQuery();
+  const { data: stockByCategoryApi } = useGetProductStockByCategoryQuery();
+
+  const productStats = productStatsApi && typeof productStatsApi === "object"
+    ? [
+        { label: "Total Productos", value: String((productStatsApi as Record<string, unknown>).totalProducts ?? "1,284"), icon: "inventory_2" as const, trend: `+${(productStatsApi as Record<string, unknown>).totalProductsTrend ?? 12}% vs mes pasado`, trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+        { label: "Valor Inventario", value: (productStatsApi as Record<string, unknown>).inventoryValue != null ? `$${Number((productStatsApi as Record<string, unknown>).inventoryValue).toLocaleString("es")}` : "$45,200", icon: "payment" as const, trend: `+${(productStatsApi as Record<string, unknown>).inventoryValueTrend ?? 4}% vs mes pasado`, trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+        { label: "Stock Crítico", value: String((productStatsApi as Record<string, unknown>).criticalStockCount ?? "18"), icon: "warning" as const, trend: "↓2% vs mes pasado", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
+        { label: "Movimientos Hoy", value: String((productStatsApi as Record<string, unknown>).movementsToday ?? "142"), icon: "swap_horiz" as const, trend: `+${(productStatsApi as Record<string, unknown>).movementsTodayTrend ?? 8}% vs mes pasado`, trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+      ]
+    : [
+        { label: "Total Productos", value: "1,284", icon: "inventory_2" as const, trend: "+12% vs mes pasado", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+        { label: "Valor Inventario", value: "$45,200", icon: "payment" as const, trend: "+4% vs mes pasado", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+        { label: "Stock Crítico", value: "18", icon: "warning" as const, trend: "↓2% vs mes pasado", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
+        { label: "Movimientos Hoy", value: "142", icon: "swap_horiz" as const, trend: "+8% vs mes pasado", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
+      ];
+  const performanceData = (performanceApi && performanceApi.length > 0) ? performanceApi : [
+    { label: "Lun", value: 45 }, { label: "Mar", value: 52 }, { label: "Mié", value: 38 }, { label: "Jue", value: 65 }, { label: "Vie", value: 48 }, { label: "Sáb", value: 80 }, { label: "Dom", value: 72 },
+  ];
+  const stockByCategory = (stockByCategoryApi && stockByCategoryApi.length > 0) ? stockByCategoryApi : [
+    { name: "Higiene", value: 40 }, { name: "Alimentos", value: 25 }, { name: "Limpieza", value: 20 }, { name: "Otros", value: 15 },
+  ];
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -301,7 +276,6 @@ export default function ProductsPage() {
           <PieChartCard title="Stock por Categoría" data={stockByCategory} height={300} />
         </div>
       </div>
-
       <DataTable
         data={filteredData}
         columns={COLUMNS}
@@ -310,22 +284,12 @@ export default function ProductsPage() {
         titleIcon="inventory_2"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel={canCreateProduct ? "Nuevo Producto" : undefined}
-        onAdd={canCreateProduct ? openCreate : undefined}
+        addLabel="Nuevo Producto"
+        onAdd={openCreate}
+        addButtonDataTutorial="tutorial-products-add"
         actions={[
-          {
-            icon: "edit",
-            label: "Editar",
-            onClick: openEdit,
-            hidden: () => !canEditProduct,
-          },
-          {
-            icon: "delete_outline",
-            label: "Eliminar",
-            onClick: openDelete,
-            variant: "danger",
-            hidden: () => !canDeleteProduct,
-          },
+          { icon: "edit",           label: "Editar",   onClick: openEdit },
+          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger" },
         ]}
         infiniteScroll
         onLoadMore={handleLoadMore}

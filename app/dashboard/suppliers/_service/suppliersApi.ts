@@ -32,6 +32,7 @@ export const suppliersApi = createApi({
       const token = getToken();
       if (token) headers.set("Authorization", "Bearer " + token);
       headers.set("Content-Type", "application/json");
+      headers.set("ngrok-skip-browser-warning", "true");
       return headers;
     },
   }),

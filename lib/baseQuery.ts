@@ -1,7 +1,7 @@
 import { fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query';
 
-const BACKEND_URL = "http://inventorydevelop.us-east-2.elasticbeanstalk.com/api";
+const BACKEND_URL = "https://unequivocally-shrinelike-zara.ngrok-free.dev/api";
 
 /**
  * Get API URL based on environment:
@@ -62,6 +62,7 @@ const baseQuery = fetchBaseQuery({
       headers.set('Authorization', `Bearer ${token}`);
     }
     headers.set('Content-Type', 'application/json');
+    headers.set('ngrok-skip-browser-warning', 'true');
     return headers;
   },
 });

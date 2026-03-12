@@ -8,7 +8,7 @@ import type {
   ApiResponse,
 } from "./auth-types";
 
-const BACKEND_URL = "http://inventorydevelop.us-east-2.elasticbeanstalk.com/api";
+const BACKEND_URL = "https://unequivocally-shrinelike-zara.ngrok-free.dev/api";
 
 /** URL base de la API. En producción (Vercel) el cliente usa /api (rewrite al backend). En local no hay rewrite, así que usamos la URL remota. */
 export function getApiUrl(): string {
@@ -65,7 +65,10 @@ export async function login(
   console.log(getApiUrl())
   const res = await fetch(`${getApiUrl()}/account/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
+    },
     body: JSON.stringify(credentials),
   });
 
@@ -99,7 +102,10 @@ export async function register(body: {
 }): Promise<void> {
   const res = await fetch(`${getApiUrl()}/account/register`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
+    },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -117,6 +123,7 @@ export async function createOrganization(
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "ngrok-skip-browser-warning": "true",
     },
     body: JSON.stringify({ Name: data.name, Code: data.code }),
   });
@@ -132,7 +139,10 @@ export async function registerWithOrganization(
 ): Promise<{ user: UserResponse }> {
   const res = await fetch(`${getApiUrl()}/account/register-with-organization`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
+    },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
