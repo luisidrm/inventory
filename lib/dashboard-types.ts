@@ -112,6 +112,7 @@ export interface CreateLocationRequest {
   name: string;
   code: string;
   description?: string;
+  whatsAppContact?: string;
 }
 
 export interface UpdateLocationRequest {
@@ -119,6 +120,7 @@ export interface UpdateLocationRequest {
   name?: string;
   code?: string;
   description?: string;
+  whatsAppContact?: string;
 }
 
 // ─── Inventario ───────────────────────────────────────────────────────────────
@@ -295,6 +297,7 @@ export interface PublicLocation {
   description: string | null;
   organizationId: number;
   organizationName: string;
+  whatsAppContact: string | null;
 }
 
 export interface PublicCatalogItem {
@@ -308,6 +311,74 @@ export interface PublicCatalogItem {
   categoryName: string | null;
   categoryColor: string | null;
   stockAtLocation: number;
+}
+
+// ─── Carrito ──────────────────────────────────────────────────────────────────
+
+export interface CartItem {
+  productId: number;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  imagenUrl: string | null;
+  stockAtLocation: number;
+}
+
+// ─── Órdenes de venta ─────────────────────────────────────────────────────────
+
+export type SaleOrderStatus = "Draft" | "Confirmed" | "Cancelled";
+
+export interface SaleOrderItemResponse {
+  id: number;
+  saleOrderId: number;
+  productId: number;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  unitCost: number;
+  discount: number;
+  lineTotal: number;
+  grossMargin: number;
+}
+
+export interface SaleOrderResponse {
+  id: number;
+  folio: string;
+  organizationId: number;
+  locationId: number;
+  locationName: string;
+  contactId: number | null;
+  contactName: string | null;
+  status: SaleOrderStatus;
+  notes: string | null;
+  subtotal: number;
+  discountAmount: number;
+  total: number;
+  userId: number;
+  createdAt: string;
+  modifiedAt: string;
+  items: SaleOrderItemResponse[];
+}
+
+export interface CreateSaleOrderItem {
+  productId: number;
+  quantity: number;
+  unitPrice: number | null;
+  discount: number;
+}
+
+export interface CreateSaleOrderRequest {
+  locationId: number;
+  contactId: number | null;
+  notes: string | null;
+  discountAmount: number;
+  items: CreateSaleOrderItem[];
+}
+
+export interface UpdateSaleOrderRequest {
+  contactId?: number | null;
+  notes?: string;
+  discountAmount?: number;
 }
 
 // ─── Tabla genérica ───────────────────────────────────────────────────────────

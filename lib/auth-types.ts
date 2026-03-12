@@ -82,6 +82,7 @@ export interface LocationResponse {
   name: string;
   code: string;
   description?: string;
+  whatsAppContact?: string | null;
   createdAt: string;
   modifiedAt: string;
 }

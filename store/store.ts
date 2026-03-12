@@ -21,17 +21,20 @@ import { logsApi } from "@/app/dashboard/logs/_service/logsApi";
 import { settingsApi } from "@/app/dashboard/settings/_service/settingsApi";
 import { dashboardApi } from "@/app/dashboard/_service/dashboardApi";
 import { catalogApi } from "@/app/catalog/_service/catalogApi";
+import { salesApi } from "@/app/dashboard/sales/_service/salesApi";
+import { cartSlice } from "./cartSlice";
 import { toastMiddleware } from "@/lib/toastMiddleware";
 
 // Only persist the auth slice — API cache doesn't need persistence
 const persistConfig = {
   key: "root",
   storage,
-  whitelist: ["auth"],
+  whitelist: ["auth", "cart"],
 };
 
 const rootReducer = combineReducers({
   auth: authSlice.reducer,
+  cart: cartSlice.reducer,
   [authApi.reducerPath]: authApi.reducer,
   [productsApi.reducerPath]: productsApi.reducer,
   [inventoryApi.reducerPath]: inventoryApi.reducer,
@@ -45,6 +48,7 @@ const rootReducer = combineReducers({
   [settingsApi.reducerPath]: settingsApi.reducer,
   [dashboardApi.reducerPath]: dashboardApi.reducer,
   [catalogApi.reducerPath]: catalogApi.reducer,
+  [salesApi.reducerPath]: salesApi.reducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
@@ -63,6 +67,7 @@ const apiMiddleware = [
   settingsApi.middleware,
   dashboardApi.middleware,
   catalogApi.middleware,
+  salesApi.middleware,
 ];
 
 export const store = configureStore({

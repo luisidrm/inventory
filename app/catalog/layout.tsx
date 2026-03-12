@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
+import { CartDrawer } from "./components/CartDrawer";
 import "./catalog.css";
 
 export default function CatalogLayout({
@@ -30,6 +31,9 @@ export default function CatalogLayout({
       </header>
 
       <main className="catalog-main">{children}</main>
+
+      {/* Carrito flotante — disponible en todas las páginas del catálogo */}
+      <CartDrawer />
     </div>
   );
 }

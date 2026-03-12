@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
+import { useAppSelector, useAppDispatch } from "@/store/store";
+import { addItem, updateQuantity, setLocation } from "@/store/cartSlice";
 import {
   useGetPublicCatalogQuery,
   useGetPublicLocationsQuery,
@@ -41,8 +43,29 @@ function hexToRgb(hex: string): string {
 }
 
 function ProductCard({ item }: { item: PublicCatalogItem }) {
+  const dispatch = useAppDispatch();
+  const cartItem = useAppSelector((s) =>
+    s.cart.items.find((i) => i.productId === item.id)
+  );
+
   const soldOut = item.stockAtLocation === 0;
   const catColor = item.categoryColor ?? "#6366f1";
+
+  const handleAdd = () => {
+    dispatch(
+      addItem({
+        productId: item.id,
+        name: item.name,
+        unitPrice: item.precio,
+        quantity: 1,
+        imagenUrl: item.imagenUrl,
+        stockAtLocation: item.stockAtLocation,
+      })
+    );
+  };
+
+  const handleQty = (newQty: number) =>
+    dispatch(updateQuantity({ productId: item.id, quantity: newQty }));
 
   return (
     <div className={`product-card ${soldOut ? "product-card--soldout" : ""}`}>
@@ -100,6 +123,39 @@ function ProductCard({ item }: { item: PublicCatalogItem }) {
             </span>
           )}
         </div>
+
+        {/* Cart controls */}
+        {!soldOut && (
+          cartItem ? (
+            <div className="product-card__qty-ctrl">
+              <button
+                type="button"
+                className="product-card__qty-btn"
+                onClick={() => handleQty(cartItem.quantity - 1)}
+              >
+                −
+              </button>
+              <span className="product-card__qty-display">{cartItem.quantity}</span>
+              <button
+                type="button"
+                className="product-card__qty-btn"
+                disabled={cartItem.quantity >= item.stockAtLocation}
+                onClick={() => handleQty(cartItem.quantity + 1)}
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="product-card__add-btn"
+              onClick={handleAdd}
+            >
+              <Icon name="add_shopping_cart" />
+              Agregar
+            </button>
+          )
+        )}
       </div>
     </div>
   );
@@ -108,6 +164,7 @@ function ProductCard({ item }: { item: PublicCatalogItem }) {
 export default function CatalogProductsPage() {
   const params = useParams();
   const locationId = Number(params.locationId);
+  const dispatch = useAppDispatch();
 
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -121,6 +178,19 @@ export default function CatalogProductsPage() {
 
   const { data: locations } = useGetPublicLocationsQuery();
   const currentLocation = locations?.find((l) => l.id === locationId);
+
+  // Sync cart location when location data loads
+  useEffect(() => {
+    if (currentLocation) {
+      dispatch(
+        setLocation({
+          id: currentLocation.id,
+          name: currentLocation.name,
+          whatsAppContact: currentLocation.whatsAppContact ?? null,
+        })
+      );
+    }
+  }, [currentLocation?.id, dispatch]);
 
   const categories = useMemo(() => {
     if (!products) return [];
@@ -139,16 +209,12 @@ export default function CatalogProductsPage() {
   const filtered = useMemo(() => {
     if (!products) return [];
     let result = products;
-
-    if (selectedCategory) {
+    if (selectedCategory)
       result = result.filter((p) => p.categoryName === selectedCategory);
-    }
-
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       result = result.filter((p) => p.name.toLowerCase().includes(q));
     }
-
     return result;
   }, [products, selectedCategory, search]);
 
@@ -228,10 +294,8 @@ export default function CatalogProductsPage() {
         </div>
       )}
 
-      {/* Loading */}
       {isLoading && <ProductSkeletons />}
 
-      {/* Error */}
       {isError && (
         <div className="catalog-error">
           <div className="catalog-error__icon">
@@ -247,7 +311,6 @@ export default function CatalogProductsPage() {
         </div>
       )}
 
-      {/* Empty catalog */}
       {!isLoading && !isError && products && products.length === 0 && (
         <div className="catalog-empty">
           <div className="catalog-empty__icon">
@@ -259,21 +322,15 @@ export default function CatalogProductsPage() {
         </div>
       )}
 
-      {/* No results from filter */}
-      {!isLoading &&
-        !isError &&
-        products &&
-        products.length > 0 &&
-        filtered.length === 0 && (
-          <div className="catalog-empty">
-            <div className="catalog-empty__icon">
-              <Icon name="search_off" />
-            </div>
-            <p className="catalog-empty__text">No se encontraron productos</p>
+      {!isLoading && !isError && products && products.length > 0 && filtered.length === 0 && (
+        <div className="catalog-empty">
+          <div className="catalog-empty__icon">
+            <Icon name="search_off" />
           </div>
-        )}
+          <p className="catalog-empty__text">No se encontraron productos</p>
+        </div>
+      )}
 
-      {/* Product grid */}
       {!isLoading && !isError && filtered.length > 0 && (
         <div className="catalog-grid">
           {filtered.map((item) => (
