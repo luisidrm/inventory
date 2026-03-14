@@ -39,11 +39,10 @@ export const cartSlice = createSlice({
       const existing = state.items.find(
         (i) => i.productId === action.payload.productId
       );
+      const maxQty = action.payload.tipo === "elaborado" ? Infinity : action.payload.stockAtLocation;
       if (existing) {
-        existing.quantity = Math.min(
-          existing.quantity + 1,
-          action.payload.stockAtLocation
-        );
+        existing.quantity = Math.min(existing.quantity + 1, maxQty);
+        if (action.payload.tipo != null) existing.tipo = action.payload.tipo;
       } else {
         state.items.push({ ...action.payload, quantity: 1 });
       }
@@ -66,7 +65,8 @@ export const cartSlice = createSlice({
           (i) => i.productId !== action.payload.productId
         );
       } else {
-        item.quantity = Math.min(action.payload.quantity, item.stockAtLocation);
+        const maxQty = item.tipo === "elaborado" ? Infinity : item.stockAtLocation;
+        item.quantity = Math.min(action.payload.quantity, maxQty);
       }
     },
 

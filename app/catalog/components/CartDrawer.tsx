@@ -313,7 +313,7 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
                         <button
                           type="button"
                           className="cart-row__step-btn"
-                          disabled={it.quantity >= it.stockAtLocation}
+                          disabled={it.tipo !== "elaborado" && it.quantity >= it.stockAtLocation}
                           onClick={() => dispatch(updateQuantity({ productId: it.productId, quantity: it.quantity + 1 }))}
                         >
                           +

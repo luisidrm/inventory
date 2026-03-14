@@ -210,8 +210,9 @@ function QuickView({
   onClose: () => void;
   onAdd: () => void;
 }) {
-  const sold = item.stockAtLocation === 0;
-  const low = !sold && item.stockAtLocation <= LOW_STOCK_THRESHOLD;
+  const isElaborado = item.tipo === "elaborado";
+  const sold = isElaborado ? false : item.stockAtLocation === 0;
+  const low = isElaborado ? false : !sold && item.stockAtLocation <= LOW_STOCK_THRESHOLD;
   const cc = item.categoryColor ?? "#3b82f6";
 
   return (
@@ -249,6 +250,10 @@ function QuickView({
           {sold ? (
             <div className="quickview__stock quickview__stock--out">
               <Icon name="block" /> No disponible
+            </div>
+          ) : isElaborado ? (
+            <div className="quickview__stock quickview__stock--ok">
+              <Icon name="check_circle" /> Disponible
             </div>
           ) : low ? (
             <div className="quickview__stock quickview__stock--low">
@@ -295,8 +300,9 @@ function Card({
   const inCart = useAppSelector((s) =>
     s.cart.items.find((i) => i.productId === item.id)
   );
-  const sold = item.stockAtLocation === 0;
-  const low = !sold && item.stockAtLocation <= LOW_STOCK_THRESHOLD;
+  const isElaborado = item.tipo === "elaborado";
+  const sold = isElaborado ? false : item.stockAtLocation === 0;
+  const low = isElaborado ? false : !sold && item.stockAtLocation <= LOW_STOCK_THRESHOLD;
   const cc = item.categoryColor ?? "#3b82f6";
   const p = fmt(item.precio);
 
@@ -309,6 +315,7 @@ function Card({
         quantity: 1,
         imagenUrl: item.imagenUrl,
         stockAtLocation: item.stockAtLocation,
+        tipo: item.tipo,
       })
     );
 
@@ -336,7 +343,7 @@ function Card({
             {item.categoryName}
           </span>
         )}
-        {low && (
+        {low && !isElaborado && (
           <span className="p-card__low-stock">
             ¡Quedan {item.stockAtLocation}!
           </span>
@@ -356,7 +363,7 @@ function Card({
         {sold ? (
           <div className="p-card__avail p-card__avail--no">No disponible</div>
         ) : (
-          <div className="p-card__avail p-card__avail--yes">En stock</div>
+          <div className="p-card__avail p-card__avail--yes">{isElaborado ? "Disponible" : "En stock"}</div>
         )}
 
         {!sold && (
@@ -364,7 +371,7 @@ function Card({
             <div className="p-card__qty">
               <button type="button" className="p-card__qty-btn" onClick={() => qty(inCart.quantity - 1)}>−</button>
               <span className="p-card__qty-val">{inCart.quantity}</span>
-              <button type="button" className="p-card__qty-btn" disabled={inCart.quantity >= item.stockAtLocation} onClick={() => qty(inCart.quantity + 1)}>+</button>
+              <button type="button" className="p-card__qty-btn" disabled={!isElaborado && inCart.quantity >= item.stockAtLocation} onClick={() => qty(inCart.quantity + 1)}>+</button>
             </div>
           ) : (
             <button type="button" className="p-card__add" onClick={add}>
@@ -437,7 +444,7 @@ export default function CatalogProductsPage() {
     if (!products) return [];
     let r = [...products];
     if (cat) r = r.filter((p) => p.categoryName === cat);
-    if (hideOutOfStock) r = r.filter((p) => p.stockAtLocation > 0);
+    if (hideOutOfStock) r = r.filter((p) => p.tipo === "elaborado" || p.stockAtLocation > 0);
     r = r.filter((p) => p.precio >= priceRange[0] && p.precio <= priceRange[1]);
     if (search.trim()) {
       const q = search.toLowerCase().trim();
@@ -462,6 +469,7 @@ export default function CatalogProductsPage() {
           quantity: 1,
           imagenUrl: item.imagenUrl,
           stockAtLocation: item.stockAtLocation,
+          tipo: item.tipo,
         })
       );
     },

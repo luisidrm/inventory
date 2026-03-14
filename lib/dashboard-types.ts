@@ -7,6 +7,9 @@ export interface PaginationInfo {
   hasNextPage: boolean;
 }
 
+
+export type ProductTipo = "inventariable" | "elaborado";
+
 export interface ProductResponse {
   id: number;
   code: string;
@@ -18,6 +21,7 @@ export interface ProductResponse {
   imagenUrl: string;
   isAvailable: boolean;
   isForSale: boolean;
+  tipo?: ProductTipo;
   createdAt: string;
   modifiedAt: string;
 }
@@ -32,6 +36,7 @@ export interface CreateProductRequest {
   imagenUrl: string;
   isAvailable: boolean;
   isForSale: boolean;
+  tipo?: ProductTipo;
 }
 
 export interface UpdateProductRequest {
@@ -44,6 +49,7 @@ export interface UpdateProductRequest {
   imagenUrl?: string;
   isAvailable?: boolean;
   isForSale?: boolean;
+  tipo?: ProductTipo;
 }
 
 export interface ProductCategoryResponse {
@@ -311,6 +317,8 @@ export interface PublicCatalogItem {
   categoryName: string | null;
   categoryColor: string | null;
   stockAtLocation: number;
+ 
+  tipo?: ProductTipo;
 }
 
 // ─── Carrito ──────────────────────────────────────────────────────────────────
@@ -322,6 +330,8 @@ export interface CartItem {
   quantity: number;
   imagenUrl: string | null;
   stockAtLocation: number;
+  /** "elaborado" = no se valida stock en backend; permitir cualquier cantidad */
+  tipo?: ProductTipo;
 }
 
 // ─── Órdenes de venta ─────────────────────────────────────────────────────────

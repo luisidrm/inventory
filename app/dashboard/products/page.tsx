@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
-import type { ProductResponse, CreateProductRequest } from "@/lib/dashboard-types";
+import type { ProductResponse, CreateProductRequest, ProductTipo } from "@/lib/dashboard-types";
 import "./products-modal.css";
 import { DataTable } from "@/components/DataTable";
 import { StatCard, BarChartCard, PieChartCard, theme } from "@/components/dashboard";
@@ -36,7 +36,13 @@ const COLUMNS: DataTableColumn<ProductResponse>[] = [
   { key: "createdAt",   label: "Creado",      type: "date" },
 ];
 
+const PRODUCT_TIPO_OPTIONS: { value: ProductTipo; label: string }[] = [
+  { value: "inventariable", label: "Inventariable" },
+  { value: "elaborado", label: "Elaborado" },
+];
+
 const initialForm = {
+  tipo: "inventariable" as ProductTipo,
   code: "",
   name: "",
   description: "",
@@ -281,6 +287,7 @@ export default function ProductsPage() {
   const openEdit = (item: ProductResponse) => {
     setEditing(item);
     setForm({
+      tipo: item.tipo ?? "inventariable",
       code: item.code,
       name: item.name,
       description: item.description ?? "",
@@ -314,6 +321,7 @@ export default function ProductsPage() {
 
   const performSubmit = async () => {
     const payload: CreateProductRequest = {
+      tipo: form.tipo,
       code: form.code.trim(),
       name: form.name.trim(),
       description: form.description.trim(),
@@ -465,6 +473,21 @@ export default function ProductsPage() {
         submitLabel={editing ? "Guardar" : "Crear"}
         error={formErrors.submit}
       >
+        <div className="modal-field field-full">
+          <label htmlFor="tipo">Tipo de producto</label>
+          <select
+            id="tipo"
+            value={form.tipo}
+            onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value as ProductTipo }))}
+          >
+            {PRODUCT_TIPO_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="modal-field">
           <label htmlFor="code">Código *</label>
           <input
