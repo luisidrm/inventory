@@ -32,12 +32,8 @@ export function FormModal({
   if (!open) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal-box"
-        style={{ maxWidth }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="modal-overlay">
+      <div className="modal-box" style={{ maxWidth }}>
         <div className="modal-header">
           <div className="modal-header__icon">
             <Icon name={icon} />

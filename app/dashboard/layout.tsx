@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { clearSession } from "@/lib/auth-api";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
+import { removeAuthCookie } from "../login/_service/sessionCookie";
 import "./dashboard.css";
 import { useAppSelector } from "@/store/store";
 import { useLogoutMutation } from "../login/_service/authApi";
@@ -76,6 +77,7 @@ export default function DashboardLayout({
   const handleLogout = () => {
     logout();
     clearSession();
+    removeAuthCookie();
     router.push("/login");
     router.refresh();
   };

@@ -52,7 +52,7 @@ export function getStoredUser(): UserResponse | null {
 
 export function clearSession(): void {
   if (typeof window === "undefined") return;
-  logoutSuccessfull()
+  logoutSuccessfull();
   localStorage.removeItem("token");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("user");
