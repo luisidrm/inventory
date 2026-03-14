@@ -45,7 +45,7 @@ const SILENT_ENDPOINTS = new Set([
   // ── Usuarios y roles ──
   "getUsers",
   "getRoles",
-  "getRoleById",
+  "getMyRole",
   "getPermissions",
 
   // ── Logs ──

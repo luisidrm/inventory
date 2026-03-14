@@ -2,15 +2,12 @@
 
 import { useMemo } from "react";
 import { useAppSelector } from "@/store/store";
-import { useGetRoleByIdQuery } from "@/app/dashboard/roles/_service/rolesApi";
+import { useGetMyRoleQuery } from "@/app/dashboard/roles/_service/rolesApi";
 import { PERMISSIONS } from "@/lib/utils";
 
 /**
- * Returns the set of permission codes (e.g. "product.read", "admin") for the
- * currently logged-in user based on their role. Uses GET /role?id= so we only
- * request the user's role (avoids 403 from GET /role list which requires role.read).
- * If the backend returns 403 for role?id= too, ask backend to allow it for the
- * current user's role or to expose GET /account/permissions.
+ * Devuelve los códigos de permiso del usuario actual según su rol.
+ * Usa GET /api/role/my-role (rol actual con PermissionIds, sin requerir RoleRead).
  */
 export function useUserPermissionCodes(): {
   permissionCodes: Set<string>;
@@ -18,17 +15,16 @@ export function useUserPermissionCodes(): {
   has: (code: string) => boolean;
 } {
   const user = useAppSelector((state) => state.auth);
-  const roleId = user?.roleId ?? 0;
-  const { data: role, isLoading } = useGetRoleByIdQuery(roleId, { skip: !roleId });
+  const { data: role, isLoading } = useGetMyRoleQuery(undefined, { skip: !user });
 
   const permissionCodes = useMemo(() => {
-    if (!user?.roleId || !role) return new Set<string>();
+    if (!role?.result) return new Set<string>();
     const ids = role.result.permissionIds ?? [];
     const codes = ids
       .map((id) => PERMISSIONS.find((p) => p.id === id)?.code)
       .filter((c): c is string => !!c);
     return new Set(codes);
-  }, [user?.roleId, role]);
+  }, [role]);
 
   const has = useMemo(
     () => (code: string) =>
