@@ -29,13 +29,24 @@ function fmtDate(s: string) {
   });
 }
 
+/** Normaliza el estado que puede venir "Draft"/"draft" etc. de la API */
+function normalizeStatus(status: string): string {
+  const s = (status ?? "").trim().toLowerCase();
+  if (s === "draft") return "Draft";
+  if (s === "confirmed") return "Confirmed";
+  if (s === "cancelled" || s === "canceled") return "Cancelled";
+  return status;
+}
+
+const STATUS_DISPLAY: Record<string, { cls: string; icon: string; label: string }> = {
+  Draft:     { cls: "sale-status--draft",     icon: "pending",      label: "Pendiente" },
+  Confirmed: { cls: "sale-status--confirmed", icon: "check_circle",  label: "Aceptada" },
+  Cancelled: { cls: "sale-status--cancelled", icon: "cancel",       label: "Cancelada" },
+};
+
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { cls: string; icon: string; label: string }> = {
-    Draft:     { cls: "sale-status--draft",     icon: "pending",       label: "Borrador" },
-    Confirmed: { cls: "sale-status--confirmed", icon: "check_circle",  label: "Confirmada" },
-    Cancelled: { cls: "sale-status--cancelled", icon: "cancel",        label: "Cancelada" },
-  };
-  const d = map[status] ?? { cls: "sale-status--draft", icon: "help", label: status };
+  const key = normalizeStatus(status);
+  const d = STATUS_DISPLAY[key] ?? { cls: "sale-status--draft", icon: "help", label: status };
   return (
     <span className={`sale-status ${d.cls}`}>
       <Icon name={d.icon} />
@@ -186,7 +197,7 @@ function OrderDetailModal({
               <button type="button" className="order-modal-btn order-modal-btn--ghost" onClick={onClose}>
                 Cerrar
               </button>
-              {order.status === "Draft" && (
+              {normalizeStatus(order.status) === "Draft" && (
                 <>
                   <button
                     type="button"
@@ -204,11 +215,11 @@ function OrderDetailModal({
                     onClick={() => handle(() => onConfirm(order.id))}
                   >
                     <Icon name="check_circle" />
-                    Confirmar
+                    Aceptar orden
                   </button>
                 </>
               )}
-              {order.status === "Confirmed" && (
+              {normalizeStatus(order.status) === "Confirmed" && (
                 <button
                   type="button"
                   className="order-modal-btn order-modal-btn--cancel"
@@ -252,10 +263,10 @@ const COLUMNS: DataTableColumn<SaleOrderResponse>[] = [
 ];
 
 const STATUS_FILTERS = [
-  { label: "Todas",      value: "" },
-  { label: "Borrador",   value: "Draft" },
-  { label: "Confirmada", value: "Confirmed" },
-  { label: "Cancelada",  value: "Cancelled" },
+  { label: "Todas",     value: "" },
+  { label: "Pendiente", value: "Draft" },
+  { label: "Aceptada",  value: "Confirmed" },
+  { label: "Cancelada", value: "Cancelled" },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -319,7 +330,7 @@ export default function SalesPage() {
       iconColor: theme.accent,
     },
     {
-      label: "Confirmadas",
+      label: "Aceptadas",
       value: String(s?.confirmedCount ?? "—"),
       icon: "check_circle" as const,
       trend: "",
@@ -328,7 +339,7 @@ export default function SalesPage() {
       iconColor: theme.success,
     },
     {
-      label: "Borradores",
+      label: "Pendientes",
       value: String(s?.draftCount ?? "—"),
       icon: "pending" as const,
       trend: "",
@@ -358,7 +369,7 @@ export default function SalesPage() {
     },
     {
       icon: processingId !== null && isConfirming ? "hourglass_empty" : "check_circle",
-      label: isConfirming ? "Confirmando…" : "Confirmar",
+      label: isConfirming ? "Aceptando…" : "Aceptar",
       onClick: async (row) => {
         setProcessingId(row.id);
         try {
@@ -369,7 +380,7 @@ export default function SalesPage() {
           setProcessingId(null);
         }
       },
-      hidden: (row) => row.status !== "Draft",
+      hidden: (row) => normalizeStatus(row.status) !== "Draft",
       disabled: (row) => isBusy && processingId !== row.id,
     },
     {
@@ -386,7 +397,7 @@ export default function SalesPage() {
         }
       },
       variant: "danger",
-      hidden: (row) => row.status === "Cancelled",
+      hidden: (row) => normalizeStatus(row.status) === "Cancelled",
       disabled: (row) => isBusy && processingId !== row.id,
     },
   ];

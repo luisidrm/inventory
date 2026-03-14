@@ -10,20 +10,47 @@ import {
   useCreateLocationMutation,
   useUpdateLocationMutation,
   useDeleteLocationMutation,
+  useUploadLocationImageMutation,
 } from "./_service/locationsApi";
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
+import { Icon } from "@/components/ui/Icon";
 import { useAppSelector } from "@/store/store";
 import "../products/products-modal.css";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
+import { CUBA_PROVINCES, getMunicipalitiesByProvince } from "@/lib/cuba-locations";
+
+function formatAddress(loc: { street?: string | null; municipality?: string | null; province?: string | null }): string {
+  const parts = [loc.street, loc.municipality, loc.province].filter(Boolean);
+  return parts.length ? parts.join(", ") : "—";
+}
 
 const COLUMNS: DataTableColumn<LocationResponse>[] = [
-  { key: "name",            label: "Nombre" },
-  { key: "code",            label: "Código",        width: "110px" },
-  { key: "description",     label: "Descripción" },
-  { key: "organizationName",label: "Organización" },
-  { key: "whatsAppContact", label: "WhatsApp",      width: "150px" },
-  { key: "createdAt",       label: "Creado",        type: "date" },
+  {
+    key: "photoUrl",
+    label: "Foto",
+    width: "64px",
+    render: (row) =>
+      row.photoUrl ? (
+        <img src={row.photoUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8 }} />
+      ) : (
+        <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", display: "grid", placeItems: "center", color: "#94a3b8", fontSize: 20 }}>
+          <Icon name="location_on" />
+        </div>
+      ),
+  },
+  { key: "name", label: "Nombre" },
+  { key: "code", label: "Código", width: "110px" },
+  {
+    key: "address",
+    label: "Dirección",
+    width: "200px",
+    render: (row) => <span style={{ fontSize: "0.875rem" }}>{formatAddress(row)}</span>,
+  },
+  { key: "description", label: "Descripción" },
+  { key: "organizationName", label: "Organización" },
+  { key: "whatsAppContact", label: "WhatsApp", width: "150px" },
+  { key: "createdAt", label: "Creado", type: "date" },
 ];
 
 const initialForm = {
@@ -31,6 +58,10 @@ const initialForm = {
   code: "",
   description: "",
   whatsAppContact: "",
+  photoUrl: "",
+  province: "",
+  municipality: "",
+  street: "",
 };
 
 export default function LocationsPage() {
@@ -65,6 +96,7 @@ export default function LocationsPage() {
   const [createLocation] = useCreateLocationMutation();
   const [updateLocation] = useUpdateLocationMutation();
   const [deleteLocation] = useDeleteLocationMutation();
+  const [uploadLocationImage, { isLoading: uploadingImage }] = useUploadLocationImageMutation();
 
   const [allRows, setAllRows] = useState<LocationResponse[]>([]);
 
@@ -121,6 +153,10 @@ export default function LocationsPage() {
       code: item.code,
       description: item.description ?? "",
       whatsAppContact: item.whatsAppContact ?? "",
+      photoUrl: item.photoUrl ?? "",
+      province: item.province ?? "",
+      municipality: item.municipality ?? "",
+      street: item.street ?? "",
     });
     setFormErrors({});
     setFormOpen(true);
@@ -145,26 +181,21 @@ export default function LocationsPage() {
     setFormSubmitting(true);
     try {
       const wa = form.whatsAppContact.replace(/\D/g, "").trim() || undefined;
+      const common = {
+        name: form.name.trim(),
+        code: form.code.trim(),
+        description: form.description.trim() || undefined,
+        whatsAppContact: wa,
+        photoUrl: form.photoUrl.trim() || undefined,
+        province: form.province.trim() || undefined,
+        municipality: form.municipality.trim() || undefined,
+        street: form.street.trim() || undefined,
+      };
 
       if (editing) {
-        await updateLocation({
-          id: editing.id,
-          body: {
-            name: form.name.trim(),
-            code: form.code.trim(),
-            description: form.description.trim() || undefined,
-            whatsAppContact: wa,
-          },
-        }).unwrap();
+        await updateLocation({ id: editing.id, body: common }).unwrap();
       } else {
-        const payload: CreateLocationRequest = {
-          organizationId,
-          name: form.name.trim(),
-          code: form.code.trim(),
-          description: form.description.trim() || undefined,
-          whatsAppContact: wa,
-        };
-        await createLocation(payload).unwrap();
+        await createLocation({ organizationId, ...common }).unwrap();
         setPage(1);
       }
       closeForm();
@@ -172,6 +203,24 @@ export default function LocationsPage() {
       setFormErrors({ submit: err instanceof Error ? err.message : "Error al guardar" });
     } finally {
       setFormSubmitting(false);
+    }
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setFormErrors((prev) => ({ ...prev, photoUrl: "Máximo 5 MB (JPEG, PNG, GIF o WebP)" }));
+      return;
+    }
+    e.target.value = "";
+    try {
+      const photoUrl = await uploadLocationImage(file).unwrap();
+      setForm((f) => ({ ...f, photoUrl }));
+      setFormErrors((prev) => ({ ...prev, photoUrl: "" }));
+    } catch {
+      setFormErrors((prev) => ({ ...prev, photoUrl: "Error al subir la imagen" }));
     }
   };
 
@@ -273,6 +322,84 @@ export default function LocationsPage() {
               placeholder="Descripción"
               rows={3}
             />
+          </div>
+          <div className="modal-field field-full">
+            <label>Foto de la ubicación</label>
+            <input type="hidden" value={form.photoUrl} readOnly />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              onChange={handleUploadPhoto}
+              style={{ display: "none" }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              {form.photoUrl ? (
+                <>
+                  <img src={form.photoUrl} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }} />
+                  <div>
+                    <button type="button" className="modal-btn modal-btn--secondary" onClick={() => fileInputRef.current?.click()} disabled={uploadingImage}>
+                      {uploadingImage ? "Subiendo…" : "Cambiar foto"}
+                    </button>
+                    <button type="button" className="modal-btn" style={{ marginLeft: 8 }} onClick={() => setForm((f) => ({ ...f, photoUrl: "" }))}>
+                      Quitar
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button type="button" className="modal-btn modal-btn--secondary" onClick={() => fileInputRef.current?.click()} disabled={uploadingImage}>
+                  {uploadingImage ? "Subiendo…" : "Subir foto"}
+                </button>
+              )}
+            </div>
+            <p style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: 4 }}>JPEG, PNG, GIF o WebP. Máx. 5 MB.</p>
+            {formErrors.photoUrl && <p className="form-error">{formErrors.photoUrl}</p>}
+          </div>
+          <div className="modal-field">
+            <label htmlFor="street">Calle / Dirección</label>
+            <input
+              id="street"
+              value={form.street}
+              onChange={(e) => setForm((f) => ({ ...f, street: e.target.value }))}
+              placeholder="Calle Mayor 1"
+            />
+          </div>
+          <div className="modal-field">
+            <label htmlFor="province">Provincia</label>
+            <select
+              id="province"
+              value={form.province}
+              onChange={(e) => {
+                const province = e.target.value;
+                const municipalities = getMunicipalitiesByProvince(province);
+                const currentMunicipality = form.municipality;
+                const keepMunicipality = currentMunicipality && municipalities.includes(currentMunicipality);
+                setForm((f) => ({
+                  ...f,
+                  province,
+                  municipality: keepMunicipality ? currentMunicipality : "",
+                }));
+              }}
+            >
+              <option value="">Seleccione provincia</option>
+              {CUBA_PROVINCES.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+          <div className="modal-field">
+            <label htmlFor="municipality">Municipio</label>
+            <select
+              id="municipality"
+              value={form.province ? (getMunicipalitiesByProvince(form.province).includes(form.municipality) ? form.municipality : "") : ""}
+              onChange={(e) => setForm((f) => ({ ...f, municipality: e.target.value }))}
+              disabled={!form.province}
+            >
+              <option value="">Seleccione municipio</option>
+              {getMunicipalitiesByProvince(form.province).map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
           </div>
           <div className="modal-field field-full">
             <label htmlFor="whatsAppContact">WhatsApp de contacto</label>

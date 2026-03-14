@@ -29,11 +29,11 @@ export const locationsApi = createApi({
   reducerPath: "locationsApi",
   baseQuery: fetchBaseQuery({
     baseUrl: getApiUrl(),
-    prepareHeaders: (headers) => {
+    prepareHeaders: (headers, { getState, endpoint }) => {
       const token = getToken();
       if (token) headers.set("Authorization", `Bearer ${token}`);
-      headers.set("Content-Type", "application/json");
       headers.set("ngrok-skip-browser-warning", "true");
+      if (endpoint !== "uploadLocationImage") headers.set("Content-Type", "application/json");
       return headers;
     },
   }),
@@ -69,6 +69,20 @@ export const locationsApi = createApi({
       query: (id) => ({ url: `/location?id=${id}`, method: "DELETE" }),
       invalidatesTags: (_r, _e, id) => [{ type: "Location", id }, { type: "Location", id: "LIST" }],
     }),
+    /** POST /location/image (multipart/form-data, campo "file"). Devuelve { data: { photoUrl } }. */
+    uploadLocationImage: builder.mutation<string, File>({
+      query: (file) => {
+        const body = new FormData();
+        body.append("file", file);
+        return {
+          url: "/location/image",
+          method: "POST",
+          body,
+        };
+      },
+      transformResponse: (raw: { data?: { photoUrl?: string }; result?: { photoUrl?: string } }) =>
+        (raw?.data?.photoUrl ?? raw?.result?.photoUrl) ?? "",
+    }),
   }),
 });
 
@@ -77,4 +91,5 @@ export const {
   useCreateLocationMutation,
   useUpdateLocationMutation,
   useDeleteLocationMutation,
+  useUploadLocationImageMutation,
 } = locationsApi;

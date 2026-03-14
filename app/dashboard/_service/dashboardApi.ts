@@ -26,6 +26,13 @@ export interface ListItem {
   secondary?: string;
 }
 
+/** Celda del heatmap: día de la semana (0=Lun … 6=Dom), hora (0–23), cantidad de movimientos. */
+export interface ActivityHeatmapCell {
+  dayOfWeek: number;
+  hour: number;
+  count: number;
+}
+
 export interface DashboardSummary {
   totalProducts?: number;
   totalProductsTrend?: number;
@@ -155,6 +162,15 @@ export const dashboardApi = createApi({
       },
       transformResponse: (raw: unknown) => parseChartResult<ListItem>(raw),
     }),
+    /** Heatmap de actividad: movimientos por día de la semana y hora (0=Lun, 0–23h). */
+    getActivityHeatmap: builder.query<ActivityHeatmapCell[], DashboardQuery | void>({
+      query: (arg) => {
+        const a = arg as DashboardQuery | undefined;
+        const days = a?.days ?? 14;
+        return `/dashboard/activity-heatmap?days=${days}`;
+      },
+      transformResponse: (raw: unknown) => parseChartResult<ActivityHeatmapCell>(raw),
+    }),
   }),
 });
 
@@ -171,4 +187,5 @@ export const {
   useGetListLatestMovementsQuery,
   useGetListValueByLocationQuery,
   useGetListRecentProductsQuery,
+  useGetActivityHeatmapQuery,
 } = dashboardApi;

@@ -119,6 +119,10 @@ export interface CreateLocationRequest {
   code: string;
   description?: string;
   whatsAppContact?: string;
+  photoUrl?: string;
+  province?: string;
+  municipality?: string;
+  street?: string;
 }
 
 export interface UpdateLocationRequest {
@@ -127,6 +131,10 @@ export interface UpdateLocationRequest {
   code?: string;
   description?: string;
   whatsAppContact?: string;
+  photoUrl?: string;
+  province?: string;
+  municipality?: string;
+  street?: string;
 }
 
 // ─── Inventario ───────────────────────────────────────────────────────────────
@@ -260,6 +268,8 @@ export interface InventorySettingsDto {
   priceRoundingDecimals: number;
   allowNegativeStock: boolean;
   defaultUnitOfMeasure: string;
+  /** Stock mínimo global; se usa para alertas de stock bajo cuando no hay mínimo por ítem. */
+  defaultMinimumStock?: number;
 }
 
 export interface CompanySettingsDto {
@@ -304,6 +314,10 @@ export interface PublicLocation {
   organizationId: number;
   organizationName: string;
   whatsAppContact: string | null;
+  photoUrl?: string | null;
+  province?: string | null;
+  municipality?: string | null;
+  street?: string | null;
 }
 
 export interface PublicCatalogItem {
@@ -330,7 +344,6 @@ export interface CartItem {
   quantity: number;
   imagenUrl: string | null;
   stockAtLocation: number;
-  /** "elaborado" = no se valida stock en backend; permitir cualquier cantidad */
   tipo?: ProductTipo;
 }
 

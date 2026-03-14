@@ -172,10 +172,10 @@ export default function DashboardPage() {
       iconColor: theme.success,
     },
     {
-      label: "Borradores pendientes",
+      label: "Pendientes",
       value: fmtNum(ss?.draftOrders),
       icon: "edit_note" as const,
-      trend: "Por confirmar o cancelar",
+      trend: "Por aceptar o cancelar",
       trendUp: false,
       iconBg: "#FFFBEB",
       iconColor: "#F59E0B",
@@ -196,8 +196,8 @@ export default function DashboardPage() {
       ? recentOrdersResult.data.map((o) => ({
           primary: `${o.folio ?? `#${o.id}`} · ${o.locationName ?? "—"}`,
           secondary: `${
-            o.status === "Confirmed" ? "Confirmada" :
-            o.status === "Cancelled" ? "Cancelada" : "Borrador"
+            (o.status ?? "").toLowerCase() === "confirmed" ? "Aceptada" :
+            (o.status ?? "").toLowerCase() === "cancelled" || (o.status ?? "").toLowerCase() === "canceled" ? "Cancelada" : "Pendiente"
           } · $${(o.total ?? 0).toLocaleString("es")}`,
         }))
       : [{ primary: "Sin órdenes recientes" }];

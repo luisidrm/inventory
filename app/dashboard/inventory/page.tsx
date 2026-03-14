@@ -15,7 +15,6 @@ import { StatCard, LineChartCard, BarChartCard, theme } from "@/components/dashb
 const COLUMNS: DataTableColumn<InventoryResponse>[] = [
   { key: "productName", label: "Producto", width: "180px" },
   { key: "currentStock", label: "Stock actual", type: "number" },
-  { key: "minimumStock", label: "Stock mínimo", type: "number" },
   { key: "unitOfMeasure", label: "Unidad" },
   { key: "locationName", label: "Ubicación", width: "180px" },
   { key: "createdAt", label: "Creado", type: "date" },

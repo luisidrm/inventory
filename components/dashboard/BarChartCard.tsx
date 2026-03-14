@@ -11,6 +11,8 @@ export interface BarChartCardProps {
   height?: number;
   /** true = barras horizontales (por categoría/nombre) */
   horizontal?: boolean;
+  /** Formato del valor en tooltip (ej. (n) => `$${n.toLocaleString()}`) */
+  formatValue?: (value: number) => string;
 }
 
 export function BarChartCard({
@@ -20,6 +22,7 @@ export function BarChartCard({
   color = theme.accent,
   height = 280,
   horizontal = false,
+  formatValue,
 }: BarChartCardProps) {
   const chartData = data.map((d) => ({ name: d.label, value: d.value }));
 
@@ -69,7 +72,7 @@ export function BarChartCard({
             <Tooltip
               contentStyle={{ background: theme.surface, border: `1px solid ${theme.divider}`, borderRadius: 8 }}
               labelStyle={{ color: theme.primaryText }}
-              formatter={(value: number | undefined) => [value ?? 0, ""]}
+              formatter={(value: number | undefined) => [formatValue ? formatValue(value ?? 0) : (value ?? 0), ""]}
             />
             <Bar dataKey="value" fill={color} radius={horizontal ? [0, 0, 4, 4] : [4, 4, 0, 0]} />
           </BarChart>

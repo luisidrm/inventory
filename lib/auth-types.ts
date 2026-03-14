@@ -83,6 +83,10 @@ export interface LocationResponse {
   code: string;
   description?: string;
   whatsAppContact?: string | null;
+  photoUrl?: string | null;
+  province?: string | null;
+  municipality?: string | null;
+  street?: string | null;
   createdAt: string;
   modifiedAt: string;
 }

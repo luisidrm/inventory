@@ -13,6 +13,7 @@ export default function SettingsPage() {
     priceRoundingDecimals: 2,
     allowNegativeStock: false,
     defaultUnitOfMeasure: "unit",
+    defaultMinimumStock: 0,
   });
   const [company, setCompany] = useState({ name: "", taxId: "" });
   const [notifications, setNotifications] = useState({
@@ -20,13 +21,22 @@ export default function SettingsPage() {
     lowStockRecipients: "",
   });
 
-  const { data, isLoading } = useGetGroupedSettingsQuery();
+  const { data, isLoading, refetch } = useGetGroupedSettingsQuery();
   const [updateSettings, { isLoading: saving }] = useUpdateGroupedSettingsMutation();
 
   useEffect(() => {
-    if (data?.inventory) setInventory(data.inventory);
-    if (data?.company) setCompany(data.company);
-    if (data?.notifications) setNotifications(data.notifications);
+    if (!data) return;
+    if (data.inventory) {
+      setInventory({
+        roundingDecimals: data.inventory.roundingDecimals ?? 2,
+        priceRoundingDecimals: data.inventory.priceRoundingDecimals ?? 2,
+        allowNegativeStock: data.inventory.allowNegativeStock ?? false,
+        defaultUnitOfMeasure: data.inventory.defaultUnitOfMeasure ?? "unit",
+        defaultMinimumStock: data.inventory.defaultMinimumStock ?? 0,
+      });
+    }
+    if (data.company) setCompany(data.company);
+    if (data.notifications) setNotifications(data.notifications);
   }, [data]);
 
   const handleSave = async () => {
@@ -36,6 +46,7 @@ export default function SettingsPage() {
         company,
         notifications,
       }).unwrap();
+      await refetch();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {
@@ -119,6 +130,17 @@ export default function SettingsPage() {
                 value={inventory.defaultUnitOfMeasure}
                 onChange={(e) =>
                   setInventory((s) => ({ ...s, defaultUnitOfMeasure: e.target.value }))
+                }
+              />
+            </div>
+            <div className="modal-field">
+              <label>Stock mínimo (global)</label>
+              <input
+                type="number"
+                min={0}
+                value={inventory.defaultMinimumStock ?? 0}
+                onChange={(e) =>
+                  setInventory((s) => ({ ...s, defaultMinimumStock: Number(e.target.value) || 0 }))
                 }
               />
             </div>

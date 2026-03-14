@@ -50,21 +50,31 @@ export default function CatalogLocationsPage() {
 
       {!isLoading && !isError && locations && locations.length > 0 && (
         <div className="loc-grid">
-          {locations.map((loc) => (
-            <Link key={loc.id} href={`/catalog/${loc.id}`} className="loc-card">
-              <div className="loc-card__avatar">
-                <Icon name="store" />
-              </div>
-              <div className="loc-card__body">
-                <div className="loc-card__name">{loc.name}</div>
-                <div className="loc-card__org">{loc.organizationName}</div>
-                {loc.description && <p className="loc-card__desc">{loc.description}</p>}
-              </div>
-              <div className="loc-card__go">
-                <Icon name="chevron_right" />
-              </div>
-            </Link>
-          ))}
+          {locations.map((loc) => {
+            const addressParts = [loc.street, loc.municipality, loc.province].filter(Boolean);
+            const address = addressParts.length ? addressParts.join(", ") : null;
+            return (
+              <Link key={loc.id} href={`/catalog/${loc.id}`} className="loc-card">
+                <div className="loc-card__avatar">
+                  {loc.photoUrl ? (
+                    <img src={loc.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" }} />
+                  ) : (
+                    <Icon name="store" />
+                  )}
+                </div>
+                <div className="loc-card__body">
+                  <div className="loc-card__name">{loc.name}</div>
+                  <div className="loc-card__org">{loc.organizationName}</div>
+                  {address && <p className="loc-card__desc" style={{ marginTop: 4 }}>{address}</p>}
+                  {loc.description && !address && <p className="loc-card__desc">{loc.description}</p>}
+                  {loc.description && address && <p className="loc-card__desc" style={{ marginTop: 2, opacity: 0.9 }}>{loc.description}</p>}
+                </div>
+                <div className="loc-card__go">
+                  <Icon name="chevron_right" />
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

@@ -18,8 +18,12 @@ export const settingsApi = createApi({
   endpoints: (builder) => ({
     getGroupedSettings: builder.query<GroupedSettingsResponse, void>({
       query: () => "/setting/grouped",
-      transformResponse: (raw: GroupedSettingsResponse | { data: GroupedSettingsResponse }) =>
-        raw && typeof raw === "object" && "data" in raw ? (raw as { data: GroupedSettingsResponse }).data : (raw as GroupedSettingsResponse),
+      transformResponse: (raw: unknown) => {
+        if (!raw || typeof raw !== "object") return {} as GroupedSettingsResponse;
+        const o = raw as Record<string, unknown>;
+        const payload = o.data ?? o.result ?? o;
+        return (payload && typeof payload === "object" ? payload : {}) as GroupedSettingsResponse;
+      },
       providesTags: ["Setting"],
     }),
     updateGroupedSettings: builder.mutation<void, UpdateGroupedSettingsRequest>({
