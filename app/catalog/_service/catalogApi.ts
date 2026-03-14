@@ -44,4 +44,5 @@ export const catalogApi = createApi({
 export const {
   useGetPublicLocationsQuery,
   useGetPublicCatalogQuery,
+  useLazyGetPublicCatalogQuery,
 } = catalogApi;

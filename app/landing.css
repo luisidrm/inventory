@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
 /* ======================== NAVBAR ======================== */
 .navbar {
   position: fixed;
@@ -1844,4 +1846,286 @@
   .stats-section__logo {
     height: 48px;
   }
+}
+
+/* ======================== CATALOG SECTION (Strova) ======================== */
+.catalog-section {
+  font-family: var(--font-heading);
+  background: #ffffff;
+  overflow: hidden;
+  padding: 2.5rem 0 5rem;
+  position: relative;
+  min-height: 720px;
+  border: none;
+  box-shadow: none;
+  margin-top: -1px;
+}
+
+.catalog-section::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1200px;
+  height: 600px;
+  background: radial-gradient(ellipse, rgba(83, 74, 183, 0.08) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.catalog-section .container {
+  border: none;
+}
+
+.catalog-section__inner {
+  position: relative;
+  z-index: 1;
+}
+
+.catalog-section__hdr {
+  text-align: center;
+  margin-bottom: 3rem;
+  position: relative;
+  z-index: 2;
+}
+
+.catalog-section__tag {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #534AB7;
+  background: rgba(83, 74, 183, 0.1);
+  padding: 6px 16px;
+  border-radius: 20px;
+  margin-bottom: 1rem;
+  border: 0.5px solid rgba(83, 74, 183, 0.2);
+}
+
+.catalog-section__ttl {
+  font-family: var(--font-heading);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+  margin-bottom: 0.6rem;
+}
+
+.catalog-section__ttl span {
+  color: #534AB7;
+}
+
+.catalog-section__sub {
+  font-size: 1rem;
+  color: #64748b;
+  max-width: 480px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.catalog-section__track-wrap {
+  position: relative;
+  width: 100%;
+  height: 280px;
+  perspective: 1000px;
+  perspective-origin: 50% 50%;
+  border: none;
+  outline: none;
+  overflow: hidden;
+}
+
+.catalog-section__track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  border: none;
+  outline: none;
+}
+
+.catalog-track__card {
+  position: absolute;
+  width: 200px;
+  height: 240px;
+  border-radius: 18px;
+  transform-style: preserve-3d;
+  cursor: pointer;
+  top: 50%;
+  transition: opacity 0.2s ease;
+}
+
+.catalog-track__card-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.catalog-track__card-img {
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 46px;
+  flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.catalog-track__card-img-el {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.catalog-track__card-img-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.catalog-track__card-img-icon .material-icons {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+}
+
+.catalog-section__loading,
+.catalog-section__empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  font-size: 0.95rem;
+  color: #64748b;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.catalog-track__card-info {
+  padding: 0.85rem 1rem 1rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-top: 1px solid #f1f5f9;
+}
+
+.catalog-track__card-cat {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.catalog-track__card-name {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.25;
+  margin-bottom: 4px;
+}
+
+.catalog-track__card-sku {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.catalog-track__card-bot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.catalog-track__card-price {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.catalog-track__card-stk {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+
+.catalog-track__card-stk.s-ok {
+  background: rgba(63, 160, 70, 0.15);
+  color: #7dcf82;
+  border: 0.5px solid rgba(63, 160, 70, 0.2);
+}
+
+.catalog-track__card-stk.s-lo {
+  background: rgba(239, 159, 39, 0.12);
+  color: #f0b958;
+  border: 0.5px solid rgba(239, 159, 39, 0.18);
+}
+
+.catalog-track__card-stk.s-no {
+  background: rgba(226, 75, 74, 0.1);
+  color: #e87877;
+  border: 0.5px solid rgba(226, 75, 74, 0.15);
+}
+
+.catalog-section__fade {
+  position: absolute;
+  top: 0;
+  width: 180px;
+  height: 100%;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.catalog-section__fade--l {
+  left: 0;
+  background: linear-gradient(to right, #ffffff 0%, transparent 100%);
+}
+
+.catalog-section__fade--r {
+  right: 0;
+  background: linear-gradient(to left, #ffffff 0%, transparent 100%);
+}
+
+.catalog-section__cta {
+  text-align: center;
+  margin-top: 2rem;
+  position: relative;
+  z-index: 2;
+}
+
+.catalog-section__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #534AB7, #6b5fd4);
+  border: none;
+  border-radius: 12px;
+  text-decoration: none;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.catalog-section__btn:hover {
+  box-shadow: 0 6px 24px rgba(83, 74, 183, 0.4);
+  transform: translateY(-2px);
 }
