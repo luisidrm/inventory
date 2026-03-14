@@ -53,7 +53,10 @@ export const rolesApi = createApi({
             ]
           : [{ type: "Role", id: "LIST" }],
     }),
-  
+    getRoleById: builder.query<ApiResponse<RoleResponse>, number>({
+      query: (id) => `/role/id?id=${id}`,
+      providesTags: (_result, _err, id) => [{ type: "Role", id }],
+    }),
     getMyRole: builder.query<ApiResponse<RoleResponse>, void>({
       query: () => "/role/my-role",
       providesTags: [{ type: "Role", id: "MY" }],
@@ -81,6 +84,7 @@ export const rolesApi = createApi({
 
 export const {
   useGetRolesQuery,
+  useGetRoleByIdQuery,
   useGetMyRoleQuery,
   useGetPermissionsQuery,
   useCreateRoleMutation,
