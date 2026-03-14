@@ -30,14 +30,11 @@ const MOVEMENT_TYPES = [
 
 const INVENTORY_MOVEMENT_REASONS = [
   "Compra",
-  "DevolucionCliente",
-  "TransferenciaEntrada",
-  "StockInicial",
+  "Devolucion",
+  "Entrada",
   "Venta",
-  "Dano",
-  "UsoInterno",
-  "DevolucionProveedor",
-  "TransferenciaSalida",
+  "Daño",
+  "Uso Interno",
   "Vencimiento",
   "ConteoInventario",
   "Correccion",
