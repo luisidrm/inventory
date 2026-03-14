@@ -5,11 +5,12 @@ import type { InventoryMovementResponse, CreateInventoryMovementRequest, CreateP
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
 import { useGetMovementsQuery, useGetMovementStatsQuery, useGetFlowWithCumulativeQuery, useGetDistributionByTypeQuery, useCreateMovementMutation } from "./_service/movementsApi";
-import { useGetProductsQuery, useCreateProductMutation, useGetProductCategoriesQuery } from "../products/_service/productsApi";
+import { useGetProductsQuery, useCreateProductMutation, useGetProductCategoriesQuery, useUploadProductImageMutation } from "../products/_service/productsApi";
 import { useGetLocationsQuery } from "../locations/_service/locationsApi";
 import { FormModal } from "@/components/FormModal";
 import { StatCard, ComposedChartCard, PieChartCard, theme } from "@/components/dashboard";
 import { Icon } from "@/components/ui/Icon";
+import Switch from "@/components/Switch";
 import "../products/products-modal.css";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
@@ -27,6 +28,175 @@ const MOVEMENT_TYPES = [
   { value: 3, label: "Transferencia" },
 ];
 
+const INVENTORY_MOVEMENT_REASONS = [
+  "Compra",
+  "DevolucionCliente",
+  "TransferenciaEntrada",
+  "StockInicial",
+  "Venta",
+  "Dano",
+  "UsoInterno",
+  "DevolucionProveedor",
+  "TransferenciaSalida",
+  "Vencimiento",
+  "ConteoInventario",
+  "Correccion",
+  "Merma",
+  "Transferencia",
+  "Muestra",
+  "Donacion",
+  "Otro",
+] as const;
+
+// ─── Image Uploader (mismo que en productos) ───────────────────────────────────
+
+interface ImageUploaderProps {
+  value: string;
+  onChange: (url: string) => void;
+}
+
+function ImageUploader({ value, onChange }: ImageUploaderProps) {
+  const [uploadImage, { isLoading }] = useUploadProductImageMutation();
+  const [dragOver, setDragOver] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (file: File) => {
+    setUploadError("");
+    const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      setUploadError("Formato no soportado. Usa JPEG, PNG, GIF o WebP.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError("El archivo supera el límite de 5 MB.");
+      return;
+    }
+    try {
+      const url = await uploadImage(file).unwrap();
+      if (url) onChange(url);
+    } catch {
+      setUploadError("Error al subir la imagen. Intenta de nuevo.");
+    }
+  };
+
+  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+    e.target.value = "";
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
+
+  const hasImage = Boolean(value);
+
+  return (
+    <div className="img-uploader">
+      <div
+        className={[
+          "img-uploader__dropzone",
+          hasImage ? "img-uploader__dropzone--has-img" : "",
+          dragOver ? "img-uploader__dropzone--dragover" : "",
+        ].join(" ")}
+        onClick={() => !isLoading && !hasImage && inputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+      >
+        {isLoading ? (
+          <div className="img-uploader__loading">
+            <div className="img-uploader__spinner" />
+            <span className="img-uploader__loading-text">Subiendo imagen…</span>
+          </div>
+        ) : hasImage ? (
+          <>
+            <img src={value} alt="Preview" className="img-uploader__preview" />
+            <div className="img-uploader__overlay">
+              <button
+                type="button"
+                className="img-uploader__overlay-btn img-uploader__overlay-btn--change"
+                onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+              >
+                <Icon name="upload" />
+                Cambiar
+              </button>
+              <button
+                type="button"
+                className="img-uploader__overlay-btn img-uploader__overlay-btn--remove"
+                onClick={(e) => { e.stopPropagation(); onChange(""); }}
+              >
+                <Icon name="delete" />
+                Quitar
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="img-uploader__placeholder">
+            <div className="img-uploader__placeholder-icon">
+              <Icon name="add_photo_alternate" />
+            </div>
+            <span className="img-uploader__placeholder-text">
+              Haz clic o arrastra una imagen aquí
+            </span>
+            <span className="img-uploader__placeholder-hint">
+              JPEG, PNG, GIF, WebP · máx. 5 MB
+            </span>
+          </div>
+        )}
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        className="img-uploader__hidden-input"
+        onChange={onInputChange}
+      />
+
+      {uploadError && (
+        <span className="img-uploader__upload-error">
+          <Icon name="error_outline" />
+          {uploadError}
+        </span>
+      )}
+
+      <button
+        type="button"
+        className="img-uploader__url-toggle"
+        onClick={() => setShowUrlInput((v) => !v)}
+      >
+        <Icon name={showUrlInput ? "expand_less" : "link"} />
+        {showUrlInput ? "Ocultar URL" : "O ingresa una URL"}
+      </button>
+
+      {showUrlInput && (
+        <input
+          type="url"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://..."
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            border: "1.5px solid #e2e8f0",
+            borderRadius: "8px",
+            fontSize: "0.9rem",
+            fontFamily: "inherit",
+            boxSizing: "border-box",
+            color: "#1e293b",
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 const initialForm = {
   productId: "" as number | string,
   locationId: "" as number | string,
@@ -43,6 +213,8 @@ const initialNewProduct = {
   categoryId: "" as number | string,
   precio: "0",
   costo: "0",
+  imagenUrl: "",
+  isForSale: false,
 };
 
 export default function MovementsPage() {
@@ -188,9 +360,9 @@ export default function MovementsPage() {
           categoryId: newProductForm.categoryId === "" ? null : Number(newProductForm.categoryId),
           precio: Number(newProductForm.precio) || 0,
           costo: Number(newProductForm.costo) || 0,
-          imagenUrl: "",
+          imagenUrl: newProductForm.imagenUrl.trim(),
           isAvailable: true,
-          isForSale: false,
+          isForSale: newProductForm.isForSale,
         };
         const createdProduct = await createProduct(productPayload).unwrap();
         // 2) productId del movimiento = id exacto devuelto por el endpoint de creación (ej. response.data.id).
@@ -210,7 +382,7 @@ export default function MovementsPage() {
         locationId: Number(form.locationId),
         type: form.type,
         quantity: Number(form.quantity),
-        reason: form.reason.trim() || undefined,
+        reason: form.reason || undefined,
         referenceDocument: form.referenceDocument.trim() || undefined,
       };
       await createMovement(payload).unwrap();
@@ -525,6 +697,20 @@ export default function MovementsPage() {
                   />
                   {formErrors.newProductCosto && <p className="form-error">{formErrors.newProductCosto}</p>}
                 </div>
+                <div className="modal-field field-full">
+                  <label>Imagen del producto</label>
+                  <ImageUploader
+                    value={newProductForm.imagenUrl}
+                    onChange={(url: string) => setNewProductForm((f) => ({ ...f, imagenUrl: url }))}
+                  />
+                </div>
+                <div className="modal-field field-full modal-toggle">
+                  <Switch
+                    checked={newProductForm.isForSale}
+                    onChange={(checked) => setNewProductForm((f) => ({ ...f, isForSale: checked }))}
+                  />
+                  <label>En venta (visible en catálogo público)</label>
+                </div>
               </div>
             )}
           </div>
@@ -573,12 +759,18 @@ export default function MovementsPage() {
           </div>
           <div className="modal-field field-full">
             <label htmlFor="reason">Razón</label>
-            <textarea
+            <select
               id="reason"
               value={form.reason}
               onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
-              rows={2}
-            />
+            >
+              <option value="">Seleccione razón</option>
+              {INVENTORY_MOVEMENT_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="modal-field field-full">
             <label htmlFor="referenceDocument">Documento de referencia</label>
