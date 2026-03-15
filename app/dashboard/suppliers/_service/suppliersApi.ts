@@ -36,6 +36,9 @@ export const suppliersApi = createApi({
       return headers;
     },
   }),
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: ["Supplier"],
   endpoints: (builder) => ({
     getSuppliers: builder.query<PaginatedResult<SupplierResponse>, GetSuppliersArgs>({

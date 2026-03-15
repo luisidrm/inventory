@@ -8,8 +8,9 @@ import { clearSession } from "@/lib/auth-api";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 import { removeAuthCookie } from "../login/_service/sessionCookie";
 import "./dashboard.css";
-import { useAppSelector } from "@/store/store";
+import { useAppSelector, useAppDispatch } from "@/store/store";
 import { useLogoutMutation } from "../login/_service/authApi";
+import { logoutSuccessfull } from "../login/_slices/authSlice";
 
 interface NavItem {
   icon: string;
@@ -52,7 +53,8 @@ export default function DashboardLayout({
   const user = useAppSelector((state) => state.auth) || null;
   const { has: hasPermission } = useUserPermissionCodes();
 
-  const [logout] = useLogoutMutation()
+  const dispatch = useAppDispatch();
+  const [logout] = useLogoutMutation();
 
   const visibleNavItems = useMemo(
     () =>
@@ -76,10 +78,10 @@ export default function DashboardLayout({
 
   const handleLogout = () => {
     logout();
+    dispatch(logoutSuccessfull());
     clearSession();
     removeAuthCookie();
     router.push("/login");
-    router.refresh();
   };
 
   const initial = user ? user.fullName.charAt(0).toUpperCase() : "?";

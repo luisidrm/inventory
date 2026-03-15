@@ -25,6 +25,7 @@ export default function InventoryPage() {
   const [pageSize, setPageSize] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const isLoadingMore = useRef(false);
+  const filtersChanged = useRef(false);
 
   const { data: result, isLoading, isFetching } = useGetInventoriesQuery({ page, perPage: pageSize });
   const [allRows, setAllRows] = useState<InventoryResponse[]>([]);
@@ -46,17 +47,21 @@ export default function InventoryPage() {
   }, [isFetching]);
 
   useEffect(() => {
+    if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
   }, [searchTerm]);
 
+  const loadedRows =
+    page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
+
   const filteredData = searchTerm.trim()
-    ? allRows.filter((row) =>
+    ? loadedRows.filter((row) =>
         Object.values(row).some((val) =>
           String(val ?? "").toLowerCase().includes(searchTerm.toLowerCase())
         )
       )
-    : allRows;
+    : loadedRows;
 
   const hasMore = result?.pagination
     ? page < result.pagination.totalPages
@@ -109,7 +114,7 @@ export default function InventoryPage() {
       <DataTable
         data={filteredData}
         columns={COLUMNS}
-        loading={isLoading && page === 1}
+        loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Inventario"
         titleIcon="inventory"
         searchTerm={searchTerm}

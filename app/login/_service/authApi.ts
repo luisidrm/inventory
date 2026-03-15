@@ -24,6 +24,9 @@ export interface RegisterWithOrganizationRequest {
 export const authApi = createApi({
   reducerPath: 'authApi',
   baseQuery: baseQueryWithReauth,
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: ['User', 'Organization'],
   endpoints: (builder) => ({
     login: builder.mutation<ApiResponse<UserResponse>, LoginRequest>({

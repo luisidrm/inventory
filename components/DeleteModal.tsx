@@ -15,6 +15,8 @@ interface DeleteModalProps {
   error?: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  /** Si true, solo se muestra el botón de confirmar (ej. "Entendido") y se oculta Cancelar. */
+  singleAction?: boolean;
 }
 
 export function DeleteModal({
@@ -27,6 +29,7 @@ export function DeleteModal({
   error,
   confirmLabel = "Eliminar",
   cancelLabel = "Cancelar",
+  singleAction = false,
 }: DeleteModalProps) {
   if (!open) return null;
 
@@ -57,13 +60,15 @@ export function DeleteModal({
         )}
 
         <div className="confirm-actions">
-          <button
-            type="button"
-            className="confirm-btn confirm-btn--cancel"
-            onClick={onClose}
-          >
-            {cancelLabel}
-          </button>
+          {!singleAction && (
+            <button
+              type="button"
+              className="confirm-btn confirm-btn--cancel"
+              onClick={onClose}
+            >
+              {cancelLabel}
+            </button>
+          )}
           <button
             type="button"
             className="confirm-btn confirm-btn--danger"

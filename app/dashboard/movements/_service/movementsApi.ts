@@ -18,6 +18,13 @@ interface GetMovementsArgs {
   sortOrder?: "asc" | "desc";
 }
 
+
+export interface MovementFormContext {
+  locationId: number | null;
+  locationName: string | null;
+  isLocationLocked: boolean;
+}
+
 export const movementsApi = createApi({
   reducerPath: "movementsApi",
   baseQuery: fetchBaseQuery({
@@ -30,6 +37,9 @@ export const movementsApi = createApi({
       return headers;
     },
   }),
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: ["InventoryMovement", "Inventory"],
   endpoints: (builder) => ({
     getMovements: builder.query<PaginatedResult<InventoryMovementResponse>, GetMovementsArgs>({
@@ -48,6 +58,11 @@ export const movementsApi = createApi({
               { type: "InventoryMovement", id: "LIST" },
             ]
           : [{ type: "InventoryMovement", id: "LIST" }],
+    }),
+    getMovementFormContext: builder.query<MovementFormContext, void>({
+      query: () => "/inventory-movement/form-context",
+      transformResponse: (raw: MovementFormContext | { result?: MovementFormContext }) =>
+        (raw && typeof raw === "object" && "result" in raw ? raw.result : raw) as MovementFormContext,
     }),
     createMovement: builder.mutation<InventoryMovementResponse, CreateInventoryMovementRequest>({
       query: (body) => ({ url: "/inventory-movement", method: "POST", body }),
@@ -82,6 +97,7 @@ export const movementsApi = createApi({
 
 export const {
   useGetMovementsQuery,
+  useGetMovementFormContextQuery,
   useCreateMovementMutation,
   useGetMovementStatsQuery,
   useGetFlowWithCumulativeQuery,

@@ -28,6 +28,10 @@ export const catalogApi = createApi({
     },
   }),
 
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
+
   endpoints: (builder) => ({
     getPublicLocations: builder.query<PublicLocation[], void>({
       query: () => "/public/locations",

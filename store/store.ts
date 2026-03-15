@@ -1,4 +1,5 @@
 import { configureStore, combineReducers } from "@reduxjs/toolkit";
+import { setupListeners } from "@reduxjs/toolkit/query";
 import { type TypedUseSelectorHook, useDispatch, useSelector } from "react-redux";
 import {
   persistStore,
@@ -32,7 +33,7 @@ const persistConfig = {
   whitelist: ["auth", "cart"],
 };
 
-const rootReducer = combineReducers({
+const combinedReducer = combineReducers({
   auth: authSlice.reducer,
   cart: cartSlice.reducer,
   [authApi.reducerPath]: authApi.reducer,
@@ -50,6 +51,23 @@ const rootReducer = combineReducers({
   [catalogApi.reducerPath]: catalogApi.reducer,
   [salesApi.reducerPath]: salesApi.reducer,
 });
+
+type CombinedState = ReturnType<typeof combinedReducer>;
+
+// On login or logout, wipe all RTK Query caches so stale data from a
+// previous session is never served to the incoming user.
+function rootReducer(
+  state: CombinedState | undefined,
+  action: { type: string },
+): CombinedState {
+  if (
+    action.type === "auth/logoutSuccessfull" ||
+    action.type === "auth/loginSuccessfull"
+  ) {
+    return combinedReducer(undefined, action);
+  }
+  return combinedReducer(state, action);
+}
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 
@@ -83,6 +101,8 @@ export const store = configureStore({
 });
 
 export const persistor = persistStore(store);
+
+setupListeners(store.dispatch);
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

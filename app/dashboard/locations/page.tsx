@@ -76,7 +76,9 @@ export default function LocationsPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState<LocationResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
+  const [deleteBlockedByApi, setDeleteBlockedByApi] = useState(false);
   const isLoadingMore = useRef(false);
+  const filtersChanged = useRef(false);
 
   const user = useAppSelector((s) => s.auth);
   const organizationId = user?.organizationId ?? 0;
@@ -117,17 +119,21 @@ export default function LocationsPage() {
   }, [isFetching]);
 
   useEffect(() => {
+    if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
   }, [searchTerm, organizationId]);
 
+  const loadedRows =
+    page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
+
   const filteredData = searchTerm.trim()
-    ? allRows.filter((row) =>
+    ? loadedRows.filter((row) =>
         Object.values(row).some((val) =>
           String(val ?? "").toLowerCase().includes(searchTerm.toLowerCase())
         )
       )
-    : allRows;
+    : loadedRows;
 
   const hasMore = result?.pagination
     ? page < result.pagination.totalPages
@@ -227,6 +233,7 @@ export default function LocationsPage() {
   const openDelete = (item: LocationResponse) => {
     setDeleting(item);
     setDeleteError("");
+    setDeleteBlockedByApi(false);
     setConfirmOpen(true);
   };
 
@@ -234,15 +241,29 @@ export default function LocationsPage() {
     setConfirmOpen(false);
     setDeleting(null);
     setDeleteError("");
+    setDeleteBlockedByApi(false);
   };
 
   const handleDelete = async () => {
     if (!deleting) return;
+    setDeleteError("");
     try {
       await deleteLocation(deleting.id).unwrap();
       closeConfirm();
-    } catch {
-      setDeleteError("Error al eliminar. Intenta de nuevo.");
+    } catch (err: unknown) {
+      const status = (err as { status?: number })?.status;
+      const data = (err as { data?: { message?: string; Message?: string } })?.data;
+      const msg = data?.message ?? data?.Message ?? "";
+      const isInUse =
+        status === 400 ||
+        (typeof msg === "string" &&
+          (msg.includes("en uso") || msg.includes("ventas") || msg.includes("devoluciones") || msg.includes("LocationInUse")));
+      if (isInUse) {
+        setDeleteBlockedByApi(true);
+        setDeleteError("No se puede eliminar esta ubicación porque tiene ventas o devoluciones asociadas.");
+      } else {
+        setDeleteError("Error al eliminar. Intenta de nuevo.");
+      }
     }
   };
 
@@ -251,27 +272,17 @@ export default function LocationsPage() {
       <DataTable
         data={filteredData}
         columns={COLUMNS}
-        loading={isLoading && page === 1}
+        loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Ubicaciones"
         titleIcon="warehouse"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel={canCreateLocation ? "Nueva ubicación" : undefined}
-        onAdd={canCreateLocation ? openCreate : undefined}
+        addLabel="Nueva ubicación"
+        onAdd={openCreate}
+        addDisabled={!canCreateLocation}
         actions={[
-          {
-            icon: "edit",
-            label: "Editar",
-            onClick: openEdit,
-            hidden: () => !canEditLocation,
-          },
-          {
-            icon: "delete_outline",
-            label: "Eliminar",
-            onClick: openDelete,
-            variant: "danger",
-            hidden: () => !canDeleteLocation,
-          },
+          { icon: "edit", label: "Editar", onClick: openEdit, disabled: () => !canEditLocation },
+          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger", disabled: () => !canDeleteLocation },
         ]}
         infiniteScroll
         onLoadMore={handleLoadMore}
@@ -430,10 +441,17 @@ export default function LocationsPage() {
         <DeleteModal
           open={confirmOpen && !!deleting}
           onClose={closeConfirm}
-          onConfirm={handleDelete}
-          title="¿Eliminar ubicación?"
+          onConfirm={deleteBlockedByApi ? closeConfirm : handleDelete}
+          title={deleteBlockedByApi ? "No se puede eliminar" : "¿Eliminar ubicación?"}
           itemName={deleting?.name}
-          error={deleteError}
+          description={
+            deleteBlockedByApi
+              ? deleteError
+              : "Al eliminar esta ubicación: los usuarios asignados quedarán sin ubicación; se eliminarán todos los movimientos de inventario y todo el stock de esta ubicación. ¿Deseas continuar?"
+          }
+          error={deleteBlockedByApi ? "" : deleteError}
+          confirmLabel={deleteBlockedByApi ? "Entendido" : "Eliminar"}
+          singleAction={deleteBlockedByApi}
         />
       )}
     </>

@@ -38,6 +38,9 @@ export const rolesApi = createApi({
       return headers;
     },
   }),
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: ["Role", "Permission"],
   endpoints: (builder) => ({
     getRoles: builder.query<PaginatedResult<RoleResponse>, GetRolesArgs>({

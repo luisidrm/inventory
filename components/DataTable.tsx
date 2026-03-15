@@ -49,6 +49,7 @@ export interface DataTableProps<T extends { id: string | number }> {
   addLabel?: string;
   addIcon?: string;
   onAdd?: () => void;
+  addDisabled?: boolean;
   addButtonDataTutorial?: string;
   toolbarExtra?: React.ReactNode;
   actions?: DataTableAction<T>[];
@@ -165,6 +166,7 @@ export function DataTable<T extends { id: string | number }>({
   addLabel,
   addIcon = "add",
   onAdd,
+  addDisabled = false,
   addButtonDataTutorial,
   toolbarExtra,
   actions,
@@ -182,7 +184,7 @@ export function DataTable<T extends { id: string | number }>({
   emptyDesc,
 }: DataTableProps<T>) {
   const hasActions = actions && actions.length > 0;
-  const hasToolbar = onSearchChange || onAdd || toolbarExtra;
+  const hasToolbar = onSearchChange || addLabel || toolbarExtra;
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -240,12 +242,14 @@ export function DataTable<T extends { id: string | number }>({
           )}
           {toolbarExtra}
           <div className="dt-toolbar__spacer" />
-          {onAdd && addLabel && (
+          {addLabel && (
             <button
               type="button"
               className="dt-btn-add"
-              onClick={onAdd}
+              disabled={addDisabled}
+              onClick={() => !addDisabled && onAdd?.()}
               data-tutorial={addButtonDataTutorial}
+              title={addDisabled ? "Sin permiso para crear" : undefined}
             >
               <Icon name={addIcon} />
               {addLabel}
@@ -269,8 +273,14 @@ export function DataTable<T extends { id: string | number }>({
           </div>
           <p className="dt-state__title">{emptyTitle}</p>
           {emptyDesc && <p className="dt-state__desc">{emptyDesc}</p>}
-          {onAdd && addLabel && (
-            <button type="button" className="dt-btn-add" onClick={onAdd}>
+          {addLabel && (
+            <button
+              type="button"
+              className="dt-btn-add"
+              disabled={addDisabled}
+              onClick={() => !addDisabled && onAdd?.()}
+              title={addDisabled ? "Sin permiso para crear" : undefined}
+            >
               <Icon name={addIcon} />
               {addLabel}
             </button>

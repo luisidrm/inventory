@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { DataTable } from "@/components/DataTable";
 import { StatCard, theme } from "@/components/dashboard";
@@ -289,6 +289,7 @@ export default function SalesPage() {
   const [confirmOrder, { isLoading: isConfirming }] = useConfirmOrderMutation();
   const [cancelOrder,  { isLoading: isCancelling }]  = useCancelOrderMutation();
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const filtersChanged = useRef(false);
 
   useEffect(() => {
     if (!result?.data) return;
@@ -301,17 +302,24 @@ export default function SalesPage() {
   }, [result?.data, result?.pagination?.currentPage, page]);
 
   // Reset on filter / search change
-  useEffect(() => { setPage(1); setAllRows([]); }, [statusFilter, searchTerm]);
+  useEffect(() => {
+    if (!filtersChanged.current) { filtersChanged.current = true; return; }
+    setPage(1);
+    setAllRows([]);
+  }, [statusFilter, searchTerm]);
+
+  const loadedRows =
+    page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
 
   const filtered = useMemo(() => {
-    if (!searchTerm.trim()) return allRows;
+    if (!searchTerm.trim()) return loadedRows;
     const q = searchTerm.toLowerCase();
-    return allRows.filter(
+    return loadedRows.filter(
       (r) =>
         r.folio.toLowerCase().includes(q) ||
         r.locationName.toLowerCase().includes(q)
     );
-  }, [allRows, searchTerm]);
+  }, [loadedRows, searchTerm]);
 
   const hasMore = result?.pagination
     ? page < result.pagination.totalPages
@@ -429,7 +437,7 @@ export default function SalesPage() {
       <DataTable
         data={filtered}
         columns={COLUMNS}
-        loading={isLoading && page === 1}
+        loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Órdenes de Venta"
         titleIcon="point_of_sale"
         searchTerm={searchTerm}

@@ -23,6 +23,7 @@ export default function LogsPage() {
   const [logType, setLogType] = useState(-1);
   const [eventType, setEventType] = useState(-1);
   const isLoadingMore = useRef(false);
+  const filtersChanged = useRef(false);
 
   const { data: result, isLoading, isFetching } = useGetLogsQuery({
     page,
@@ -50,15 +51,19 @@ export default function LogsPage() {
   }, [isFetching]);
 
   useEffect(() => {
+    if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
   }, [searchTerm, logType, eventType]);
 
+  const loadedRows =
+    page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
+
   const filteredData = searchTerm.trim()
-    ? allRows.filter((r) =>
+    ? loadedRows.filter((r) =>
         Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(searchTerm.toLowerCase()))
       )
-    : allRows;
+    : loadedRows;
 
   const hasMore = result?.pagination
     ? page < result.pagination.totalPages
@@ -127,7 +132,7 @@ export default function LogsPage() {
       <DataTable
         data={filteredData}
         columns={COLUMNS}
-        loading={isLoading && page === 1}
+        loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Logs"
         titleIcon="receipt_long"
         searchTerm={searchTerm}

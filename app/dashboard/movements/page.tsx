@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import type { InventoryMovementResponse, CreateInventoryMovementRequest, CreateProductRequest, ProductResponse } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
-import { useGetMovementsQuery, useGetMovementStatsQuery, useGetFlowWithCumulativeQuery, useGetDistributionByTypeQuery, useCreateMovementMutation } from "./_service/movementsApi";
+import { useGetMovementsQuery, useGetMovementFormContextQuery, useGetMovementStatsQuery, useGetFlowWithCumulativeQuery, useGetDistributionByTypeQuery, useCreateMovementMutation } from "./_service/movementsApi";
 import { useGetProductsQuery, useCreateProductMutation, useGetProductCategoriesQuery, useUploadProductImageMutation } from "../products/_service/productsApi";
 import { useGetLocationsQuery } from "../locations/_service/locationsApi";
 import { FormModal } from "@/components/FormModal";
@@ -228,10 +228,15 @@ export default function MovementsPage() {
   const [productMode, setProductMode] = useState<"existing" | "new">("existing");
   const [newProductForm, setNewProductForm] = useState(initialNewProduct);
   const isLoadingMore = useRef(false);
+  const filtersChanged = useRef(false);
 
   const { data: result, isLoading, isFetching } = useGetMovementsQuery({ page, perPage: pageSize });
+  const { data: formContext, isLoading: formContextLoading } = useGetMovementFormContextQuery(undefined, { skip: !formOpen });
   const { data: productsResult } = useGetProductsQuery({ page: 1, perPage: 100 });
-  const { data: locationsResult } = useGetLocationsQuery({ page: 1, perPage: 100 });
+  const { data: locationsResult } = useGetLocationsQuery(
+    { page: 1, perPage: 100 },
+    { skip: !formOpen || formContext?.isLocationLocked === true },
+  );
   const { data: categoriesResult } = useGetProductCategoriesQuery({ perPage: 100 });
   const [createMovement] = useCreateMovementMutation();
   const [createProduct] = useCreateProductMutation();
@@ -239,6 +244,7 @@ export default function MovementsPage() {
   const products = productsResult?.data ?? [];
   const locations = locationsResult?.data ?? [];
   const categories = categoriesResult?.data ?? [];
+  const isLocationLocked = formContext?.isLocationLocked === true;
   const [allRows, setAllRows] = useState<InventoryMovementResponse[]>([]);
 
   // ─── Permissions ──────────────────────────────────────────────────────────
@@ -263,15 +269,25 @@ export default function MovementsPage() {
   }, [isFetching]);
 
   useEffect(() => {
+    if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
   }, [searchTerm]);
 
+  // Si el usuario tiene ubicación fija, rellenar locationId al abrir el formulario
+  useEffect(() => {
+    if (!formOpen || !formContext?.isLocationLocked || formContext.locationId == null) return;
+    setForm((prev) => ({ ...prev, locationId: formContext.locationId as number }));
+  }, [formOpen, formContext?.isLocationLocked, formContext?.locationId]);
+
+  const loadedRows =
+    page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
+
   const filteredData = searchTerm.trim()
-    ? allRows.filter((r) =>
+    ? loadedRows.filter((r) =>
         Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(searchTerm.toLowerCase()))
       )
-    : allRows;
+    : loadedRows;
 
   const hasMore = result?.pagination
     ? page < result.pagination.totalPages
@@ -334,7 +350,7 @@ export default function MovementsPage() {
       if (Number.isNaN(precio) || precio < 0) err.newProductPrecio = "Precio inválido";
       if (Number.isNaN(costo) || costo < 0) err.newProductCosto = "Costo inválido";
     }
-    if (form.locationId === "" || form.locationId === null) err.locationId = "Ubicación requerida";
+    if (!isLocationLocked && (form.locationId === "" || form.locationId === null)) err.locationId = "Ubicación requerida";
     const q = Number(form.quantity);
     if (Number.isNaN(q) || q <= 0) err.quantity = "Cantidad inválida";
     setFormErrors(err);
@@ -447,13 +463,15 @@ export default function MovementsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const movementToolbar = canCreateMovement ? (
+  const movementToolbar = (
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
       <button
         type="button"
         className="dt-btn-add"
-        onClick={() => openCreate(0)}
+        disabled={!canCreateMovement}
+        onClick={() => canCreateMovement && openCreate(0)}
         style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+        title={!canCreateMovement ? "Sin permiso para crear movimientos" : undefined}
       >
         <Icon name="add_circle_outline" />
         Registrar entrada
@@ -461,7 +479,8 @@ export default function MovementsPage() {
       <button
         type="button"
         className="dt-btn-add"
-        onClick={() => openCreate(1)}
+        disabled={!canCreateMovement}
+        onClick={() => canCreateMovement && openCreate(1)}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -469,12 +488,13 @@ export default function MovementsPage() {
           background: "#FEF2F2",
           color: "#B91C1C",
         }}
+        title={!canCreateMovement ? "Sin permiso para crear movimientos" : undefined}
       >
         <Icon name="remove_circle_outline" />
         Registrar salida
       </button>
     </div>
-  ) : undefined;
+  );
 
   return (
     <>
@@ -490,7 +510,7 @@ export default function MovementsPage() {
       <DataTable
         data={filteredData}
         columns={columns}
-        loading={isLoading && page === 1}
+        loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Movimientos de inventario"
         titleIcon="swap_horiz"
         searchTerm={searchTerm}
@@ -713,21 +733,43 @@ export default function MovementsPage() {
           </div>
           <div className="modal-field">
             <label htmlFor="locationId">Ubicación *</label>
-            <select
-              id="locationId"
-              value={form.locationId}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, locationId: e.target.value === "" ? "" : Number(e.target.value) }))
-              }
-            >
-              <option value="">Seleccionar</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.name} ({loc.code})
-                </option>
-              ))}
-            </select>
-            {formErrors.locationId && <p className="form-error">{formErrors.locationId}</p>}
+            {formContextLoading ? (
+              <p style={{ margin: 0, fontSize: 14, color: "#64748b" }}>Cargando…</p>
+            ) : isLocationLocked && formContext?.locationName ? (
+              <input
+                id="locationId"
+                type="text"
+                readOnly
+                value={formContext.locationName}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #e2e8f0",
+                  background: "#f1f5f9",
+                  color: "#475569",
+                  fontSize: 14,
+                }}
+              />
+            ) : (
+              <>
+                <select
+                  id="locationId"
+                  value={form.locationId}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, locationId: e.target.value === "" ? "" : Number(e.target.value) }))
+                  }
+                >
+                  <option value="">Seleccionar</option>
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name} ({loc.code})
+                    </option>
+                  ))}
+                </select>
+                {formErrors.locationId && <p className="form-error">{formErrors.locationId}</p>}
+              </>
+            )}
           </div>
           <div className="modal-field">
             <label htmlFor="type">Tipo *</label>

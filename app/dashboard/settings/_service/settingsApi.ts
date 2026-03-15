@@ -14,6 +14,9 @@ export const settingsApi = createApi({
       return headers;
     },
   }),
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: ["Setting"],
   endpoints: (builder) => ({
     getGroupedSettings: builder.query<GroupedSettingsResponse, void>({

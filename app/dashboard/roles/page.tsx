@@ -56,6 +56,7 @@ export default function RolesPage() {
   const [deleting, setDeleting] = useState<RoleResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const isLoadingMore = useRef(false);
+  const filtersChanged = useRef(false);
 
   // ─── Permissions ──────────────────────────────────────────────────────────
 
@@ -108,19 +109,23 @@ export default function RolesPage() {
   }, [isFetching]);
 
   useEffect(() => {
+    if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
   }, [searchTerm]);
 
+  const loadedRows =
+    page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
+
   const filteredData = searchTerm.trim()
-    ? allRows.filter((r) =>
+    ? loadedRows.filter((r) =>
         Object.values(r).some((v) =>
           String(v ?? "")
             .toLowerCase()
             .includes(searchTerm.toLowerCase()),
         ),
       )
-    : allRows;
+    : loadedRows;
 
   const hasMore = result?.pagination
     ? page < result.pagination.totalPages
@@ -253,27 +258,17 @@ export default function RolesPage() {
       <DataTable
         data={filteredData}
         columns={COLUMNS}
-        loading={isLoading && page === 1}
+        loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Roles"
         titleIcon="admin_panel_settings"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel={canCreateRole ? "Nuevo rol" : undefined}
-        onAdd={canCreateRole ? openCreate : undefined}
+        addLabel="Nuevo rol"
+        onAdd={openCreate}
+        addDisabled={!canCreateRole}
         actions={[
-          {
-            icon: "edit",
-            label: "Editar",
-            onClick: openEdit,
-            hidden: () => !canEditRole,
-          },
-          {
-            icon: "delete_outline",
-            label: "Eliminar",
-            onClick: openDelete,
-            variant: "danger",
-            hidden: (row) => row.isSystem || !canDeleteRole,
-          },
+          { icon: "edit", label: "Editar", onClick: openEdit, disabled: () => !canEditRole },
+          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger", disabled: (row) => row.isSystem || !canDeleteRole },
         ]}
         infiniteScroll
         onLoadMore={handleLoadMore}

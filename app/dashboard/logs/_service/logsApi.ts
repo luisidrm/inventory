@@ -28,6 +28,9 @@ export const logsApi = createApi({
       return headers;
     },
   }),
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: ["Log"],
   endpoints: (builder) => ({
     getLogs: builder.query<PaginatedResult<LogResponse>, GetLogsArgs>({

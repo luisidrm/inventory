@@ -32,6 +32,9 @@ export const usersApi = createApi({
       return headers;
     },
   }),
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: ["User"],
   endpoints: (builder) => ({
     getUsers: builder.query<PaginatedResult<UserResponse>, GetUsersArgs>({
@@ -82,7 +85,7 @@ export const usersApi = createApi({
         if (body.locationId !== undefined) b.locationId = body.locationId;
         if (body.organizationId !== undefined) b.organizationId = body.organizationId;
         if (body.roleId !== undefined) b.roleId = body.roleId;
-        return { url: "/user?id=" + id, method: "PUT", body: Object.keys(b).length ? b : {} };
+        return { url: "/user/" + id, method: "PUT", body: Object.keys(b).length ? b : {} };
       },
       invalidatesTags: (_r, _e, { id }) => [{ type: "User", id }, { type: "User", id: "LIST" }],
     }),

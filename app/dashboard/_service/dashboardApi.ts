@@ -66,6 +66,9 @@ export const dashboardApi = createApi({
       return headers;
     },
   }),
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: ["DashboardStats"],
   endpoints: (builder) => ({
     getSummary: builder.query<DashboardSummary | null, DashboardQuery | void>({

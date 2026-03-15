@@ -42,6 +42,7 @@ export default function UsersPage() {
   const [deleting, setDeleting] = useState<UserResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const isLoadingMore = useRef(false);
+  const filtersChanged = useRef(false);
 
   const user = useAppSelector((s) => s.auth);
   const organizationId = user?.organizationId ?? 0;
@@ -121,19 +122,23 @@ export default function UsersPage() {
   }, [isFetching]);
 
   useEffect(() => {
+    if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
   }, [searchTerm]);
 
+  const loadedRows =
+    page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
+
   const filteredData = searchTerm.trim()
-    ? allRows.filter((r) =>
+    ? loadedRows.filter((r) =>
         Object.values(r).some((v) =>
           String(v ?? "")
             .toLowerCase()
             .includes(searchTerm.toLowerCase()),
         ),
       )
-    : allRows;
+    : loadedRows;
 
   const hasMore = result?.pagination
     ? page < result.pagination.totalPages
@@ -151,6 +156,15 @@ export default function UsersPage() {
     setFormErrors({});
     setFormOpen(true);
   };
+
+  const toDateInputValue = (value: string | null | undefined): string => {
+    if (!value || typeof value !== "string") return "";
+    const s = value.trim();
+    if (!s) return "";
+    const iso = s.slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : s;
+  };
+
   const openEdit = (item: UserResponse) => {
     setEditing(item);
     setForm({
@@ -158,7 +172,7 @@ export default function UsersPage() {
       email: item.email,
       phone: item.phone ?? "",
       password: "",
-      birthDate: item.birthDate ?? "",
+      birthDate: toDateInputValue(item.birthDate),
       locationId: item.locationId ?? 0,
       roleId: item.roleId ?? 0,
     });
@@ -192,8 +206,8 @@ export default function UsersPage() {
             email: form.email.trim(),
             phone: form.phone.trim() || undefined,
             birthDate: form.birthDate || undefined,
-            locationId: form.locationId || undefined,
-            roleId: form.roleId || undefined,
+            locationId: form.locationId ?? undefined,
+            roleId: form.roleId,
             ...(form.password ? { password: form.password } : {}),
           },
         }).unwrap();
@@ -244,27 +258,17 @@ export default function UsersPage() {
       <DataTable
         data={filteredData}
         columns={columns}
-        loading={isLoading && page === 1}
+        loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Usuarios"
         titleIcon="group"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel={canCreateUser ? "Nuevo usuario" : undefined}
-        onAdd={canCreateUser ? openCreate : undefined}
+        addLabel="Nuevo usuario"
+        onAdd={openCreate}
+        addDisabled={!canCreateUser}
         actions={[
-          {
-            icon: "edit",
-            label: "Editar",
-            onClick: openEdit,
-            hidden: () => !canEditUser,
-          },
-          {
-            icon: "delete_outline",
-            label: "Eliminar",
-            onClick: openDelete,
-            variant: "danger",
-            hidden: () => !canDeleteUser,
-          },
+          { icon: "edit", label: "Editar", onClick: openEdit, disabled: () => !canEditUser },
+          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger", disabled: () => !canDeleteUser },
         ]}
         infiniteScroll
         onLoadMore={handleLoadMore}

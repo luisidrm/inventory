@@ -52,6 +52,7 @@ export default function SuppliersPage() {
   const [deleting, setDeleting] = useState<SupplierResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const isLoadingMore = useRef(false);
+  const filtersChanged = useRef(false);
 
   // ─── Permissions ──────────────────────────────────────────────────────────
 
@@ -84,17 +85,21 @@ export default function SuppliersPage() {
   }, [isFetching]);
 
   useEffect(() => {
+    if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
   }, [searchTerm]);
 
+  const loadedRows =
+    page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
+
   const filteredData = searchTerm.trim()
-    ? allRows.filter((row) =>
+    ? loadedRows.filter((row) =>
         Object.values(row).some((val) =>
           String(val ?? "").toLowerCase().includes(searchTerm.toLowerCase())
         )
       )
-    : allRows;
+    : loadedRows;
 
   const hasMore = result?.pagination
     ? page < result.pagination.totalPages
@@ -228,27 +233,17 @@ export default function SuppliersPage() {
       <DataTable
         data={filteredData}
         columns={COLUMNS}
-        loading={isLoading && page === 1}
+        loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Proveedores"
         titleIcon="local_shipping"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel={canCreateSupplier ? "Nuevo proveedor" : undefined}
-        onAdd={canCreateSupplier ? openCreate : undefined}
+        addLabel="Nuevo proveedor"
+        onAdd={openCreate}
+        addDisabled={!canCreateSupplier}
         actions={[
-          {
-            icon: "edit",
-            label: "Editar",
-            onClick: openEdit,
-            hidden: () => !canEditSupplier,
-          },
-          {
-            icon: "delete_outline",
-            label: "Eliminar",
-            onClick: openDelete,
-            variant: "danger",
-            hidden: () => !canDeleteSupplier,
-          },
+          { icon: "edit", label: "Editar", onClick: openEdit, disabled: () => !canEditSupplier },
+          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger", disabled: () => !canDeleteSupplier },
         ]}
         infiniteScroll
         onLoadMore={handleLoadMore}

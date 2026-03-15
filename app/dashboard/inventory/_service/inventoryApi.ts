@@ -36,6 +36,9 @@ export const inventoryApi = createApi({
       return headers;
     },
   }),
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: ["Inventory"],
   endpoints: (builder) => ({
     getInventories: builder.query<PaginatedResult<InventoryResponse>, GetInventoryArgs>({

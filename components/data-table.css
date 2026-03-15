@@ -84,7 +84,12 @@
   transition: all 0.15s;
   white-space: nowrap;
 }
-.dt-btn-add:hover { background: #1E293B; }
+.dt-btn-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #94a3b8;
+}
+.dt-btn-add:hover:not(:disabled) { background: #334155; }
 .dt-btn-add .material-icons { font-size: 17px; width: 17px; height: 17px; }
 
 /* ─── Table ──────────────────────────────────────────────────────────────── */
@@ -161,8 +166,9 @@
   margin: 0 2px;
 }
 .dt-icon-btn .material-icons { font-size: 18px; width: 18px; height: 18px; }
-.dt-icon-btn:hover { color: #4f6ef7; background: rgba(79,110,247,0.08); }
-.dt-icon-btn--danger:hover { color: #ef4444; background: rgba(239,68,68,0.08); }
+.dt-icon-btn:hover:not(:disabled) { color: #4f6ef7; background: rgba(79,110,247,0.08); }
+.dt-icon-btn--danger:hover:not(:disabled) { color: #ef4444; background: rgba(239,68,68,0.08); }
+.dt-icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ─── Footer / Pagination ────────────────────────────────────────────────── */
 .dt-footer {

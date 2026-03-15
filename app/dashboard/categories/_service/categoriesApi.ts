@@ -35,6 +35,9 @@ export const categoriesApi = createApi({
       return headers;
     },
   }),
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: ["ProductCategory"],
   endpoints: (builder) => ({
     getCategories: builder.query<PaginatedResult<ProductCategoryResponse>, GetCategoriesArgs>({

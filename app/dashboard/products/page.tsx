@@ -21,6 +21,7 @@ import {
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
 import Switch from "@/components/Switch";
+import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
 
@@ -220,6 +221,7 @@ export default function ProductsPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState<ProductResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
+  const filtersChanged = useRef(false);
 
   const [confirmCostHigherOpen, setConfirmCostHigherOpen] = useState(false);
 
@@ -231,6 +233,11 @@ export default function ProductsPage() {
   const [createProduct] = useCreateProductMutation();
   const [updateProduct] = useUpdateProductMutation();
   const [deleteProduct] = useDeleteProductMutation();
+
+  const { has: hasPermission } = useUserPermissionCodes();
+  const canCreateProduct = hasPermission("product.create");
+  const canEditProduct = hasPermission("product.update");
+  const canDeleteProduct = hasPermission("product.delete");
 
   const categories = categoriesResult?.data ?? [];
 
@@ -255,6 +262,7 @@ export default function ProductsPage() {
 
   // Reset on search change
   useEffect(() => {
+    if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
   }, [searchTerm]);
@@ -441,17 +449,18 @@ export default function ProductsPage() {
       <DataTable
         data={filteredData}
         columns={COLUMNS}
-        loading={isLoading && page === 1}
+        loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Productos"
         titleIcon="inventory_2"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         addLabel="Nuevo Producto"
         onAdd={openCreate}
+        addDisabled={!canCreateProduct}
         addButtonDataTutorial="tutorial-products-add"
         actions={[
-          { icon: "edit",           label: "Editar",   onClick: openEdit },
-          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger" },
+          { icon: "edit", label: "Editar", onClick: openEdit, disabled: () => !canEditProduct },
+          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger", disabled: () => !canDeleteProduct },
         ]}
         infiniteScroll
         onLoadMore={handleLoadMore}

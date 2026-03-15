@@ -71,14 +71,6 @@ const FALLBACK_LIST_TOP: { primary: string; secondary?: string }[] = [
   { primary: "Hub USB-C", secondary: "165 mov." },
 ];
 
-const FALLBACK_LIST_LOW: { primary: string; secondary?: string }[] = [
-  { primary: "Pilas AA", secondary: "3 ud · Mín. 10" },
-  { primary: "Cable HDMI", secondary: "5 ud · Mín. 12" },
-  { primary: "Disco SSD 500GB", secondary: "2 ud · Crítico" },
-  { primary: "Memoria 8GB", secondary: "4 ud · Mín. 8" },
-  { primary: "Adaptador USB", secondary: "6 ud · Mín. 15" },
-];
-
 const FALLBACK_LIST_MOV: { primary: string; secondary?: string }[] = [
   { primary: "Entrada · Monitor 24\"", secondary: "Hace 15 min" },
   { primary: "Salida · Teclado MX", secondary: "Hace 1 h" },
@@ -124,7 +116,7 @@ export default function DashboardPage() {
   const { data: entriesExitsData } = useGetEntriesVsExitsQuery();
   const { data: alertsData } = useGetLowStockAlertsByDayQuery();
   const { data: listTop } = useGetListTopMovementsQuery();
-  const { data: listLow } = useGetListLowStockQuery();
+  const { data: listLow, isLoading: listLowLoading } = useGetListLowStockQuery();
   const { data: listMov } = useGetListLatestMovementsQuery();
   const { data: listLoc } = useGetListValueByLocationQuery();
   const { data: listRecent } = useGetListRecentProductsQuery();
@@ -139,7 +131,12 @@ export default function DashboardPage() {
   const entradasSalidas = (entriesExitsData && entriesExitsData.length > 0) ? entriesExitsData : FALLBACK_ENTRADAS_SALIDAS;
   const alertas = (alertsData && alertsData.length > 0) ? alertsData : FALLBACK_ALERTAS;
   const listTopMov = (listTop && listTop.length > 0) ? listTop : FALLBACK_LIST_TOP;
-  const listLowStock = (listLow && listLow.length > 0) ? listLow : FALLBACK_LIST_LOW;
+  const listLowStock: { primary: string; secondary?: string }[] =
+    listLowLoading
+      ? [{ primary: "Cargando…", secondary: "" }]
+      : (listLow && listLow.length > 0)
+        ? listLow
+        : [{ primary: "No hay productos con stock bajo", secondary: "" }];
   const listLatestMov = (listMov && listMov.length > 0) ? listMov : FALLBACK_LIST_MOV;
   const listValLoc = (listLoc && listLoc.length > 0) ? listLoc : FALLBACK_LIST_LOC;
   const listRecentProd = (listRecent && listRecent.length > 0) ? listRecent : FALLBACK_LIST_RECENT;

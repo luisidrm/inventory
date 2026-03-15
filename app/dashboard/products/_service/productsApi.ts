@@ -45,6 +45,10 @@ export const productsApi = createApi({
     },
   }),
 
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
+
   tagTypes: ["Product", "ProductCategory"],
 
   endpoints: (builder) => ({

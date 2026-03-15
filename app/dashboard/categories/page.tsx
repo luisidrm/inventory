@@ -68,6 +68,7 @@ export default function CategoriesPage() {
   const [deleting, setDeleting] = useState<ProductCategoryResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const isLoadingMore = useRef(false);
+  const filtersChanged = useRef(false);
 
   // ─── Permissions ──────────────────────────────────────────────────────────
 
@@ -103,17 +104,21 @@ export default function CategoriesPage() {
 
   // Reset al cambiar búsqueda
   useEffect(() => {
+    if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
   }, [searchTerm]);
 
+  const loadedRows =
+    page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
+
   const filteredData = searchTerm.trim()
-    ? allRows.filter((r) =>
+    ? loadedRows.filter((r) =>
         Object.values(r).some((v) =>
           String(v ?? "").toLowerCase().includes(searchTerm.toLowerCase())
         )
       )
-    : allRows;
+    : loadedRows;
 
   const hasMore = result?.pagination
     ? page < result.pagination.totalPages
@@ -245,27 +250,17 @@ export default function CategoriesPage() {
       <DataTable
         data={filteredData}
         columns={COLUMNS}
-        loading={isLoading && page === 1}
+        loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Categorías"
         titleIcon="category"
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        addLabel={canCreateCategory ? "Nueva categoría" : undefined}
-        onAdd={canCreateCategory ? openCreate : undefined}
+        addLabel="Nueva categoría"
+        onAdd={openCreate}
+        addDisabled={!canCreateCategory}
         actions={[
-          {
-            icon: "edit",
-            label: "Editar",
-            onClick: openEdit,
-            hidden: () => !canEditCategory,
-          },
-          {
-            icon: "delete_outline",
-            label: "Eliminar",
-            onClick: openDelete,
-            variant: "danger",
-            hidden: () => !canDeleteCategory,
-          },
+          { icon: "edit", label: "Editar", onClick: openEdit, disabled: () => !canEditCategory },
+          { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger", disabled: () => !canDeleteCategory },
         ]}
         infiniteScroll
         onLoadMore={handleLoadMore}

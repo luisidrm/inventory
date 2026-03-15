@@ -37,6 +37,9 @@ export const locationsApi = createApi({
       return headers;
     },
   }),
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: ["Location"],
   endpoints: (builder) => ({
     getLocations: builder.query<PaginatedResult<LocationResponse>, GetLocationsArgs>({

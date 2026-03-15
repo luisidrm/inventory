@@ -23,6 +23,9 @@ function extractOrder(raw: unknown): SaleOrderResponse {
 export const salesApi = createApi({
   reducerPath: "salesApi",
   baseQuery: baseQueryWithReauth,
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: ["SaleOrder"],
 
   endpoints: (builder) => ({
