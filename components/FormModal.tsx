@@ -9,6 +9,8 @@ interface FormModalProps {
   icon?: string;
   onSubmit: (e: React.FormEvent) => void;
   submitting?: boolean;
+  /** Muestra un cargador centrado en el cuerpo del modal en lugar del contenido */
+  loading?: boolean;
   submitLabel?: string;
   cancelLabel?: string;
   error?: string;
@@ -23,6 +25,7 @@ export function FormModal({
   icon = "edit",
   onSubmit,
   submitting = false,
+  loading = false,
   submitLabel = "Guardar",
   cancelLabel = "Cancelar",
   error,
@@ -50,9 +53,16 @@ export function FormModal({
         </div>
 
         <form onSubmit={onSubmit} className="modal-body">
+          {loading ? (
+            <div className="modal-body-loading">
+              <div className="dt-state__spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
+              <span>Cargando…</span>
+            </div>
+          ) : (
           <div className="modal-form-grid">
             {children}
           </div>
+          )}
 
           {error && (
             <p className="form-error" style={{ marginTop: 12 }}>
@@ -71,7 +81,7 @@ export function FormModal({
             <button
               type="submit"
               className="modal-btn modal-btn--primary"
-              disabled={submitting}
+              disabled={submitting || loading}
             >
               {submitting ? <div className="dt-state__spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> : submitLabel}
             </button>

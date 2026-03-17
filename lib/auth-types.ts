@@ -87,8 +87,10 @@ export interface LocationResponse {
   province?: string | null;
   municipality?: string | null;
   street?: string | null;
-   latitude?: number | null;
-   longitude?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  /** Alternativa enviada por el backend: coordenadas en objeto */
+  coordinates?: { lat: number; lng: number } | null;
   createdAt: string;
   modifiedAt: string;
 }

@@ -90,8 +90,10 @@ export default function LocationsPage() {
   const [businessHours, setBusinessHours] = useState<BusinessHoursFormState>(
     makeEmptyBusinessHoursState(),
   );
+  const [formLoading, setFormLoading] = useState(false);
   const isLoadingMore = useRef(false);
   const filtersChanged = useRef(false);
+  const formLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const user = useAppSelector((s) => s.auth);
   const organizationId = user?.organizationId ?? 0;
@@ -167,6 +169,12 @@ export default function LocationsPage() {
   };
 
   const openEdit = (item: LocationResponse) => {
+    if (formLoadingTimeoutRef.current) {
+      clearTimeout(formLoadingTimeoutRef.current);
+      formLoadingTimeoutRef.current = null;
+    }
+    const lat = item.latitude ?? item.coordinates?.lat ?? null;
+    const lng = item.longitude ?? item.coordinates?.lng ?? null;
     setEditing(item);
     setForm({
       name: item.name,
@@ -177,19 +185,29 @@ export default function LocationsPage() {
       province: item.province ?? "",
       municipality: item.municipality ?? "",
       street: item.street ?? "",
-      latitude: item.latitude ?? null,
-      longitude: item.longitude ?? null,
+      latitude: lat,
+      longitude: lng,
     });
     const dto = (item as LocationResponse & { businessHours?: BusinessHoursDto | null })
       .businessHours;
     setBusinessHours(deserializeBusinessHoursDto(dto ?? null));
     setFormErrors({});
+    setFormLoading(true);
     setFormOpen(true);
+    formLoadingTimeoutRef.current = setTimeout(() => {
+      setFormLoading(false);
+      formLoadingTimeoutRef.current = null;
+    }, 280);
   };
 
   const closeForm = () => {
+    if (formLoadingTimeoutRef.current) {
+      clearTimeout(formLoadingTimeoutRef.current);
+      formLoadingTimeoutRef.current = null;
+    }
     setFormOpen(false);
     setEditing(null);
+    setFormLoading(false);
   };
 
   const validate = (): boolean => {
@@ -245,6 +263,8 @@ export default function LocationsPage() {
     setFormSubmitting(true);
     try {
       const wa = form.whatsAppContact.replace(/\D/g, "").trim() || undefined;
+      const hasCoords = form.latitude != null && form.longitude != null;
+
       const common = {
         name: form.name.trim(),
         code: form.code.trim(),
@@ -254,10 +274,9 @@ export default function LocationsPage() {
         province: form.province.trim() || undefined,
         municipality: form.municipality.trim() || undefined,
         street: form.street.trim() || undefined,
-        coordinates:
-          form.latitude != null && form.longitude != null
-            ? { lat: form.latitude, lng: form.longitude }
-            : null,
+        latitude: hasCoords ? form.latitude : null,
+        longitude: hasCoords ? form.longitude : null,
+        coordinates: hasCoords ? { lat: form.latitude!, lng: form.longitude! } : null,
         businessHours: serializeBusinessHoursState(businessHours),
       };
 
@@ -365,6 +384,7 @@ export default function LocationsPage() {
           maxWidth="720px"
           onSubmit={handleSubmit}
           submitting={formSubmitting}
+          loading={formLoading}
           submitLabel={editing ? "Guardar" : "Crear"}
           error={formErrors.submit}
         >

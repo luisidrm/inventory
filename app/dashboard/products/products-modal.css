@@ -72,6 +72,26 @@
   overflow-y: auto;
 }
 
+.modal-body-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 160px;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.modal-body-loading .dt-state__spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #f1f5f9;
+  border-top-color: #4f6ef7;
+  border-radius: 50%;
+  animation: img-spin 0.7s linear infinite;
+}
+
 .modal-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -123,6 +123,10 @@ export interface CreateLocationRequest {
   province?: string;
   municipality?: string;
   street?: string;
+  /** Coordenadas: enviar en raíz para compatibilidad con backend .NET */
+  latitude?: number | null;
+  longitude?: number | null;
+  coordinates?: { lat: number; lng: number } | null;
   businessHours?: BusinessHoursDto;
 }
 
@@ -136,6 +140,9 @@ export interface UpdateLocationRequest {
   province?: string;
   municipality?: string;
   street?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  coordinates?: { lat: number; lng: number } | null;
   businessHours?: BusinessHoursDto;
 }
 
