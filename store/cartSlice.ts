@@ -5,6 +5,9 @@ interface CartState {
   locationId: number | null;
   locationName: string;
   whatsAppContact: string | null;
+  isOpenNow: boolean | null;
+  todayOpen: string | null;
+  todayClose: string | null;
   items: CartItem[];
 }
 
@@ -12,6 +15,9 @@ const initialState: CartState = {
   locationId: null,
   locationName: "",
   whatsAppContact: null,
+  isOpenNow: null,
+  todayOpen: null,
+  todayClose: null,
   items: [],
 };
 
@@ -25,6 +31,9 @@ export const cartSlice = createSlice({
         id: number;
         name: string;
         whatsAppContact: string | null;
+        isOpenNow?: boolean | null;
+        todayOpen?: string | null;
+        todayClose?: string | null;
       }>
     ) {
       if (state.locationId !== null && state.locationId !== action.payload.id) {
@@ -33,6 +42,9 @@ export const cartSlice = createSlice({
       state.locationId = action.payload.id;
       state.locationName = action.payload.name;
       state.whatsAppContact = action.payload.whatsAppContact;
+      state.isOpenNow = action.payload.isOpenNow ?? null;
+      state.todayOpen = action.payload.todayOpen ?? null;
+      state.todayClose = action.payload.todayClose ?? null;
     },
 
     addItem(state, action: PayloadAction<CartItem>) {

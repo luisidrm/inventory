@@ -11,6 +11,8 @@ import {
   useGetPublicLocationsQuery,
 } from "../_service/catalogApi";
 import { useCatalogCtx } from "../layout";
+import { useFavorites } from "@/lib/useFavorites";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import type { PublicCatalogItem } from "@/lib/dashboard-types";
 
 function fmt(v: number) {
@@ -292,32 +294,40 @@ function QuickView({
 function Card({
   item,
   onQuickView,
+  isFavorite,
+  onToggleFavorite,
 }: {
   item: PublicCatalogItem;
   onQuickView: (item: PublicCatalogItem) => void;
+  isFavorite: boolean;
+  onToggleFavorite: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
   const dispatch = useAppDispatch();
   const inCart = useAppSelector((s) =>
     s.cart.items.find((i) => i.productId === item.id)
   );
+  const [addAnimating, setAddAnimating] = useState(false);
   const isElaborado = item.tipo === "elaborado";
   const sold = isElaborado ? false : item.stockAtLocation === 0;
   const low = isElaborado ? false : !sold && item.stockAtLocation <= LOW_STOCK_THRESHOLD;
   const cc = item.categoryColor ?? "#3b82f6";
-  const p = fmt(item.precio);
 
   const add = () =>
-    dispatch(
-      addItem({
-        productId: item.id,
-        name: item.name,
-        unitPrice: item.precio,
-        quantity: 1,
-        imagenUrl: item.imagenUrl,
-        stockAtLocation: item.stockAtLocation,
-        tipo: item.tipo,
-      })
-    );
+    {
+      dispatch(
+        addItem({
+          productId: item.id,
+          name: item.name,
+          unitPrice: item.precio,
+          quantity: 1,
+          imagenUrl: item.imagenUrl,
+          stockAtLocation: item.stockAtLocation,
+          tipo: item.tipo,
+        })
+      );
+      setAddAnimating(true);
+      window.setTimeout(() => setAddAnimating(false), 200);
+    };
 
   const qty = (q: number) =>
     dispatch(updateQuantity({ productId: item.id, quantity: q }));
@@ -330,19 +340,28 @@ function Card({
         ) : (
           <div className="p-card__no-img"><Icon name="inventory_2" /></div>
         )}
-        {sold && <span className="p-card__sold-tag">Agotado</span>}
-        {item.categoryName && (
-          <span
-            className="p-card__cat-tag"
-            style={{
-              background: `rgba(${hexToRgb(cc)}, 0.1)`,
-              color: cc,
-              border: `1px solid rgba(${hexToRgb(cc)}, 0.2)`,
+        <div className="p-card__img-top">
+          {item.categoryName && (
+            <div className="p-card__cat-chip">
+              <span
+                className="p-card__cat-dot"
+                style={{ backgroundColor: cc }}
+              />
+              <span className="p-card__cat-label">{item.categoryName}</span>
+            </div>
+          )}
+          <FavoriteButton
+            active={isFavorite}
+            onToggle={(e) => {
+              e.stopPropagation();
+              onToggleFavorite(e);
             }}
-          >
-            {item.categoryName}
-          </span>
-        )}
+            ariaAdd="Agregar producto a favoritos"
+            ariaRemove="Quitar producto de favoritos"
+            className="fav-btn--small"
+          />
+        </div>
+        {sold && <span className="p-card__sold-tag">Agotado</span>}
         {low && !isElaborado && (
           <span className="p-card__low-stock">
             ¡Quedan {item.stockAtLocation}!
@@ -355,9 +374,9 @@ function Card({
         {item.description && <p className="p-card__desc">{item.description}</p>}
 
         <div className="p-card__price-row">
-          <span className="p-card__currency">$</span>
-          <span className="p-card__price">{p.int}</span>
-          <span className="p-card__currency">{p.dec}</span>
+          <span className="p-card__price">
+            {`$${item.precio.toFixed(2)}`}
+          </span>
         </div>
 
         {sold ? (
@@ -368,13 +387,17 @@ function Card({
 
         {!sold && (
           inCart ? (
-            <div className="p-card__qty">
+            <div className="p-card__qty p-card__qty--active">
               <button type="button" className="p-card__qty-btn" onClick={() => qty(inCart.quantity - 1)}>−</button>
               <span className="p-card__qty-val">{inCart.quantity}</span>
               <button type="button" className="p-card__qty-btn" disabled={!isElaborado && inCart.quantity >= item.stockAtLocation} onClick={() => qty(inCart.quantity + 1)}>+</button>
             </div>
           ) : (
-            <button type="button" className="p-card__add" onClick={add}>
+            <button
+              type="button"
+              className={`p-card__add${addAnimating ? " p-card__add--pulse" : ""}`}
+              onClick={add}
+            >
               <Icon name="add_shopping_cart" /> Agregar
             </button>
           )
@@ -390,6 +413,11 @@ export default function CatalogProductsPage() {
   const locationId = Number(params.locationId);
   const dispatch = useAppDispatch();
   const { search } = useCatalogCtx();
+  const {
+    favoriteProducts,
+    toggleFavoriteProduct,
+    isFavoriteProduct,
+  } = useFavorites();
 
   const [cat, setCat] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>("default");
@@ -403,11 +431,23 @@ export default function CatalogProductsPage() {
   const { data: locations } = useGetPublicLocationsQuery();
   const loc = locations?.find((l) => l.id === locationId);
 
+  const lat = loc?.latitude ?? loc?.lat ?? null;
+  const lng = loc?.longitude ?? loc?.lng ?? null;
+
   useEffect(() => {
     if (loc) {
-      dispatch(setLocation({ id: loc.id, name: loc.name, whatsAppContact: loc.whatsAppContact ?? null }));
+      dispatch(
+        setLocation({
+          id: loc.id,
+          name: loc.name,
+          whatsAppContact: loc.whatsAppContact ?? null,
+          isOpenNow: loc.isOpenNow ?? null,
+          todayOpen: loc.todayOpen ?? null,
+          todayClose: loc.todayClose ?? null,
+        }),
+      );
     }
-  }, [loc?.id, dispatch]);
+  }, [loc?.id, loc?.isOpenNow, loc?.todayOpen, loc?.todayClose, dispatch]);
 
   const priceExtent = useMemo<[number, number]>(() => {
     if (!products || products.length === 0) return [0, 100];
@@ -459,6 +499,12 @@ export default function CatalogProductsPage() {
     return r;
   }, [products, cat, hideOutOfStock, search, sort, priceRange]);
 
+  const favoriteProductEntities = useMemo(() => {
+    if (!products || favoriteProducts.length === 0) return [];
+    const ids = new Set(favoriteProducts);
+    return products.filter((p) => ids.has(String(p.id)));
+  }, [products, favoriteProducts]);
+
   const addFromQuickView = useCallback(
     (item: PublicCatalogItem) => {
       dispatch(
@@ -509,7 +555,29 @@ export default function CatalogProductsPage() {
           <Icon name="tune" /> Filtros
         </button>
 
-        <h1 className="prod-topbar__title">{loc?.name ?? "Catálogo"}</h1>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <h1 className="prod-topbar__title">{loc?.name ?? "Catálogo"}</h1>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+            {loc && (loc.todayOpen || loc.todayClose) && (
+              <span className="prod-topbar__schedule">
+                Hoy: {loc.todayOpen ?? "—"} - {loc.todayClose ?? "—"}
+              </span>
+            )}
+            {lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng) && (
+              <a
+                href={`https://www.google.com/maps?q=${lat},${lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="prod-topbar__maps"
+              >
+                <span className="prod-topbar__maps-icon">
+                  <Icon name="location_on" />
+                </span>
+                <span>Ver en Google Maps</span>
+              </a>
+            )}
+          </div>
+        </div>
 
         {hasProducts && (
           <span className="prod-topbar__count">
@@ -574,10 +642,42 @@ export default function CatalogProductsPage() {
             </div>
           )}
 
+          {hasProducts && favoriteProductEntities.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <h2
+                style={{
+                  fontSize: "0.95rem",
+                  fontWeight: 700,
+                  margin: "0 0 8px",
+                  color: "#0f172a",
+                }}
+              >
+                Tus productos favoritos
+              </h2>
+              <div className="prod-grid">
+                {favoriteProductEntities.map((item) => (
+                  <Card
+                    key={`fav-${item.id}`}
+                    item={item}
+                    onQuickView={setQuickViewItem}
+                    isFavorite={true}
+                    onToggleFavorite={() => toggleFavoriteProduct(String(item.id))}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {hasProducts && filtered.length > 0 && (
             <div className={`prod-grid${view === "list" ? " prod-grid--list" : ""}`}>
               {filtered.map((item) => (
-                <Card key={item.id} item={item} onQuickView={setQuickViewItem} />
+                <Card
+                  key={item.id}
+                  item={item}
+                  onQuickView={setQuickViewItem}
+                  isFavorite={isFavoriteProduct(String(item.id))}
+                  onToggleFavorite={() => toggleFavoriteProduct(String(item.id))}
+                />
               ))}
             </div>
           )}

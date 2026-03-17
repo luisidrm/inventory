@@ -123,6 +123,7 @@ export interface CreateLocationRequest {
   province?: string;
   municipality?: string;
   street?: string;
+  businessHours?: BusinessHoursDto;
 }
 
 export interface UpdateLocationRequest {
@@ -135,6 +136,7 @@ export interface UpdateLocationRequest {
   province?: string;
   municipality?: string;
   street?: string;
+  businessHours?: BusinessHoursDto;
 }
 
 // ─── Inventario ───────────────────────────────────────────────────────────────
@@ -307,6 +309,20 @@ export interface LogResponse {
 
 // ─── Catálogo público ─────────────────────────────────────────────────────────
 
+export type BusinessHoursDto = {
+  [K in
+    | "monday"
+    | "tuesday"
+    | "wednesday"
+    | "thursday"
+    | "friday"
+    | "saturday"
+    | "sunday"]?: {
+    open: string;
+    close: string;
+  } | null;
+};
+
 export interface PublicLocation {
   id: number;
   name: string;
@@ -318,6 +334,32 @@ export interface PublicLocation {
   province?: string | null;
   municipality?: string | null;
   street?: string | null;
+  /** Horarios completos enviados por el backend (sin procesar) */
+  businessHours?: Record<
+    string,
+    | {
+        open: string;
+        close: string;
+      }
+    | null
+  > | null;
+  /** Coordenadas crudas enviadas como objeto */
+  coordinates?: {
+    lat: number;
+    lng: number;
+  } | null;
+  /** Indica si la tienda está abierta "ahora" según su horario */
+  isOpenNow?: boolean | null;
+  /** Hora de apertura de hoy (ej. "09:00") */
+  todayOpen?: string | null;
+  /** Hora de cierre de hoy (ej. "18:00") */
+  todayClose?: string | null;
+  /** Coordenadas opcionales para mapa */
+  latitude?: number | null;
+  longitude?: number | null;
+  /** Alias por compatibilidad con posibles nombres del backend */
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface PublicCatalogItem {
@@ -331,8 +373,20 @@ export interface PublicCatalogItem {
   categoryName: string | null;
   categoryColor: string | null;
   stockAtLocation: number;
- 
-  tipo?: ProductTipo;
+  tipo: ProductTipo;
+  /** Indica si la tienda asociada está abierta "ahora" según su horario */
+  isOpenNow: boolean | null;
+  /** Identificador de la tienda a la que pertenece este producto (puede ser null en catálogos agregados) */
+  locationId: number | null;
+  /** Nombre de la tienda a la que pertenece este producto */
+  locationName: string | null;
+}
+
+export interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 }
 
 // ─── Carrito ──────────────────────────────────────────────────────────────────

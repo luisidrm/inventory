@@ -87,6 +87,8 @@ export interface LocationResponse {
   province?: string | null;
   municipality?: string | null;
   street?: string | null;
+   latitude?: number | null;
+   longitude?: number | null;
   createdAt: string;
   modifiedAt: string;
 }

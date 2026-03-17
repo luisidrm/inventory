@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
 import { useAppSelector } from "@/store/store";
@@ -25,10 +26,15 @@ export default function CatalogLayout({ children }: { children: React.ReactNode 
   const [search, setSearch] = useState("");
   const [cartOpen, setCartOpen] = useState(false);
   const openCart = useCallback(() => setCartOpen(true), []);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const count = useAppSelector((s) =>
     s.cart.items.reduce((a, i) => a + i.quantity, 0)
   );
+
+  const hideCart =
+    pathname === "/catalog" && searchParams.get("tab") === "productos";
 
   return (
     <CatalogContext.Provider value={{ search, setSearch, openCart }}>
@@ -55,12 +61,14 @@ export default function CatalogLayout({ children }: { children: React.ReactNode 
           <div className="store-nav__spacer" />
 
           <div className="store-nav__actions">
-            <button type="button" className="store-nav__cart" onClick={openCart}>
-              <Icon name="shopping_cart" />
-              {count > 0 && <span className="store-nav__cart-count">{count}</span>}
-              <span className="store-nav__cart-label">Carrito</span>
-              {count > 0 && <span className="store-nav__badge">{count > 99 ? "99+" : count}</span>}
-            </button>
+            {!hideCart && (
+              <button type="button" className="store-nav__cart" onClick={openCart}>
+                <Icon name="shopping_cart" />
+                {count > 0 && <span className="store-nav__cart-count">{count}</span>}
+                <span className="store-nav__cart-label">Carrito</span>
+                {count > 0 && <span className="store-nav__badge">{count > 99 ? "99+" : count}</span>}
+              </button>
+            )}
 
             <Link href="/login" className="store-nav__link-btn">
               <Icon name="person_outline" />
@@ -71,7 +79,7 @@ export default function CatalogLayout({ children }: { children: React.ReactNode 
 
         <main className="store-main">{children}</main>
 
-        <CartDrawer open={cartOpen} onOpenChange={setCartOpen} />
+        {!hideCart && <CartDrawer open={cartOpen} onOpenChange={setCartOpen} />}
       </div>
     </CatalogContext.Provider>
   );

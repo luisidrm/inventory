@@ -179,6 +179,7 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
   const cart = useAppSelector((s) => s.cart);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [waWarningOpen, setWaWarningOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState("");
 
@@ -347,7 +348,14 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
                   <button
                     type="button"
                     className="cart-panel__wa"
-                    onClick={() => { setSubmitErr(""); setConfirmOpen(true); }}
+                    onClick={() => {
+                      setSubmitErr("");
+                      if (cart.isOpenNow === false) {
+                        setWaWarningOpen(true);
+                      } else {
+                        setConfirmOpen(true);
+                      }
+                    }}
                   >
                     <Icon name="chat" />
                     Enviar pedido por WhatsApp
@@ -370,6 +378,56 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
           submitting={submitting}
           error={submitErr}
         />
+      )}
+
+      {waWarningOpen && (
+        <div className="confirm-overlay" onClick={() => setWaWarningOpen(false)}>
+          <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="confirm-modal__head">
+              <span className="confirm-modal__icon" style={{ background: "var(--st-orange-soft)", color: "var(--st-orange)" }}>
+                <Icon name="warning_amber" />
+              </span>
+              <h2 className="confirm-modal__title">La tienda puede estar cerrada</h2>
+              <button
+                type="button"
+                className="confirm-modal__x"
+                onClick={() => setWaWarningOpen(false)}
+                aria-label="Cerrar"
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+            <div className="confirm-modal__body">
+              <p className="store-empty__text" style={{ margin: 0 }}>
+                Esta tienda puede estar cerrada ahora.
+              </p>
+              {(cart.todayOpen || cart.todayClose) && (
+                <p className="store-empty__text" style={{ marginTop: 8 }}>
+                  Horario de hoy: {cart.todayOpen ?? "—"} - {cart.todayClose ?? "—"}
+                </p>
+              )}
+            </div>
+            <div className="confirm-modal__foot">
+              <button
+                type="button"
+                className="confirm-btn confirm-btn--back"
+                onClick={() => setWaWarningOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="confirm-btn confirm-btn--send"
+                onClick={() => {
+                  setWaWarningOpen(false);
+                  setConfirmOpen(true);
+                }}
+              >
+                Enviar igual
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

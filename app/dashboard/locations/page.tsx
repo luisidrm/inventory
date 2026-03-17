@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { LocationResponse } from "@/lib/auth-types";
-import type { CreateLocationRequest } from "@/lib/dashboard-types";
+import type { CreateLocationRequest, BusinessHoursDto } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
 import {
@@ -19,6 +19,14 @@ import { useAppSelector } from "@/store/store";
 import "../products/products-modal.css";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 import { CUBA_PROVINCES, getMunicipalitiesByProvince } from "@/lib/cuba-locations";
+import {
+  BusinessHoursEditor,
+  deserializeBusinessHoursDto,
+  makeEmptyBusinessHoursState,
+  serializeBusinessHoursState,
+  type BusinessHoursFormState,
+} from "./BusinessHoursEditor";
+import LocationPicker from "./LocationPicker";
 
 function formatAddress(loc: { street?: string | null; municipality?: string | null; province?: string | null }): string {
   const parts = [loc.street, loc.municipality, loc.province].filter(Boolean);
@@ -62,6 +70,8 @@ const initialForm = {
   province: "",
   municipality: "",
   street: "",
+  latitude: null as number | null,
+  longitude: null as number | null,
 };
 
 export default function LocationsPage() {
@@ -77,6 +87,9 @@ export default function LocationsPage() {
   const [deleting, setDeleting] = useState<LocationResponse | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const [deleteBlockedByApi, setDeleteBlockedByApi] = useState(false);
+  const [businessHours, setBusinessHours] = useState<BusinessHoursFormState>(
+    makeEmptyBusinessHoursState(),
+  );
   const isLoadingMore = useRef(false);
   const filtersChanged = useRef(false);
 
@@ -149,6 +162,7 @@ export default function LocationsPage() {
     setEditing(null);
     setForm(initialForm);
     setFormErrors({});
+    setBusinessHours(makeEmptyBusinessHoursState());
     setFormOpen(true);
   };
 
@@ -163,7 +177,12 @@ export default function LocationsPage() {
       province: item.province ?? "",
       municipality: item.municipality ?? "",
       street: item.street ?? "",
+      latitude: item.latitude ?? null,
+      longitude: item.longitude ?? null,
     });
+    const dto = (item as LocationResponse & { businessHours?: BusinessHoursDto | null })
+      .businessHours;
+    setBusinessHours(deserializeBusinessHoursDto(dto ?? null));
     setFormErrors({});
     setFormOpen(true);
   };
@@ -177,6 +196,45 @@ export default function LocationsPage() {
     const err: Record<string, string> = {};
     if (!form.name.trim()) err.name = "El nombre es requerido";
     if (!form.code.trim()) err.code = "El código es requerido";
+
+    const bhErrors: string[] = [];
+    const dayNames: Record<string, string> = {
+      monday: "Lunes",
+      tuesday: "Martes",
+      wednesday: "Miércoles",
+      thursday: "Jueves",
+      friday: "Viernes",
+      saturday: "Sábado",
+      sunday: "Domingo",
+    };
+
+    const timeToMinutes = (t: string): number => {
+      if (!/^\d{2}:\d{2}$/.test(t)) return -1;
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    };
+
+    (Object.entries(businessHours) as [keyof BusinessHoursFormState, BusinessHoursFormState[keyof BusinessHoursFormState]][]).forEach(
+      ([key, v]) => {
+        if (!v.isOpen) return;
+        if (!v.open || !v.close) {
+          bhErrors.push(`${dayNames[key]}: hora de apertura y cierre son requeridas.`);
+          return;
+        }
+        const start = timeToMinutes(v.open);
+        const end = timeToMinutes(v.close);
+        if (start < 0 || end < 0 || end <= start) {
+          bhErrors.push(
+            `${dayNames[key]}: la hora de cierre debe ser posterior a la de apertura.`,
+          );
+        }
+      },
+    );
+
+    if (bhErrors.length > 0) {
+      err.businessHours = bhErrors.join(" ");
+    }
+
     setFormErrors(err);
     return Object.keys(err).length === 0;
   };
@@ -196,6 +254,11 @@ export default function LocationsPage() {
         province: form.province.trim() || undefined,
         municipality: form.municipality.trim() || undefined,
         street: form.street.trim() || undefined,
+        coordinates:
+          form.latitude != null && form.longitude != null
+            ? { lat: form.latitude, lng: form.longitude }
+            : null,
+        businessHours: serializeBusinessHoursState(businessHours),
       };
 
       if (editing) {
@@ -299,6 +362,7 @@ export default function LocationsPage() {
           onClose={closeForm}
           title={editing ? "Editar ubicación" : "Nueva ubicación"}
           icon={editing ? "edit" : "warehouse"}
+          maxWidth="720px"
           onSubmit={handleSubmit}
           submitting={formSubmitting}
           submitLabel={editing ? "Guardar" : "Crear"}
@@ -429,6 +493,56 @@ export default function LocationsPage() {
               <p className="form-error">{formErrors.whatsAppContact}</p>
             )}
           </div>
+
+          {/* Sección avanzada: mapa + horario */}
+          <section
+            style={{
+              marginTop: 16,
+              paddingTop: 12,
+              borderTop: "1px solid #e5e7eb",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: "0.9rem", fontWeight: 600, margin: 0, color: "#0f172a" }}>
+                Ubicación en el mapa
+              </h3>
+              <p style={{ fontSize: "0.78rem", color: "#6b7280", margin: "4px 0 0" }}>
+                Buscá la dirección de tu tienda para que los clientes puedan encontrarla fácilmente. Este campo es opcional.
+              </p>
+            </div>
+            <LocationPicker
+              value={
+                form.latitude != null && form.longitude != null
+                  ? { lat: form.latitude, lng: form.longitude }
+                  : null
+              }
+              onChange={(coords: { lat: number; lng: number } | null) =>
+                setForm((f) => ({
+                  ...f,
+                  latitude: coords?.lat ?? null,
+                  longitude: coords?.lng ?? null,
+                }))
+              }
+            />
+
+            <div style={{ marginTop: 8 }}>
+              <h3 style={{ fontSize: "0.9rem", fontWeight: 600, margin: 0, color: "#0f172a" }}>
+                Horario de atención
+              </h3>
+              <p style={{ fontSize: "0.78rem", color: "#6b7280", margin: "4px 0 0" }}>
+                Definí los horarios de apertura y cierre por día. Si no configuras nada, la tienda se considerará sin horario fijo.
+              </p>
+            </div>
+            <BusinessHoursEditor value={businessHours} onChange={setBusinessHours} />
+            {formErrors.businessHours && (
+              <p className="form-error" style={{ marginTop: 4 }}>
+                {formErrors.businessHours}
+              </p>
+            )}
+          </section>
           {formErrors.submit && (
             <p className="form-error" style={{ marginTop: 12 }}>
               {formErrors.submit}
