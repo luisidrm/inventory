@@ -1,11 +1,19 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { useCatalogCtx } from "./layout";
-import { useGetAllPublicProductsQuery } from "./_service/catalogApi";
+import { useGetAllPublicProductsQuery, useGetPublicTagsQuery } from "./_service/catalogApi";
+import { useFuseSearch } from "@/hooks/useFuseSearch";
 import type { PublicCatalogItem } from "@/lib/dashboard-types";
+
+const PRODUCT_FUSE_KEYS = [
+  { name: "name" as const, weight: 0.5 },
+  { name: "categoryName" as const, weight: 0.25 },
+  { name: "description" as const, weight: 0.15 },
+  { name: "tags.name" as const, weight: 0.1 },
+];
 
 type SortKey = "default" | "price-asc" | "price-desc" | "name-asc" | "name-desc";
 
@@ -85,6 +93,9 @@ function FilterSidebar({
   categories,
   selectedCategory,
   setSelectedCategory,
+  tags,
+  selectedTagSlugs,
+  setSelectedTagSlugs,
   priceRange,
   setPriceRange,
   priceExtent,
@@ -96,6 +107,9 @@ function FilterSidebar({
   categories: { name: string; color: string; count: number }[];
   selectedCategory: string | null;
   setSelectedCategory: (v: string | null) => void;
+  tags: { id: number; name: string; slug: string; color: string; count: number }[];
+  selectedTagSlugs: string[];
+  setSelectedTagSlugs: (v: string[] | ((prev: string[]) => string[])) => void;
   priceRange: [number, number];
   setPriceRange: (v: [number, number]) => void;
   priceExtent: [number, number];
@@ -104,6 +118,14 @@ function FilterSidebar({
   sortKey: SortKey;
   setSortKey: (v: SortKey) => void;
 }) {
+  const [visibleTagCount, setVisibleTagCount] = useState(6);
+
+  const toggleTag = (slug: string) => {
+    setSelectedTagSlugs((prev) =>
+      prev.includes(slug) ? prev.filter((x) => x !== slug) : [...prev, slug],
+    );
+  };
+
   return (
     <aside className="allprod-sidebar">
       {categories.length > 0 && (
@@ -116,29 +138,64 @@ function FilterSidebar({
               onClick={() => setSelectedCategory(null)}
             >
               <span className="filter-cat__dot" />
-              Todos
+              Todas
             </button>
             {categories.map((c) => (
               <button
                 key={c.name}
                 type="button"
-                className={`filter-cat${
-                  selectedCategory === c.name ? " filter-cat--active" : ""
-                }`}
-                onClick={() =>
-                  setSelectedCategory(
-                    selectedCategory === c.name ? null : c.name,
-                  )
-                }
+                className={`filter-cat${selectedCategory === c.name ? " filter-cat--active" : ""}`}
+                onClick={() => setSelectedCategory(selectedCategory === c.name ? null : c.name)}
               >
-                <span
-                  className="filter-cat__dot"
-                  style={{ background: c.color }}
-                />
+                <span className="filter-cat__dot" style={{ background: c.color }} />
                 {c.name}
                 <span className="filter-cat__count">({c.count})</span>
               </button>
             ))}
+          </div>
+        </section>
+      )}
+
+      {tags.length > 0 && (
+        <section className="filter-section">
+          <div className="filter-title">Etiquetas</div>
+          <div className="filter-cat-list">
+            <button
+              type="button"
+              className={`filter-cat${selectedTagSlugs.length === 0 ? " filter-cat--active" : ""}`}
+              onClick={() => setSelectedTagSlugs([])}
+            >
+              <span className="filter-cat__dot" />
+              Todas
+            </button>
+            {tags.slice(0, visibleTagCount).map((t) => (
+              <button
+                key={t.slug}
+                type="button"
+                className={`filter-cat${selectedTagSlugs.includes(t.slug) ? " filter-cat--active" : ""}`}
+                onClick={() => toggleTag(t.slug)}
+              >
+                <span
+                  className="filter-cat__dot"
+                  style={{ background: t.color }}
+                />
+                {t.name}
+                <span className="filter-cat__count">({t.count})</span>
+              </button>
+            ))}
+            {visibleTagCount < tags.length && (
+              <button
+                type="button"
+                className="filter-cat filter-cat--more"
+                onClick={() =>
+                  setVisibleTagCount((prev) =>
+                    Math.min(prev + 6, tags.length),
+                  )
+                }
+              >
+                Ver más
+              </button>
+            )}
           </div>
         </section>
       )}
@@ -207,9 +264,6 @@ function ProductCard({
   item: PublicCatalogItem;
   onGoToStore: () => void;
 }) {
-  const isOpen = item.isOpenNow === true;
-  const isClosed = item.isOpenNow === false;
-
   const baseColor = item.categoryColor ?? "#378ADD";
   const rgb = hexToRgb(baseColor);
   const catStyle =
@@ -255,16 +309,6 @@ function ProductCard({
           </div>
         )}
 
-        {item.isOpenNow != null && (
-          <div
-            className={`p-explore-open-badge${
-              isOpen ? " p-explore-open-badge--open" : " p-explore-open-badge--closed"
-            }`}
-          >
-            <span className="p-explore-open-badge__dot" />
-            <span>{isOpen ? "Abierto" : "Cerrado"}</span>
-          </div>
-        )}
       </div>
 
       <div className="p-explore-body">
@@ -307,10 +351,9 @@ function ProductCard({
 
 export default function AllProductsView() {
   const router = useRouter();
-  const { search: globalSearch } = useCatalogCtx();
-
-  const [search, setSearch] = useState(globalSearch ?? "");
+  const { search, setSearch } = useCatalogCtx();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedTagSlugs, setSelectedTagSlugs] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 0]);
   const [onlyInStock, setOnlyInStock] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("default");
@@ -325,13 +368,18 @@ export default function AllProductsView() {
     isError,
     refetch,
   } = useGetAllPublicProductsQuery({ page, pageSize: PAGE_SIZE });
+  const { data: publicTagsRaw } = useGetPublicTagsQuery();
+  const publicTags = publicTagsRaw ?? [];
+  const lastTagsRef = useRef<typeof publicTags>([]);
+  if (publicTags.length > 0) lastTagsRef.current = publicTags;
+  const tagsStable = publicTags.length > 0 ? publicTags : lastTagsRef.current;
 
   const pagination = data?.pagination;
 
   // Reset página cuando cambian filtros principales
   useEffect(() => {
     setPage(1);
-  }, [search, selectedCategory, priceRange, onlyInStock, sortKey]);
+  }, [search, selectedCategory, selectedTagSlugs, priceRange, onlyInStock, sortKey]);
 
   // Sincronizar items con la respuesta del backend cuando cambia page
   useEffect(() => {
@@ -356,6 +404,8 @@ export default function AllProductsView() {
     setPriceRange([Math.floor(mn), Math.ceil(mx)]);
   }, [items.length]);
 
+  const filteredBySearch = useFuseSearch(items, PRODUCT_FUSE_KEYS, search);
+
   const priceExtent: [number, number] = useMemo(() => {
     if (!items.length) return [0, 100];
     let mn = Infinity;
@@ -368,34 +418,58 @@ export default function AllProductsView() {
     return [Math.floor(mn), Math.ceil(mx)];
   }, [items]);
 
-  const filtered = useMemo(() => {
-    let list = [...items];
-
-    if (search.trim()) {
-      const q = search.toLowerCase().trim();
-      list = list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.description ?? "").toLowerCase().includes(q) ||
-          (p.categoryName ?? "").toLowerCase().includes(q) ||
-          (p.locationName ?? "").toLowerCase().includes(q),
-      );
+  const categories = useMemo(() => {
+    const m = new Map<string, { name: string; color: string; count: number }>();
+    for (const p of filteredBySearch) {
+      if (!p.categoryName) continue;
+      const existing = m.get(p.categoryName);
+      if (existing) existing.count++;
+      else m.set(p.categoryName, { name: p.categoryName, color: p.categoryColor ?? "#3b82f6", count: 1 });
     }
+    return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [filteredBySearch]);
 
+  const tagsWithCount = useMemo(() => {
+    const countBySlug = new Map<string, number>();
+    for (const p of filteredBySearch) {
+      const slugs = (p.tagIds ?? []).map((id) => tagsStable.find((t) => t.id === id)?.slug).filter(Boolean) as string[];
+      for (const slug of slugs) {
+        countBySlug.set(slug, (countBySlug.get(slug) ?? 0) + 1);
+      }
+    }
+    return tagsStable
+      .filter((t) => (countBySlug.get(t.slug) ?? 0) > 0)
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        slug: t.slug,
+        color: t.color ?? "#3b82f6",
+        count: countBySlug.get(t.slug) ?? 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [filteredBySearch, tagsStable]);
+
+  const filtered = useMemo(() => {
+    let list = [...filteredBySearch];
     if (selectedCategory) {
       list = list.filter((p) => p.categoryName === selectedCategory);
     }
-
+    if (selectedTagSlugs.length > 0) {
+      list = list.filter((p) => {
+        const productSlugs = (p.tagIds ?? [])
+          .map((id) => tagsStable.find((t) => t.id === id)?.slug)
+          .filter(Boolean) as string[];
+        return productSlugs.some((s) => selectedTagSlugs.includes(s));
+      });
+    }
     list = list.filter(
       (p) => p.precio >= priceRange[0] && p.precio <= priceRange[1],
     );
-
     if (onlyInStock) {
       list = list.filter(
         (p) => p.tipo === "elaborado" || p.stockAtLocation > 0,
       );
     }
-
     switch (sortKey) {
       case "price-asc":
         list.sort((a, b) => a.precio - b.precio);
@@ -410,36 +484,16 @@ export default function AllProductsView() {
         list.sort((a, b) => b.name.localeCompare(a.name));
         break;
     }
-
     return list;
   }, [
-    items,
-    search,
+    filteredBySearch,
     selectedCategory,
+    selectedTagSlugs,
     priceRange,
     onlyInStock,
     sortKey,
+    tagsStable,
   ]);
-
-  const categories = useMemo(() => {
-    const m = new Map<string, { name: string; color: string; count: number }>();
-    for (const p of filtered) {
-      if (!p.categoryName) continue;
-      const existing = m.get(p.categoryName);
-      if (existing) {
-        existing.count += 1;
-      } else {
-        m.set(p.categoryName, {
-          name: p.categoryName,
-          color: p.categoryColor ?? "#3b82f6",
-          count: 1,
-        });
-      }
-    }
-    return Array.from(m.values()).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
-  }, [filtered]);
 
   const totalProducts = filtered.length;
   const totalLocations =
@@ -456,8 +510,9 @@ export default function AllProductsView() {
   };
 
   const resetFilters = () => {
-    setSearch(globalSearch ?? "");
+    setSearch("");
     setSelectedCategory(null);
+    setSelectedTagSlugs([]);
     setOnlyInStock(false);
     setSortKey("default");
     setPriceRange(priceExtent);
@@ -525,31 +580,33 @@ export default function AllProductsView() {
             <button
               type="button"
               className={`allprod-pill${
-                !selectedCategory ? " allprod-pill--active" : ""
+                selectedTagSlugs.length === 0 ? " allprod-pill--active" : ""
               }`}
-              onClick={() => setSelectedCategory(null)}
+              onClick={() => setSelectedTagSlugs([])}
             >
               <span className="allprod-pill__dot allprod-pill__dot--all" />
-              <span className="allprod-pill__label">Todos</span>
+              <span className="allprod-pill__label">Todas</span>
             </button>
-            {categories.map((c) => (
+            {tagsWithCount.map((t) => (
               <button
-                key={c.name}
+                key={t.slug}
                 type="button"
                 className={`allprod-pill${
-                  selectedCategory === c.name ? " allprod-pill--active" : ""
+                  selectedTagSlugs.includes(t.slug) ? " allprod-pill--active" : ""
                 }`}
                 onClick={() =>
-                  setSelectedCategory(
-                    selectedCategory === c.name ? null : c.name,
+                  setSelectedTagSlugs((prev) =>
+                    prev.includes(t.slug)
+                      ? prev.filter((x) => x !== t.slug)
+                      : [...prev, t.slug],
                   )
                 }
               >
                 <span
                   className="allprod-pill__dot"
-                  style={{ backgroundColor: c.color }}
+                  style={{ backgroundColor: t.color }}
                 />
-                <span className="allprod-pill__label">{c.name}</span>
+                <span className="allprod-pill__label">{t.name}</span>
               </button>
             ))}
           </div>
@@ -610,6 +667,9 @@ export default function AllProductsView() {
           categories={categories}
           selectedCategory={selectedCategory}
           setSelectedCategory={setSelectedCategory}
+          tags={tagsWithCount}
+          selectedTagSlugs={selectedTagSlugs}
+          setSelectedTagSlugs={setSelectedTagSlugs}
           priceRange={priceRange}
           setPriceRange={setPriceRange}
           priceExtent={priceExtent}
@@ -677,6 +737,9 @@ export default function AllProductsView() {
               categories={categories}
               selectedCategory={selectedCategory}
               setSelectedCategory={setSelectedCategory}
+              tags={tagsWithCount}
+              selectedTagSlugs={selectedTagSlugs}
+              setSelectedTagSlugs={setSelectedTagSlugs}
               priceRange={priceRange}
               setPriceRange={setPriceRange}
               priceExtent={priceExtent}

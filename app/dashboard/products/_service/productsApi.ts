@@ -11,6 +11,7 @@ import type {
   ProductCategoryResponse,
   CreateProductRequest,
   UpdateProductRequest,
+  Tag,
 } from "../../../../lib/dashboard-types";
 
 interface GetProductsArgs {
@@ -49,7 +50,7 @@ export const productsApi = createApi({
   refetchOnFocus: true,
   refetchOnReconnect: true,
 
-  tagTypes: ["Product", "ProductCategory"],
+  tagTypes: ["Product", "ProductCategory", "Tag"],
 
   endpoints: (builder) => ({
 
@@ -108,6 +109,15 @@ export const productsApi = createApi({
         { type: "Product", id },
         { type: "Product", id: "LIST" },
       ],
+    }),
+
+
+    getTags: builder.query<PaginatedResult<Tag>, { page?: number; perPage?: number }>({
+      query: ({ page = 1, perPage = 200 } = {}) =>
+        `/tags?page=${page}&perPage=${perPage}`,
+      transformResponse: (raw: unknown, _meta, arg) =>
+        parsePaginated<Tag>(raw, arg.perPage ?? 200),
+      providesTags: [{ type: "Tag", id: "LIST" }],
     }),
 
     // GET /product-category
@@ -173,6 +183,7 @@ export const {
   useUpdateProductMutation,
   useDeleteProductMutation,
   useGetProductCategoriesQuery,
+  useGetTagsQuery,
   useGetProductStatsQuery,
   useGetProductPerformanceQuery,
   useGetProductStockByCategoryQuery,

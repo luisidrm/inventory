@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
@@ -9,11 +9,20 @@ import { addItem, updateQuantity, setLocation } from "@/store/cartSlice";
 import {
   useGetPublicCatalogQuery,
   useGetPublicLocationsQuery,
+  useGetPublicTagsQuery,
 } from "../_service/catalogApi";
 import { useCatalogCtx } from "../layout";
 import { useFavorites } from "@/lib/useFavorites";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { useFuseSearch } from "@/hooks/useFuseSearch";
 import type { PublicCatalogItem } from "@/lib/dashboard-types";
+
+const PRODUCT_FUSE_KEYS = [
+  { name: "name" as const, weight: 0.5 },
+  { name: "categoryName" as const, weight: 0.25 },
+  { name: "description" as const, weight: 0.15 },
+  { name: "tags.name" as const, weight: 0.1 },
+];
 
 function fmt(v: number) {
   const [int, dec] = v.toFixed(2).split(".");
@@ -92,6 +101,9 @@ function FilterBody({
   categories,
   cat,
   setCat,
+  tags,
+  selectedTagSlugs,
+  setSelectedTagSlugs,
   sort,
   setSort,
   hideOutOfStock,
@@ -103,6 +115,9 @@ function FilterBody({
   categories: { name: string; color: string; count: number }[];
   cat: string | null;
   setCat: (v: string | null) => void;
+  tags: { id: number; name: string; slug: string; color: string; count: number }[];
+  selectedTagSlugs: string[];
+  setSelectedTagSlugs: (v: string[] | ((prev: string[]) => string[])) => void;
   sort: SortKey;
   setSort: (v: SortKey) => void;
   hideOutOfStock: boolean;
@@ -111,9 +126,17 @@ function FilterBody({
   setPriceRange: (v: [number, number]) => void;
   priceExtent: [number, number];
 }) {
+  const [visibleTagCount, setVisibleTagCount] = useState(6);
+
+  const toggleTag = (slug: string) => {
+    setSelectedTagSlugs((prev) =>
+      prev.includes(slug) ? prev.filter((x) => x !== slug) : [...prev, slug],
+    );
+  };
+
   return (
     <>
-      {/* Categories */}
+      {/* Categorías */}
       {categories.length > 0 && (
         <div className="filter-section">
           <div className="filter-title">Categorías</div>
@@ -123,7 +146,7 @@ function FilterBody({
               className={`filter-cat${!cat ? " filter-cat--active" : ""}`}
               onClick={() => setCat(null)}
             >
-              Todos
+              Todas
             </button>
             {categories.map((c) => (
               <button
@@ -137,6 +160,47 @@ function FilterBody({
                 <span className="filter-cat__count">{c.count}</span>
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Etiquetas */}
+      {tags.length > 0 && (
+        <div className="filter-section">
+          <div className="filter-title">Etiquetas</div>
+          <div className="filter-cat-list">
+            <button
+              type="button"
+              className={`filter-cat${selectedTagSlugs.length === 0 ? " filter-cat--active" : ""}`}
+              onClick={() => setSelectedTagSlugs([])}
+            >
+              Todas
+            </button>
+            {tags.slice(0, visibleTagCount).map((t) => (
+              <button
+                key={t.slug}
+                type="button"
+                className={`filter-cat${selectedTagSlugs.includes(t.slug) ? " filter-cat--active" : ""}`}
+                onClick={() => toggleTag(t.slug)}
+              >
+                <span className="filter-cat__dot" style={{ background: t.color }} />
+                {t.name}
+                <span className="filter-cat__count">{t.count}</span>
+              </button>
+            ))}
+            {visibleTagCount < tags.length && (
+              <button
+                type="button"
+                className="filter-cat filter-cat--more"
+                onClick={() =>
+                  setVisibleTagCount((prev) =>
+                    Math.min(prev + 6, tags.length),
+                  )
+                }
+              >
+                Ver más
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -420,6 +484,7 @@ export default function CatalogProductsPage() {
   } = useFavorites();
 
   const [cat, setCat] = useState<string | null>(null);
+  const [selectedTagSlugs, setSelectedTagSlugs] = useState<string[]>([]);
   const [sort, setSort] = useState<SortKey>("default");
   const [hideOutOfStock, setHideOutOfStock] = useState(false);
   const [view, setView] = useState<ViewMode>("grid");
@@ -429,6 +494,12 @@ export default function CatalogProductsPage() {
 
   const { data: products, isLoading, isError, refetch } = useGetPublicCatalogQuery(locationId);
   const { data: locations } = useGetPublicLocationsQuery();
+  const { data: publicTagsRaw } = useGetPublicTagsQuery();
+  const publicTags = publicTagsRaw ?? [];
+  const lastTagsRef = useRef<typeof publicTags>([]);
+  if (publicTags.length > 0) lastTagsRef.current = publicTags;
+  const tagsStable = publicTags.length > 0 ? publicTags : lastTagsRef.current;
+
   const loc = locations?.find((l) => l.id === locationId);
 
   const lat = loc?.latitude ?? loc?.lat ?? null;
@@ -449,6 +520,12 @@ export default function CatalogProductsPage() {
     }
   }, [loc?.id, loc?.isOpenNow, loc?.todayOpen, loc?.todayClose, dispatch]);
 
+  const filteredBySearch = useFuseSearch(
+    products ?? [],
+    PRODUCT_FUSE_KEYS,
+    search,
+  );
+
   const priceExtent = useMemo<[number, number]>(() => {
     if (!products || products.length === 0) return [0, 100];
     let mn = Infinity;
@@ -465,31 +542,47 @@ export default function CatalogProductsPage() {
   }, [priceExtent]);
 
   const categories = useMemo(() => {
-    if (!products) return [];
     const m = new Map<string, { name: string; color: string; count: number }>();
-    for (const p of products) {
-      if (p.categoryName) {
-        const existing = m.get(p.categoryName);
-        if (existing) {
-          existing.count++;
-        } else {
-          m.set(p.categoryName, { name: p.categoryName, color: p.categoryColor ?? "#3b82f6", count: 1 });
-        }
+    for (const p of filteredBySearch) {
+      if (!p.categoryName) continue;
+      const existing = m.get(p.categoryName);
+      if (existing) existing.count++;
+      else m.set(p.categoryName, { name: p.categoryName, color: p.categoryColor ?? "#3b82f6", count: 1 });
+    }
+    return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [filteredBySearch]);
+
+  const tagsWithCount = useMemo(() => {
+    const countBySlug = new Map<string, number>();
+    const slugToTag = new Map<string, { id: number; name: string; color: string; slug: string }>();
+    for (const t of tagsStable) {
+      slugToTag.set(t.slug, { id: t.id, name: t.name, color: t.color ?? "#3b82f6", slug: t.slug });
+    }
+    for (const p of filteredBySearch) {
+      const slugs = (p.tagIds ?? []).map((id) => tagsStable.find((t) => t.id === id)?.slug).filter(Boolean) as string[];
+      for (const slug of slugs) {
+        countBySlug.set(slug, (countBySlug.get(slug) ?? 0) + 1);
       }
     }
-    return Array.from(m.values());
-  }, [products]);
+    return Array.from(slugToTag.entries())
+      .filter(([slug]) => (countBySlug.get(slug) ?? 0) > 0)
+      .map(([slug, t]) => ({ ...t, count: countBySlug.get(slug) ?? 0 }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [filteredBySearch, tagsStable]);
 
   const filtered = useMemo(() => {
-    if (!products) return [];
-    let r = [...products];
+    let r = [...filteredBySearch];
     if (cat) r = r.filter((p) => p.categoryName === cat);
+    if (selectedTagSlugs.length > 0) {
+      r = r.filter((p) => {
+        const productSlugs = (p.tagIds ?? [])
+          .map((id) => tagsStable.find((t) => t.id === id)?.slug)
+          .filter(Boolean) as string[];
+        return productSlugs.some((s) => selectedTagSlugs.includes(s));
+      });
+    }
     if (hideOutOfStock) r = r.filter((p) => p.tipo === "elaborado" || p.stockAtLocation > 0);
     r = r.filter((p) => p.precio >= priceRange[0] && p.precio <= priceRange[1]);
-    if (search.trim()) {
-      const q = search.toLowerCase().trim();
-      r = r.filter((p) => p.name.toLowerCase().includes(q));
-    }
     switch (sort) {
       case "price-asc":  r.sort((a, b) => a.precio - b.precio); break;
       case "price-desc": r.sort((a, b) => b.precio - a.precio); break;
@@ -497,7 +590,7 @@ export default function CatalogProductsPage() {
       case "name-desc":  r.sort((a, b) => b.name.localeCompare(a.name)); break;
     }
     return r;
-  }, [products, cat, hideOutOfStock, search, sort, priceRange]);
+  }, [filteredBySearch, cat, selectedTagSlugs, hideOutOfStock, sort, priceRange, tagsStable]);
 
   const favoriteProductEntities = useMemo(() => {
     if (!products || favoriteProducts.length === 0) return [];
@@ -526,6 +619,9 @@ export default function CatalogProductsPage() {
     categories,
     cat,
     setCat,
+    tags: tagsWithCount,
+    selectedTagSlugs,
+    setSelectedTagSlugs,
     sort,
     setSort,
     hideOutOfStock,

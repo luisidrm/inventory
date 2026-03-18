@@ -10,6 +10,14 @@ export interface PaginationInfo {
 
 export type ProductTipo = "inventariable" | "elaborado";
 
+export interface Tag {
+  id: number;
+  name: string;
+  slug: string;
+  color: string;
+  productCount?: number;
+}
+
 export interface ProductResponse {
   id: number;
   code: string;
@@ -22,6 +30,7 @@ export interface ProductResponse {
   isAvailable: boolean;
   isForSale: boolean;
   tipo?: ProductTipo;
+  tagIds?: number[];
   createdAt: string;
   modifiedAt: string;
 }
@@ -37,6 +46,7 @@ export interface CreateProductRequest {
   isAvailable: boolean;
   isForSale: boolean;
   tipo?: ProductTipo;
+  tagIds?: number[];
 }
 
 export interface UpdateProductRequest {
@@ -50,6 +60,7 @@ export interface UpdateProductRequest {
   isAvailable?: boolean;
   isForSale?: boolean;
   tipo?: ProductTipo;
+  tagIds?: number[];
 }
 
 export interface ProductCategoryResponse {
@@ -379,6 +390,10 @@ export interface PublicCatalogItem {
   categoryId: number;
   categoryName: string | null;
   categoryColor: string | null;
+  /** IDs de etiquetas del producto (para filtrar en catálogo público) */
+  tagIds?: number[];
+  /** Objetos tag del API (para búsqueda fuzzy por tags.name) */
+  tags?: { id: number; name: string; slug: string; color?: string }[];
   stockAtLocation: number;
   tipo: ProductTipo;
   /** Indica si la tienda asociada está abierta "ahora" según su horario */

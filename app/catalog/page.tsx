@@ -1,14 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
-import { useGetPublicLocationsQuery } from "./_service/catalogApi";
+import { useGetPublicLocationsQuery, useGetAllPublicProductsQuery } from "./_service/catalogApi";
+import { useFuseSearch } from "@/hooks/useFuseSearch";
 import type { PublicLocation } from "@/lib/dashboard-types";
 import { useFavorites } from "@/lib/useFavorites";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import AllProductsView from "./AllProductsView";
+import { useCatalogCtx } from "./layout";
+
+const PRODUCT_FUSE_KEYS = [
+  { name: "name" as const, weight: 0.5 },
+  { name: "categoryName" as const, weight: 0.25 },
+  { name: "description" as const, weight: 0.15 },
+  { name: "tags.name" as const, weight: 0.1 },
+];
 
 interface MunicipalityGroup {
   municipality: string;
@@ -128,26 +137,40 @@ export default function CatalogLocationsPage() {
   const tab = searchParams.get("tab") ?? "tiendas";
 
   const { data: locations, isLoading, isError, refetch } = useGetPublicLocationsQuery();
-  const [search, setSearch] = useState("");
+  const { search, setSearch } = useCatalogCtx();
   const {
     favoriteLocations,
     toggleFavoriteLocation,
     isFavoriteLocation,
   } = useFavorites();
 
-  const filtered = useMemo(() => {
-    if (!locations) return [];
-    if (!search.trim()) return locations;
-    const q = search.toLowerCase();
-    return locations.filter(
-      (l) =>
-        l.name.toLowerCase().includes(q) ||
-        l.organizationName?.toLowerCase().includes(q) ||
-        l.province?.toLowerCase().includes(q) ||
-        l.municipality?.toLowerCase().includes(q) ||
-        l.street?.toLowerCase().includes(q)
-    );
-  }, [locations, search]);
+  const filtered = useFuseSearch(
+    locations ?? [],
+    [
+      { name: "name" as const, weight: 0.5 },
+      { name: "organizationName" as const, weight: 0.2 },
+      { name: "province" as const, weight: 0.15 },
+      { name: "municipality" as const, weight: 0.15 },
+    ],
+    search,
+  );
+
+  const locationSuggestions = useMemo(
+    () => (search.trim() ? filtered.slice(0, 6) : []),
+    [filtered, search],
+  );
+
+  // Sugerencias para productos (vista AllProductsView) basadas en fuzzy search
+  const { data: allProductsData } = useGetAllPublicProductsQuery({
+    page: 1,
+    pageSize: 50,
+  });
+
+  const productSuggestions = useFuseSearch(
+    allProductsData?.data ?? [],
+    PRODUCT_FUSE_KEYS,
+    search,
+  ).slice(0, 6);
 
   const favoriteLocationEntities = useMemo(() => {
     if (!locations || favoriteLocations.length === 0) return [];
@@ -213,8 +236,78 @@ export default function CatalogLocationsPage() {
                   <Icon name="close" />
                 </button>
               )}
+              {locationSuggestions.length > 0 && (
+                <div className="loc2-search-suggestions">
+                  {locationSuggestions.map((loc) => (
+                    <button
+                      key={loc.id}
+                      type="button"
+                      className="loc2-search-suggestion"
+                      onClick={() => router.push(`/catalog/${loc.id}`)}
+                    >
+                      <span className="loc2-search-suggestion__name">
+                        {loc.name}
+                      </span>
+                      <span className="loc2-search-suggestion__meta">
+                        {loc.organizationName}
+                        {loc.municipality || loc.province
+                          ? ` • ${loc.municipality ?? loc.province}`
+                          : ""}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+
+        {!showTiendas && (
+          <div className="loc2-search">
+            <Icon name="search" />
+            <input
+              type="text"
+              placeholder="Buscar productos por nombre, categoría o etiqueta…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="loc2-search__input"
+            />
+            {search && (
+              <button
+                type="button"
+                className="loc2-search__clear"
+                onClick={() => setSearch("")}
+              >
+                <Icon name="close" />
+              </button>
+            )}
+            {search.trim() && productSuggestions.length > 0 && (
+              <div className="loc2-search-suggestions">
+                {productSuggestions.map((p) => (
+                  <button
+                    key={`${p.id}-${p.locationId ?? "x"}`}
+                    type="button"
+                    className="loc2-search-suggestion"
+                    onClick={() =>
+                      router.push(
+                        p.locationId != null
+                          ? `/catalog/${p.locationId}`
+                          : `/catalog?tab=productos`,
+                      )
+                    }
+                  >
+                    <span className="loc2-search-suggestion__name">
+                      {p.name}
+                    </span>
+                    <span className="loc2-search-suggestion__meta">
+                      {p.locationName ?? "Varios locales"}
+                      {p.categoryName ? ` • ${p.categoryName}` : ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {showTiendas ? (

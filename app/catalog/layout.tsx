@@ -45,19 +45,6 @@ export default function CatalogLayout({ children }: { children: React.ReactNode 
             <span className="store-nav__brand-label">Tienda</span>
           </Link>
 
-          <div className="store-nav__search">
-            <input
-              type="text"
-              className="store-nav__search-input"
-              placeholder="Buscar productos..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <div className="store-nav__search-btn">
-              <Icon name="search" />
-            </div>
-          </div>
-
           <div className="store-nav__spacer" />
 
           <div className="store-nav__actions">

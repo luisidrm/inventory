@@ -4,6 +4,7 @@ import type {
   PublicLocation,
   PublicCatalogItem,
   PaginationMeta,
+  Tag,
 } from "@/lib/dashboard-types";
 
 
@@ -16,6 +17,15 @@ function parseList<T>(raw: unknown): T[] {
   const nested = inner as Record<string, unknown> | null;
   if (nested && Array.isArray(nested.data)) return nested.data as T[];
   return [];
+}
+
+/** Asegura tagIds en cada ítem: el backend puede enviar "tags" (objetos) en lugar de "tagIds". */
+function normalizePublicItem(item: Record<string, unknown>): PublicCatalogItem {
+  const tags = item.tags as { id: number }[] | undefined;
+  const tagIds =
+    (item.tagIds as number[] | undefined) ??
+    (Array.isArray(tags) ? tags.map((t) => t.id) : []);
+  return { ...item, tagIds } as PublicCatalogItem;
 }
 
 function normalizeLocations(raw: unknown): PublicLocation[] {
@@ -88,7 +98,8 @@ export const catalogApi = createApi({
 
     getPublicCatalog: builder.query<PublicCatalogItem[], number>({
       query: (locationId) => `/public/catalog?locationId=${locationId}`,
-      transformResponse: (raw: unknown) => parseList<PublicCatalogItem>(raw),
+      transformResponse: (raw: unknown) =>
+        parseList<Record<string, unknown>>(raw).map(normalizePublicItem),
     }),
 
     getAllPublicProducts: builder.query<
@@ -97,6 +108,28 @@ export const catalogApi = createApi({
     >({
       query: ({ page, pageSize }) =>
         `/public/catalog?all=true&page=${page}&pageSize=${pageSize}`,
+      transformResponse: (
+        raw: unknown,
+      ): { data: PublicCatalogItem[]; pagination: PaginationMeta } => {
+        const obj = raw as Record<string, unknown> | null;
+        if (!obj) return { data: [], pagination: { page: 1, pageSize: 50, total: 0, totalPages: 0 } };
+        const data = parseList<Record<string, unknown>>(
+          obj.data ?? obj.result ?? [],
+        ).map(normalizePublicItem);
+        const pagination = (obj.pagination ?? {
+          page: 1,
+          pageSize: 50,
+          total: data.length,
+          totalPages: 1,
+        }) as PaginationMeta;
+        return { data, pagination };
+      },
+    }),
+
+    /** GET /public/tags — etiquetas con al menos un producto público (IsForSale). Sin auth. */
+    getPublicTags: builder.query<Tag[], void>({
+      query: () => "/public/tags",
+      transformResponse: (raw: unknown) => parseList<Tag>(raw),
     }),
   }),
 });
@@ -106,4 +139,5 @@ export const {
   useGetPublicCatalogQuery,
   useLazyGetPublicCatalogQuery,
   useGetAllPublicProductsQuery,
+  useGetPublicTagsQuery,
 } = catalogApi;

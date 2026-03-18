@@ -22,6 +22,7 @@ import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
 import Switch from "@/components/Switch";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
+import { TagSelector } from "./TagSelector";
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ const initialForm = {
   imagenUrl: "",
   isAvailable: true,
   isForSale: false,
+  tagIds: [] as number[],
 };
 
 // ─── Image Uploader ───────────────────────────────────────────────────────────
@@ -305,6 +307,7 @@ export default function ProductsPage() {
       imagenUrl: item.imagenUrl ?? "",
       isAvailable: item.isAvailable,
       isForSale: item.isForSale ?? false,
+      tagIds: item.tagIds ?? [],
     });
     setFormErrors({});
     setFormOpen(true);
@@ -339,6 +342,7 @@ export default function ProductsPage() {
       imagenUrl: form.imagenUrl.trim(),
       isAvailable: form.isAvailable,
       isForSale: form.isForSale,
+      tagIds: form.tagIds.length > 0 ? form.tagIds : undefined,
     };
     if (editing) {
       await updateProduct({ id: editing.id, body: payload }).unwrap();
@@ -547,6 +551,14 @@ export default function ProductsPage() {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
+        </div>
+
+        <div className="modal-field field-full">
+          <label>Etiquetas</label>
+          <TagSelector
+            value={form.tagIds}
+            onChange={(tagIds) => setForm((f) => ({ ...f, tagIds }))}
+          />
         </div>
 
         <div className="modal-field">

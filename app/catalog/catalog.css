@@ -280,7 +280,9 @@
 
 /* ─── Search ─── */
 .loc2-search {
-  max-width: 440px;
+  position: relative;
+  max-width: 640px;
+  min-width: 420px;
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -330,6 +332,48 @@
 
 .loc2-search__clear:hover { background: var(--st-border); color: var(--st-text); }
 .loc2-search__clear .material-icons { font-size: 14px; }
+
+/* ─── Search suggestions dropdown ─── */
+.loc2-search-suggestions {
+  position: absolute;
+  top: 46px;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.16);
+  padding: 4px 0;
+  z-index: 30;
+}
+
+.loc2-search-suggestion {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.loc2-search-suggestion:hover {
+  background: #f8fafc;
+}
+
+.loc2-search-suggestion__name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.loc2-search-suggestion__meta {
+  font-size: 0.75rem;
+  color: #64748b;
+}
 
 
 /* ─── Content wrapper ─── */
@@ -732,6 +776,10 @@
 .filter-cat--active {
   background: var(--st-blue-soft);
   color: var(--st-blue);
+  font-weight: 600;
+}
+
+.filter-cat--more {
   font-weight: 600;
 }
 
