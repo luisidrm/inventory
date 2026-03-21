@@ -95,6 +95,9 @@ export interface LocationResponse {
   longitude?: number | null;
   /** Alternativa enviada por el backend: coordenadas en objeto */
   coordinates?: { lat: number; lng: number } | null;
+  /** Categoría de negocio (GET /business-category); opcional */
+  businessCategoryId?: number | null;
+  businessCategoryName?: string | null;
   createdAt: string;
   modifiedAt: string;
 }

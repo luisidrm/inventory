@@ -123,6 +123,21 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+.sidebar .nav-item .nav-item-lucide {
+  flex-shrink: 0;
+  width: 19px;
+  height: 19px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.sidebar .nav-item:hover .nav-item-lucide {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sidebar .nav-item.active .nav-item-lucide {
+  color: #818cf8;
+}
+
 .sidebar .nav-item:hover {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;

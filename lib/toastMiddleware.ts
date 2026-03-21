@@ -64,6 +64,7 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   updateCurrency: "Moneda actualizada",
   deleteCurrency: "Moneda eliminada",
   setDefaultDisplayCurrency: "Moneda de visualización actualizada",
+  updateBusinessCategory: "Categoría de negocio actualizada",
 
   // Ventas
   createOrder: "Pedido creado correctamente",

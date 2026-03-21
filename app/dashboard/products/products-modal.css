@@ -136,6 +136,136 @@
   min-height: 80px;
 }
 
+/* Tipo de negocio (ubicación): desplegable con icono + nombre */
+.business-cat-select {
+  position: relative;
+}
+
+.business-cat-select__trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #1e293b;
+  font-family: inherit;
+  background: #fff;
+  box-sizing: border-box;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.business-cat-select__trigger:hover:not(:disabled) {
+  border-color: #cbd5e1;
+}
+
+.business-cat-select__trigger:focus {
+  outline: none;
+  border-color: #4f6ef7;
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.1);
+}
+
+.business-cat-select__trigger:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background: #f8fafc;
+}
+
+.business-cat-select__icon-wrap {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 18px;
+}
+
+.business-cat-select__img-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: block;
+}
+
+.business-cat-select__icon-wrap--muted {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.business-cat-select__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.business-cat-select__muted {
+  flex: 1;
+  color: #94a3b8;
+}
+
+.business-cat-select__chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: #64748b;
+}
+
+.business-cat-select__icon-wrap--lucide {
+  color: #4f46e5;
+}
+
+.business-cat-select__icon-wrap--lucide svg {
+  display: block;
+}
+
+.business-cat-select__menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 50;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+}
+
+.business-cat-select__option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #1e293b;
+  text-align: left;
+  cursor: pointer;
+}
+
+.business-cat-select__option:hover {
+  background: #f1f5f9;
+}
+
+.business-cat-select__option--active {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
 .modal-toggle {
   display: flex;
   align-items: center;

@@ -15,6 +15,7 @@ import { inventoryApi } from "@/app/dashboard/inventory/_service/inventoryApi";
 import { categoriesApi } from "@/app/dashboard/categories/_service/categoriesApi";
 import { suppliersApi } from "@/app/dashboard/suppliers/_service/suppliersApi";
 import { locationsApi } from "@/app/dashboard/locations/_service/locationsApi";
+import { businessCategoryApi } from "@/app/dashboard/locations/_service/businessCategoryApi";
 import { movementsApi } from "@/app/dashboard/movements/_service/movementsApi";
 import { usersApi } from "@/app/dashboard/users/_service/usersApi";
 import { rolesApi } from "@/app/dashboard/roles/_service/rolesApi";
@@ -43,6 +44,7 @@ const combinedReducer = combineReducers({
   [categoriesApi.reducerPath]: categoriesApi.reducer,
   [suppliersApi.reducerPath]: suppliersApi.reducer,
   [locationsApi.reducerPath]: locationsApi.reducer,
+  [businessCategoryApi.reducerPath]: businessCategoryApi.reducer,
   [movementsApi.reducerPath]: movementsApi.reducer,
   [usersApi.reducerPath]: usersApi.reducer,
   [rolesApi.reducerPath]: rolesApi.reducer,
@@ -80,6 +82,7 @@ const apiMiddleware = [
   categoriesApi.middleware,
   suppliersApi.middleware,
   locationsApi.middleware,
+  businessCategoryApi.middleware,
   movementsApi.middleware,
   usersApi.middleware,
   rolesApi.middleware,

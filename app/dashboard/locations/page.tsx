@@ -18,13 +18,17 @@ import {
   useDeleteLocationMutation,
   useUploadLocationImageMutation,
 } from "./_service/locationsApi";
+import { useGetBusinessCategoriesQuery } from "./_service/businessCategoryApi";
+import { BusinessCategorySelect } from "./BusinessCategorySelect";
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
 import { Icon } from "@/components/ui/Icon";
 import { useAppSelector } from "@/store/store";
 import "../products/products-modal.css";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
-import { GridFilterBar } from "@/components/dashboard";
+import { GridFilterBar, GridFilterSelect } from "@/components/dashboard";
+import { BusinessCategoryLucideGlyph } from "@/components/dashboard/BusinessCategoryLucideGlyph";
+import "./locations-grid.css";
 import { CUBA_PROVINCES, getMunicipalitiesByProvince } from "@/lib/cuba-locations";
 import {
   BusinessHoursEditor,
@@ -42,36 +46,6 @@ function formatAddress(loc: { street?: string | null; municipality?: string | nu
   return parts.length ? parts.join(", ") : "—";
 }
 
-const COLUMNS: DataTableColumn<LocationResponse>[] = [
-  {
-    key: "photoUrl",
-    label: "Foto",
-    width: "64px",
-    sortable: false,
-    exportable: false,
-    render: (row) =>
-      row.photoUrl ? (
-        <img src={getProxiedImageSrc(row.photoUrl) ?? row.photoUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8 }} />
-      ) : (
-        <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", display: "grid", placeItems: "center", color: "#94a3b8", fontSize: 20 }}>
-          <Icon name="location_on" />
-        </div>
-      ),
-  },
-  { key: "name", label: "Nombre" },
-  { key: "code", label: "Código", width: "110px" },
-  {
-    key: "address",
-    label: "Dirección",
-    width: "200px",
-    render: (row) => <span style={{ fontSize: "0.875rem" }}>{formatAddress(row)}</span>,
-  },
-  { key: "description", label: "Descripción" },
-  { key: "organizationName", label: "Organización" },
-  { key: "whatsAppContact", label: "WhatsApp", width: "150px" },
-  { key: "createdAt", label: "Creado", type: "date" },
-];
-
 const initialForm = {
   name: "",
   code: "",
@@ -83,14 +57,17 @@ const initialForm = {
   street: "",
   latitude: null as number | null,
   longitude: null as number | null,
+  businessCategoryId: null as number | null,
 };
 
 export default function LocationsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filterText, setFilterText] = useState("");
+  const [filterBusinessCategoryId, setFilterBusinessCategoryId] = useState("");
   const debouncedFilterText = useDebouncedValue(filterText, TABLE_SEARCH_DEBOUNCE_MS);
-  const shouldPrefetchAll = debouncedFilterText.trim().length > 0;
+  const shouldPrefetchAll =
+    debouncedFilterText.trim().length > 0 || filterBusinessCategoryId !== "";
   const perPage = shouldPrefetchAll ? Math.max(pageSize, SEARCH_TABLE_CHUNK_PAGE_SIZE) : pageSize;
   const loadNextPage = useCallback(() => setPage((p) => p + 1), []);
   const [formOpen, setFormOpen] = useState(false);
@@ -130,6 +107,70 @@ export default function LocationsPage() {
   const [deleteLocation] = useDeleteLocationMutation();
   const [uploadLocationImage, { isLoading: uploadingImage }] = useUploadLocationImageMutation();
 
+  const { data: businessCategories = [], isLoading: businessCategoriesLoading } =
+    useGetBusinessCategoriesQuery();
+
+  const categoryNameById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const c of businessCategories) m.set(c.id, c.name);
+    return m;
+  }, [businessCategories]);
+
+  const locationColumns = useMemo((): DataTableColumn<LocationResponse>[] => {
+    return [
+      {
+        key: "photoUrl",
+        label: "Foto",
+        width: "64px",
+        sortable: false,
+        exportable: false,
+        render: (row) =>
+          row.photoUrl ? (
+            <img src={getProxiedImageSrc(row.photoUrl) ?? row.photoUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8 }} />
+          ) : (
+            <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", display: "grid", placeItems: "center", color: "#94a3b8", fontSize: 20 }}>
+              <Icon name="location_on" />
+            </div>
+          ),
+      },
+      { key: "name", label: "Nombre" },
+      { key: "code", label: "Código", width: "110px" },
+      {
+        key: "address",
+        label: "Dirección",
+        width: "200px",
+        render: (row) => <span style={{ fontSize: "0.875rem" }}>{formatAddress(row)}</span>,
+      },
+      { key: "description", label: "Descripción" },
+      { key: "organizationName", label: "Organización" },
+      { key: "whatsAppContact", label: "WhatsApp", width: "150px" },
+      {
+        key: "businessCategoryId",
+        label: "Tipo de negocio",
+        width: "min(220px, 24vw)",
+        sortValue: (row) => {
+          const id = row.businessCategoryId;
+          if (id == null || !Number.isFinite(Number(id))) return "";
+          const name = row.businessCategoryName ?? categoryNameById.get(Number(id));
+          return name ?? "";
+        },
+        render: (row) => {
+          const id = row.businessCategoryId;
+          if (id == null || !Number.isFinite(Number(id))) return <span>—</span>;
+          const name = row.businessCategoryName ?? categoryNameById.get(Number(id));
+          if (!name) return <span>—</span>;
+          return (
+            <span className="location-bc-pill">
+              <BusinessCategoryLucideGlyph categoryName={name} size={14} strokeWidth={2} />
+              <span>{name}</span>
+            </span>
+          );
+        },
+      },
+      { key: "createdAt", label: "Creado", type: "date" },
+    ];
+  }, [categoryNameById]);
+
   const [allRows, setAllRows] = useState<LocationResponse[]>([]);
 
   useEffect(() => {
@@ -159,24 +200,33 @@ export default function LocationsPage() {
     if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
-  }, [debouncedFilterText, organizationId]);
+  }, [debouncedFilterText, organizationId, filterBusinessCategoryId]);
 
   const loadedRows =
     page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
 
-  const clearGridFilters = () => setFilterText("");
+  const clearGridFilters = () => {
+    setFilterText("");
+    setFilterBusinessCategoryId("");
+  };
 
   const filteredData = useMemo(() => {
+    let rows = loadedRows;
+    const cid = filterBusinessCategoryId.trim();
+    if (cid !== "") {
+      const n = Number(cid);
+      rows = rows.filter((r) => Number(r.businessCategoryId) === n);
+    }
     const q = debouncedFilterText.trim().toLowerCase();
-    if (!q) return loadedRows;
-    return loadedRows.filter(
+    if (!q) return rows;
+    return rows.filter(
       (row) =>
         String(row.name ?? "").toLowerCase().includes(q) ||
         String(row.code ?? "").toLowerCase().includes(q),
     );
-  }, [loadedRows, debouncedFilterText]);
+  }, [loadedRows, debouncedFilterText, filterBusinessCategoryId]);
 
-  const gridFiltersActive = filterText.trim() !== "";
+  const gridFiltersActive = filterText.trim() !== "" || filterBusinessCategoryId !== "";
 
   const hasMore =
     !shouldPrefetchAll && result?.pagination
@@ -216,6 +266,10 @@ export default function LocationsPage() {
       street: item.street ?? "",
       latitude: lat,
       longitude: lng,
+      businessCategoryId:
+        item.businessCategoryId != null && Number.isFinite(Number(item.businessCategoryId))
+          ? Number(item.businessCategoryId)
+          : null,
     });
     const dto = (item as LocationResponse & { businessHours?: BusinessHoursDto | null })
       .businessHours;
@@ -307,6 +361,7 @@ export default function LocationsPage() {
         longitude: hasCoords ? form.longitude : null,
         coordinates: hasCoords ? { lat: form.latitude!, lng: form.longitude! } : null,
         businessHours: serializeBusinessHoursState(businessHours),
+        businessCategoryId: form.businessCategoryId ?? null,
       };
 
       if (editing) {
@@ -407,10 +462,25 @@ export default function LocationsPage() {
                 onChange={(e) => setFilterText(e.target.value)}
               />
             </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Tipo de negocio</span>
+              <GridFilterSelect
+                aria-label="Filtrar por tipo de negocio"
+                value={filterBusinessCategoryId}
+                onChange={setFilterBusinessCategoryId}
+                options={[
+                  { value: "", label: "Todas" },
+                  ...businessCategories.map((c) => ({ value: String(c.id), label: c.name })),
+                ]}
+                placeholder="Todas"
+                active={filterBusinessCategoryId !== ""}
+                className="!min-w-[168px]"
+              />
+            </div>
           </GridFilterBar>
         }
         data={filteredData}
-        columns={COLUMNS}
+        columns={locationColumns}
         loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Ubicaciones"
         titleIcon="warehouse"
@@ -485,6 +555,13 @@ export default function LocationsPage() {
               rows={3}
             />
           </div>
+          <BusinessCategorySelect
+            value={form.businessCategoryId}
+            onChange={(id) => setForm((f) => ({ ...f, businessCategoryId: id }))}
+            categories={businessCategories}
+            loading={businessCategoriesLoading}
+            disabled={editing ? !canEditLocation : !canCreateLocation}
+          />
           <div className="modal-field field-full">
             <label>Foto de la ubicación</label>
             <input type="hidden" value={form.photoUrl} readOnly />

@@ -3,6 +3,8 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
 import { clearSession } from "@/lib/auth-api";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
@@ -20,6 +22,8 @@ interface NavItem {
   route: string;
   /** Permission code required to see this link (e.g. "product.read"). Omit for Dashboard (visible to all). */
   permission?: string;
+  /** Si está definido, se muestra este icono de Lucide en lugar del Material del campo `icon`. */
+  lucideIcon?: LucideIcon;
 }
 
 const navItems: NavItem[] = [
@@ -37,8 +41,23 @@ const adminItems: NavItem[] = [
   { icon: "group", label: "Usuarios", route: "/dashboard/users", permission: "user.read" },
   { icon: "admin_panel_settings", label: "Roles", route: "/dashboard/roles", permission: "role.read" },
   { icon: "receipt_long", label: "Logs", route: "/dashboard/logs", permission: "log.read" },
+  {
+    icon: "grid_view",
+    label: "Categorías de negocio",
+    route: "/dashboard/business-categories",
+    permission: "setting.read",
+    lucideIcon: LayoutGrid,
+  },
   { icon: "settings", label: "Configuración", route: "/dashboard/settings", permission: "setting.read" },
 ];
+
+function SidebarNavIcon({ item }: { item: NavItem }) {
+  const L = item.lucideIcon;
+  if (L) {
+    return <L className="nav-item-lucide" size={19} strokeWidth={1.75} aria-hidden />;
+  }
+  return <Icon name={item.icon} />;
+}
 
 function BrandIcon() {
   return (
@@ -156,7 +175,7 @@ export default function DashboardLayout({
                 href={item.route}
                 className={`nav-item ${isActive(item.route) ? "active" : ""}`}
               >
-                <Icon name={item.icon} />
+                <SidebarNavIcon item={item} />
                 {!collapsed && <span>{item.label}</span>}
               </Link>
             ))}
@@ -177,7 +196,7 @@ export default function DashboardLayout({
                   href={item.route}
                   className={`nav-item ${isActive(item.route) ? "active" : ""}`}
                 >
-                  <Icon name={item.icon} />
+                  <SidebarNavIcon item={item} />
                   {!collapsed && <span>{item.label}</span>}
                 </Link>
               )

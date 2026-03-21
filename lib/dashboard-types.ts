@@ -126,6 +126,20 @@ export interface UpdateSupplierRequest {
 
 // ─── Ubicación (LocationResponse en auth-types) ───────────────────────────────
 
+/** Categorías de negocio para ubicaciones (GET /business-category). */
+export interface BusinessCategoryResponse {
+  id: number;
+  name: string;
+  isActive?: boolean;
+  icon?: string | null;
+  iconUrl?: string | null;
+}
+
+export interface UpdateBusinessCategoryRequest {
+  name?: string;
+  isActive?: boolean;
+}
+
 export interface CreateLocationRequest {
   organizationId: number;
   name: string;
@@ -141,6 +155,7 @@ export interface CreateLocationRequest {
   longitude?: number | null;
   coordinates?: { lat: number; lng: number } | null;
   businessHours?: BusinessHoursDto;
+  businessCategoryId?: number | null;
 }
 
 export interface UpdateLocationRequest {
@@ -157,6 +172,7 @@ export interface UpdateLocationRequest {
   longitude?: number | null;
   coordinates?: { lat: number; lng: number } | null;
   businessHours?: BusinessHoursDto;
+  businessCategoryId?: number | null;
 }
 
 // ─── Inventario ───────────────────────────────────────────────────────────────
