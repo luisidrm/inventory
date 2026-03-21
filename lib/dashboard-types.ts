@@ -488,3 +488,20 @@ export interface TableColumn {
   type?: "text" | "number" | "date" | "boolean" | "currency" | "badge";
   width?: string;
 }
+
+// ─── Suscripción (GET /subscription/my-subscription) ─────────────────────────
+
+export type SubscriptionStatus = "active" | "pending" | "expired" | "cancelled";
+export type SubscriptionBillingCycle = "monthly" | "annual";
+
+export interface MySubscriptionDto {
+  planName: string;
+  status: SubscriptionStatus;
+  billingCycle: SubscriptionBillingCycle;
+  startDate: string;
+  endDate: string;
+  daysRemaining: number;
+  productsLimit: number;
+  usersLimit: number;
+  locationsLimit: number;
+}

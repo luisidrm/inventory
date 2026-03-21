@@ -3,6 +3,7 @@
    ╚══════════════════════════════════════════════════════════════╝ */
 
 :root {
+  /* Catálogo (st-*) */
   --st-bg: #f1f5f9;
   --st-surface: #ffffff;
   --st-border: #e2e8f0;
@@ -30,6 +31,18 @@
   --st-r-xl: 18px;
   --st-r-pill: 999px;
   --st-ease: 0.18s ease;
+
+  /* Variables usadas por catalog y que pueden no existir en globals (proyecto standalone) */
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f8fafc;
+  --color-border-tertiary: #e2e8f0;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-tertiary: #94a3b8;
+  --color-primary: #3b82f6;
+
+  /* Fuente del catálogo (igual en toda la vista, incluidos badges de categoría) */
+  --st-font: var(--font-body, "Inter", sans-serif);
 }
 
 /* ══════════════════════════════════════
@@ -37,6 +50,7 @@
    ══════════════════════════════════════ */
 
 .store-layout {
+  font-family: var(--st-font);
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -1057,10 +1071,58 @@
 
 .mobile-filter-close:hover { color: var(--st-text); }
 
+/* ─── Section headers (grouped catalog) ─── */
+.catalog-section {
+  margin-top: 32px;
+}
+.catalog-section:first-child {
+  margin-top: 0;
+}
+.catalog-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+  border-bottom: 0.5px solid var(--color-border-tertiary, #e2e8f0);
+}
+.catalog-section-header__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.catalog-section-header__name {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text-primary, #0f172a);
+}
+.catalog-section-header__count {
+  font-size: 13px;
+  color: var(--color-text-tertiary, #94a3b8);
+  margin-left: auto;
+}
+
+.catalog-section-more {
+  margin-top: 12px;
+}
+.catalog-section-more__btn {
+  font-size: 14px;
+  color: var(--color-primary, #3b82f6);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+}
+.catalog-section-more__btn:hover {
+  text-decoration: underline;
+}
+
 /* ─── Product Grid ─── */
 .prod-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 12px;
 }
 
@@ -1208,6 +1270,7 @@
 .p-card__cat-label {
   font-size: 0.7rem;
   font-weight: 500;
+  font-family: var(--st-font);
   color: #e5e7eb;
 }
 
@@ -2094,14 +2157,25 @@
   opacity: 0.4;
 }
 
-/* Badges sobre la imagen */
-.p-explore-img-badges {
-  position: relative;
-  margin-top: -28px;
-  padding: 0 10px;
+/* Overlay sobre la imagen (categoría arriba, como en loc2-card) */
+.p-explore-img-overlay {
+  position: absolute;
+  inset: 0;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 10px;
+  z-index: 1;
   pointer-events: none;
+}
+
+.p-explore-img-overlay--top {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.p-explore-img-overlay .p-explore-cat-badge {
+  pointer-events: auto;
 }
 
 .p-explore-cat-badge {
@@ -2112,7 +2186,8 @@
   border-radius: 20px;
   font-size: 11px;
   font-weight: 500;
-  pointer-events: auto;
+  font-family: var(--st-font);
+  backdrop-filter: blur(4px);
 }
 
 .p-explore-cat-badge__dot {

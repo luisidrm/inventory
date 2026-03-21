@@ -6,20 +6,9 @@ import type {
   UserResponse,
   OrganizationResponse,
   ApiResponse,
+  RegisterWithOrganizationRequest,
 } from '@/lib/auth-types';
-
-export interface RegisterWithOrganizationRequest {
-  organizationName: string;
-  organizationCode: string;
-  fullName: string;
-  email: string;
-  password: string;
-  confirmationPassword: string;
-  birthday: string;
-  gender: number | null;
-  phone?: string;
-  organizationId?: number;
-}
+import { parsePlansFromApi, type PublicPlan } from '@/lib/plan-utils';
 
 export const authApi = createApi({
   reducerPath: 'authApi',
@@ -61,6 +50,11 @@ export const authApi = createApi({
         body,
       }),
     }),
+
+    getPlans: builder.query<PublicPlan[], void>({
+      query: () => ({ url: '/plan', method: 'GET' }),
+      transformResponse: (raw: unknown) => parsePlansFromApi(raw),
+    }),
     createOrganization: builder.mutation<OrganizationResponse, CreateOrganizationRequest>({
       query: (data) => ({
         url: '/organization',
@@ -101,6 +95,7 @@ export const {
   useLoginMutation,
   useRegisterMutation,
   useRegiterWithOrganizationMutation,
+  useGetPlansQuery,
   useCreateOrganizationMutation,
   useRefreshTokenMutation,
   useLogoutMutation,

@@ -134,8 +134,9 @@ export async function createOrganization(
 }
 
 export async function registerWithOrganization(
-  body: RegisterWithOrganizationRequest
-): Promise<{ user: UserResponse }> {
+  body: RegisterWithOrganizationRequest,
+  options?: { skipAutoLogin?: boolean }
+): Promise<{ user: UserResponse } | void> {
   const res = await fetch(`${getApiUrl()}/account/register-with-organization`, {
     method: "POST",
     headers: {
@@ -148,5 +149,6 @@ export async function registerWithOrganization(
     const data = await res.json().catch(() => ({}));
     throw new Error(data?.message ?? "Error al registrar.");
   }
+  if (options?.skipAutoLogin) return;
   return login({ email: body.email, password: body.password });
 }

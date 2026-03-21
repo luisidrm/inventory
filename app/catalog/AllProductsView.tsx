@@ -294,21 +294,19 @@ function ProductCard({
             <Icon name="inventory_2" />
           </div>
         )}
-      </div>
-
-      <div className="p-explore-img-badges">
         {item.categoryName && (
-          <div className="p-explore-cat-badge" style={catStyle}>
-            <span
-              className="p-explore-cat-badge__dot"
-              style={{ backgroundColor: baseColor }}
-            />
-            <span className="p-explore-cat-badge__label">
-              {item.categoryName}
-            </span>
+          <div className="p-explore-img-overlay p-explore-img-overlay--top">
+            <div className="p-explore-cat-badge" style={catStyle}>
+              <span
+                className="p-explore-cat-badge__dot"
+                style={{ backgroundColor: baseColor }}
+              />
+              <span className="p-explore-cat-badge__label">
+                {item.categoryName}
+              </span>
+            </div>
           </div>
         )}
-
       </div>
 
       <div className="p-explore-body">
@@ -499,6 +497,7 @@ export default function AllProductsView() {
   const totalLocations =
     new Set(filtered.map((p) => p.locationId).filter((v) => v != null)).size ||
     0;
+
 
   const hasMore =
     !!pagination && page < pagination.totalPages && !isLoading && !isError;

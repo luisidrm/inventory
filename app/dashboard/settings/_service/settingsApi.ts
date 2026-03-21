@@ -1,6 +1,11 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { getApiUrl, getToken } from "@/lib/auth-api";
-import type { GroupedSettingsResponse, UpdateGroupedSettingsRequest } from "@/lib/dashboard-types";
+import type {
+  GroupedSettingsResponse,
+  MySubscriptionDto,
+  UpdateGroupedSettingsRequest,
+} from "@/lib/dashboard-types";
+import { parseMySubscriptionResponse } from "@/lib/subscription-utils";
 
 export const settingsApi = createApi({
   reducerPath: "settingsApi",
@@ -17,7 +22,7 @@ export const settingsApi = createApi({
   refetchOnMountOrArgChange: true,
   refetchOnFocus: true,
   refetchOnReconnect: true,
-  tagTypes: ["Setting"],
+  tagTypes: ["Setting", "Subscription"],
   endpoints: (builder) => ({
     getGroupedSettings: builder.query<GroupedSettingsResponse, void>({
       query: () => "/setting/grouped",
@@ -33,10 +38,16 @@ export const settingsApi = createApi({
       query: (body) => ({ url: "/setting/grouped", method: "PUT", body }),
       invalidatesTags: ["Setting"],
     }),
+    getMySubscription: builder.query<MySubscriptionDto | null, void>({
+      query: () => "/subscription/my-subscription",
+      transformResponse: (raw: unknown) => parseMySubscriptionResponse(raw),
+      providesTags: ["Subscription"],
+    }),
   }),
 });
 
 export const {
   useGetGroupedSettingsQuery,
+  useGetMySubscriptionQuery,
   useUpdateGroupedSettingsMutation,
 } = settingsApi;

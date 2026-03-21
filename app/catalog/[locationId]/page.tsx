@@ -592,6 +592,32 @@ export default function CatalogProductsPage() {
     return r;
   }, [filteredBySearch, cat, selectedTagSlugs, hideOutOfStock, sort, priceRange, tagsStable]);
 
+  /** Agrupación por categoría para presentación (solo render). */
+  const sectionsByCategory = useMemo(() => {
+    const grouped = filtered.reduce(
+      (acc, product) => {
+        const key = product.categoryName ?? "Sin categoría";
+        if (!acc[key]) {
+          acc[key] = {
+            name: key,
+            color: product.categoryColor ?? "#64748b",
+            products: [],
+          };
+        }
+        acc[key].products.push(product);
+        return acc;
+      },
+      {} as Record<string, { name: string; color: string; products: PublicCatalogItem[] }>,
+    );
+    const sections = Object.values(grouped);
+    sections.sort((a, b) => {
+      if (a.name === "Sin categoría") return 1;
+      if (b.name === "Sin categoría") return -1;
+      return a.name.localeCompare(b.name);
+    });
+    return sections;
+  }, [filtered]);
+
   const favoriteProductEntities = useMemo(() => {
     if (!products || favoriteProducts.length === 0) return [];
     const ids = new Set(favoriteProducts);
@@ -765,17 +791,33 @@ export default function CatalogProductsPage() {
           )}
 
           {hasProducts && filtered.length > 0 && (
-            <div className={`prod-grid${view === "list" ? " prod-grid--list" : ""}`}>
-              {filtered.map((item) => (
-                <Card
-                  key={item.id}
-                  item={item}
-                  onQuickView={setQuickViewItem}
-                  isFavorite={isFavoriteProduct(String(item.id))}
-                  onToggleFavorite={() => toggleFavoriteProduct(String(item.id))}
-                />
+            <>
+              {sectionsByCategory.map((section) => (
+                <section key={section.name} className="catalog-section">
+                  <div className="catalog-section-header">
+                    <span
+                      className="catalog-section-header__dot"
+                      style={{ backgroundColor: section.color }}
+                    />
+                    <span className="catalog-section-header__name">{section.name}</span>
+                    <span className="catalog-section-header__count">
+                      {section.products.length}
+                    </span>
+                  </div>
+                  <div className={`prod-grid${view === "list" ? " prod-grid--list" : ""}`}>
+                    {section.products.map((item) => (
+                      <Card
+                        key={item.id}
+                        item={item}
+                        onQuickView={setQuickViewItem}
+                        isFavorite={isFavoriteProduct(String(item.id))}
+                        onToggleFavorite={() => toggleFavoriteProduct(String(item.id))}
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
-            </div>
+            </>
           )}
         </div>
       </div>

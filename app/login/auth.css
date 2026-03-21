@@ -91,6 +91,12 @@
   padding: 36px 32px;
 }
 
+/* Registro paso 2: organización + planes */
+.auth-card--register-step2 {
+  max-width: 560px;
+  padding: 36px 32px;
+}
+
 .auth-card--wide .auth-card__form {
   gap: 18px;
 }
@@ -521,6 +527,155 @@
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #dc2626;
+}
+
+.auth-alert--success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  align-items: flex-start;
+  line-height: 1.5;
+}
+
+/* Selección de plan (registro) */
+.register-plan-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.register-plan-section > label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.register-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 10px;
+}
+
+.register-plan-card {
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 2px solid #e2e8f0;
+  background: #fff;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+  font: inherit;
+  color: inherit;
+}
+
+.register-plan-card:hover {
+  border-color: #c7d2fe;
+  background: #fafbff;
+}
+
+.register-plan-card--selected {
+  border-color: #635bff;
+  background: linear-gradient(160deg, #f5f3ff 0%, #eef2ff 100%);
+  box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.18);
+}
+
+.register-plan-card__name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 8px;
+  line-height: 1.25;
+}
+
+.register-plan-card__price {
+  font-size: 0.78rem;
+  color: #475569;
+  margin: 0 0 2px;
+  line-height: 1.35;
+}
+
+.register-plan-card__limits {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.register-plan-card--selected .register-plan-card__limits {
+  border-top-color: rgba(99, 91, 255, 0.25);
+}
+
+.register-billing-toggle {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.register-billing-toggle__btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.register-billing-toggle__btn:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.register-billing-toggle__btn--active {
+  border-color: #635bff;
+  background: #f5f3ff;
+  color: #4f46e5;
+}
+
+.register-plans-loading {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  padding: 8px 0;
+}
+
+.register-success-block {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  text-align: center;
+  padding: 8px 0 4px;
+}
+
+.register-success-block .material-icons {
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+  color: #059669;
+}
+
+.register-success-block p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #334155;
+  max-width: 34ch;
+}
+
+.register-success-block .auth-btn {
+  max-width: 280px;
 }
 
 /* Spinner */

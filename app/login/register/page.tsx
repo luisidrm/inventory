@@ -1,17 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
-import { useRegiterWithOrganizationMutation } from "../_service/authApi";
-// import { registerWithOrganization } from "@/lib/auth-api";
+import {
+  useGetPlansQuery,
+  useLoginMutation,
+  useRegiterWithOrganizationMutation,
+} from "../_service/authApi";
 import Image from "next/image";
 import { DatePickerSimple } from "@/components/DatePickerSimple";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { RegistrationBillingCycle } from "@/lib/auth-types";
+import {
+  formatPlanLimit,
+  formatPlanPriceDisplay,
+  isPaidPlan,
+} from "@/lib/plan-utils";
+import { useAppDispatch } from "@/store/store";
+import { loginSuccessfull, type AuthState } from "../_slices/authSlice";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const [currentStep, setCurrentStep] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -29,10 +41,28 @@ export default function RegisterPage() {
   const [orgCode, setOrgCode] = useState("");
   const [codeDirty, setCodeDirty] = useState(false);
 
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+  const [billingCycle, setBillingCycle] = useState<RegistrationBillingCycle>("monthly");
+  const [paidRegistrationSuccess, setPaidRegistrationSuccess] = useState(false);
+
   const [touchedPersonal, setTouchedPersonal] = useState<Record<string, boolean>>({});
   const [touchedOrg, setTouchedOrg] = useState<Record<string, boolean>>({});
 
-  const [registerWithOrganization] = useRegiterWithOrganizationMutation()
+  const { data: plans = [], isLoading: plansLoading, isError: plansQueryError } = useGetPlansQuery();
+  const [registerWithOrganization] = useRegiterWithOrganizationMutation();
+  const [login] = useLoginMutation();
+
+  useEffect(() => {
+    if (plans.length > 0 && selectedPlanId === null) {
+      setSelectedPlanId(plans[0].id);
+    }
+  }, [plans, selectedPlanId]);
+
+  const selectedPlan = useMemo(
+    () => plans.find((p) => p.id === selectedPlanId),
+    [plans, selectedPlanId],
+  );
+  const selectedIsPaid = isPaidPlan(selectedPlan);
 
   const passwordMismatch = !!password && !!confirmationPassword && password !== confirmationPassword;
 
@@ -57,6 +87,7 @@ export default function RegisterPage() {
     phoneValidByPrefix;
 
   const orgValid = orgName.length >= 2 && orgCode.length >= 2;
+  const planValid = !plansLoading && !plansQueryError && plans.length > 0 && selectedPlanId !== null;
 
   const generateCode = () => {
     if (orgName && !codeDirty) {
@@ -64,7 +95,7 @@ export default function RegisterPage() {
         orgName
           .toUpperCase()
           .replace(/[^A-Z0-9]/g, "")
-          .substring(0, 10)
+          .substring(0, 10),
       );
     }
   };
@@ -91,14 +122,25 @@ export default function RegisterPage() {
     setCurrentStep(1);
   };
 
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouchedOrg({ name: true, code: true });
     if (!orgValid) return;
+    if (!planValid || selectedPlanId === null) {
+      setErrorMessage(
+        plansQueryError
+          ? "No se pudieron cargar los planes. Recarga la página e inténtalo de nuevo."
+          : plans.length === 0
+            ? "No hay planes disponibles."
+            : "Selecciona un plan.",
+      );
+      return;
+    }
 
     setIsLoading(true);
     setErrorMessage("");
+
+    const cycle: RegistrationBillingCycle = selectedIsPaid ? billingCycle : "monthly";
 
     try {
       await registerWithOrganization({
@@ -111,15 +153,44 @@ export default function RegisterPage() {
         birthday: new Date(birthday).toISOString(),
         phone: phoneFull || "",
         gender: null,
-      });
-      router.push("/login");
-    } catch (err: any) {
-      setIsLoading(false);
+        planId: selectedPlanId,
+        billingCycle: cycle,
+      }).unwrap();
+
+      if (selectedIsPaid) {
+        setPaidRegistrationSuccess(true);
+        return;
+      }
+
+      const res = await login({ email, password }).unwrap();
+      if (res.statusCode === 200 && res.result) {
+        dispatch(loginSuccessfull(res.result as AuthState));
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        setErrorMessage(
+          "Tu cuenta fue creada, pero no se pudo iniciar sesión automáticamente. Entra con tu email y contraseña desde Iniciar sesión.",
+        );
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "data" in err
+          ? (err as { data?: { message?: string } }).data?.message
+          : undefined;
       setErrorMessage(
-        err?.data?.message ?? err?.message ?? "Ocurrió un error. Intenta de nuevo."
+        msg ??
+          (err instanceof Error ? err.message : null) ??
+          "Ocurrió un error. Intenta de nuevo.",
       );
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  const cardClass =
+    currentStep === 0
+      ? "auth-card auth-card--wide"
+      : "auth-card auth-card--wide auth-card--register-step2";
 
   return (
     <div className="auth-page auth-page--register">
@@ -137,286 +208,384 @@ export default function RegisterPage() {
         </Link>
       </header>
 
-      <div className={`auth-card ${currentStep === 0 ? "auth-card--wide" : ""}`}>
-        <div className="steps-indicator">
-          <div
-            className={`step-dot ${currentStep === 0 ? "active" : ""} ${currentStep > 0 ? "done" : ""}`}
-          >
-            {currentStep > 0 ? <Icon name="check" /> : <span>1</span>}
-          </div>
-          <div className={`step-line ${currentStep > 0 ? "active" : ""}`} />
-          <div className={`step-dot ${currentStep === 1 ? "active" : ""}`}>
-            <span>2</span>
-          </div>
-        </div>
-
-        {errorMessage ? (
-          <div className="auth-alert auth-alert--error">
-            <Icon name="error_outline" />
-            <span>{errorMessage}</span>
-          </div>
-        ) : null}
-
-        {currentStep === 0 ? (
+      <div className={cardClass}>
+        {paidRegistrationSuccess ? (
           <>
-            <h1 className="auth-card__title">Crea tu cuenta de Strova</h1>
-            <p className="auth-card__subtitle">Paso 1 de 2 — Tus datos de administrador</p>
-
-            <form className="auth-card__form" onSubmit={handleNextStep}>
-              <div className="form-group">
-                <label>Nombre completo</label>
-                <div
-                  className={`input-wrapper ${touchedPersonal.fullName && fullName.length < 3 ? "error" : ""}`}
-                >
-                  <span className="input-icon"><Icon name="person_outline" /></span>
-                  <input
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    onBlur={() => setTouchedPersonal((t) => ({ ...t, fullName: true }))}
-                    placeholder="Ej: Juan Pérez"
-                  />
-                </div>
-                {touchedPersonal.fullName && fullName.length < 3 ? (
-                  <span className="form-error">El nombre es requerido</span>
-                ) : null}
-              </div>
-
-              <div className="form-group">
-                <label>Email</label>
-                <div
-                  className={`input-wrapper ${touchedPersonal.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "error" : ""}`}
-                >
-                  <span className="input-icon"><Icon name="mail_outline" /></span>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onBlur={() => setTouchedPersonal((t) => ({ ...t, email: true }))}
-                    placeholder="tu@email.com"
-                  />
-                </div>
-                {touchedPersonal.email && !email ? (
-                  <span className="form-error">El email es requerido</span>
-                ) : null}
-                {touchedPersonal.email && email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? (
-                  <span className="form-error">Email inválido</span>
-                ) : null}
-              </div>
-
-              <div className="form-group">
-                <label>Teléfono <span className="optional">(opcional)</span></label>
-                <div className="input-wrapper input-wrapper--phone">
-                  <Select
-                    value={phonePrefix}
-                    onValueChange={(val: string) => {
-                      setPhonePrefix(val);
-                      if (val === "+53" && phoneDigits.replace(/\D/g, "").length > 8)
-                        setPhoneDigits((d) => d.replace(/\D/g, "").slice(0, 8));
-                    }}
-                  >
-                    <SelectTrigger className="phone-prefix-trigger">
-                      <SelectValue>
-                        {phonePrefix === "+53" ? (
-                          <span className="phone-option">
-                            <img src="https://flagcdn.com/w20/cu.png" alt="CU" width={20} height={14} className="phone-flag" />
-                            +53
-                          </span>
-                        ) : (
-                          <span className="phone-option">
-                            <img src="https://flagcdn.com/w20/us.png" alt="US" width={20} height={14} className="phone-flag" />
-                            +1
-                          </span>
-                        )}
-                      </SelectValue>
-                    </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem value="+53">
-                            <span className="phone-option">
-                              <img src="https://flagcdn.com/w20/cu.png" alt="CU" width={20} height={14} className="phone-flag" />
-                              +53
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="+1">
-                            <span className="phone-option">
-                              <img src="https://flagcdn.com/w20/us.png" alt="US" width={20} height={14} className="phone-flag" />
-                              +1
-                            </span>
-                          </SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                  </Select>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    value={phoneDigits}
-                    onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, "").slice(0, phonePrefix === "+1" ? 10 : 8))}
-                    onBlur={() => setTouchedPersonal((t) => ({ ...t, phone: true }))}
-                    placeholder="+1 234 567"
-                    className="phone-number-input"
-                  />
-                </div>
-                {touchedPersonal.phone && phoneDigitsOnly && !phoneValidByPrefix ? (
-                  <span className="form-error">
-                    {phonePrefix === "+53" ? "Introduce 7 u 8 dígitos (ej. 51234567)." : "Introduce 10 dígitos (ej. 2345678901)."}
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="form-group">
-                <label>Fecha de nacimiento</label>
-                {/* <div
-                  className={`input-wrapper ${touchedPersonal.birthday && !birthday ? "error" : ""}`}
-                >
-                  <span className="input-icon"><Icon name="calendar_today" /></span> */}
-                <DatePickerSimple
-                  date={birthday}
-                  setDate={(date) => setBirthday(date ? date : "")}
-                />
-                {/* <input
-                    type="date"
-                    value={birthday}
-                    onChange={(e) => setBirthday(e.target.value)}
-                    onBlur={() => setTouchedPersonal((t) => ({ ...t, birthday: true }))}
-                  /> */}
-                {/* </div> */}
-                {touchedPersonal.birthday && !birthday ? (
-                  <span className="form-error">La fecha es requerida</span>
-                ) : null}
-              </div>
-
-              <div className="form-group">
-                <label>Contraseña</label>
-                <div
-                  className={`input-wrapper ${touchedPersonal.password && password.length > 0 && !passwordValid ? "error" : ""}`}
-                >
-                  <span className="input-icon"><Icon name="lock_outline" /></span>
-                  <input
-                    type={hidePassword ? "password" : "text"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onBlur={() => setTouchedPersonal((t) => ({ ...t, password: true }))}
-                    placeholder="Escriba su contraseña"
-                  />
-                  <button
-                    type="button"
-                    className="input-toggle"
-                    onClick={() => setHidePassword((v) => !v)}
-                    aria-label={hidePassword ? "Mostrar contraseña" : "Ocultar contraseña"}
-                  >
-                    <Icon name={hidePassword ? "visibility_off" : "visibility"} />
-                  </button>
-                </div>
-                <span className="form-hint">Mínimo 6 caracteres, al menos 1 mayúscula y 1 carácter especial.</span>
-                {touchedPersonal.password && password.length > 0 && !passwordValid ? (
-                  <span className="form-error">La contraseña requiere 6 caracteres, incluyendo al menos 1 letra en mayúsculas y 1 carácter especial.</span>
-                ) : null}
-              </div>
-
-              <div className="form-group">
-                <label>Confirmar contraseña</label>
-                <div
-                  className={`input-wrapper ${passwordMismatch && touchedPersonal.confirmationPassword ? "error" : ""}`}
-                >
-                  <span className="input-icon"><Icon name="lock_outline" /></span>
-                  <input
-                    type={hideConfirm ? "password" : "text"}
-                    value={confirmationPassword}
-                    onChange={(e) => setConfirmationPassword(e.target.value)}
-                    onBlur={() => setTouchedPersonal((t) => ({ ...t, confirmationPassword: true }))}
-                    placeholder="Repite tu contraseña"
-                  />
-                  <button
-                    type="button"
-                    className="input-toggle"
-                    onClick={() => setHideConfirm((v) => !v)}
-                    aria-label={hideConfirm ? "Mostrar contraseña" : "Ocultar contraseña"}
-                  >
-                    <Icon name={hideConfirm ? "visibility_off" : "visibility"} />
-                  </button>
-                </div>
-                {passwordMismatch && touchedPersonal.confirmationPassword ? (
-                  <span className="form-error">Las contraseñas no coinciden</span>
-                ) : null}
-              </div>
-
-              <button type="submit" className="auth-btn" disabled={!personalValid}>
-                <span>Siguiente</span>
-                <Icon name="arrow_forward" />
-              </button>
-            </form>
+            <div className="register-success-block">
+              <Icon name="check_circle" />
+              <h1 className="auth-card__title" style={{ marginBottom: 0 }}>
+                Solicitud registrada
+              </h1>
+              <p>
+                Tu cuenta ha sido creada. Un administrador revisará tu solicitud y activará tu organización en breve.
+              </p>
+              <Link href="/login" className="auth-btn">
+                <span>Ir a iniciar sesión</span>
+                <Icon name="login" />
+              </Link>
+            </div>
+            <p className="auth-card__footer">
+              ¿Ya tienes cuenta? <Link href="/login">Iniciar sesión</Link>
+            </p>
           </>
         ) : (
           <>
-            <h1 className="auth-card__title">Tu organización</h1>
-            <p className="auth-card__subtitle">Paso 2 de 2 — Datos de tu empresa o negocio</p>
-
-            <form className="auth-card__form" onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Nombre de la empresa</label>
-                <div className="input-wrapper">
-                  <span className="input-icon"><Icon name="business" /></span>
-                  <input
-                    value={orgName}
-                    onChange={(e) => setOrgName(e.target.value)}
-                    onBlur={() => { setTouchedOrg((t) => ({ ...t, name: true })); generateCode(); }}
-                    placeholder="Ej: Mi Empresa S.A."
-                  />
-                </div>
-                {touchedOrg.name && orgName.length < 2 ? (
-                  <span className="form-error">El nombre es requerido</span>
-                ) : null}
+            <div className="steps-indicator">
+              <div
+                className={`step-dot ${currentStep === 0 ? "active" : ""} ${currentStep > 0 ? "done" : ""}`}
+              >
+                {currentStep > 0 ? <Icon name="check" /> : <span>1</span>}
               </div>
-
-              <div className="form-group">
-                <label>Código único</label>
-                <div className="input-wrapper">
-                  <span className="input-icon"><Icon name="tag" /></span>
-                  <input
-                    value={orgCode}
-                    onChange={(e) => { setOrgCode(e.target.value); setCodeDirty(true); setTouchedOrg((t) => ({ ...t, code: true })); }}
-                    placeholder="MIEMPRESA"
-                    style={{ textTransform: "uppercase" }}
-                  />
-                </div>
-                <span className="form-hint">Identificador único de tu organización (se genera automáticamente)</span>
-                {touchedOrg.code && orgCode.length < 2 ? (
-                  <span className="form-error">El código es requerido</span>
-                ) : null}
+              <div className={`step-line ${currentStep > 0 ? "active" : ""}`} />
+              <div className={`step-dot ${currentStep === 1 ? "active" : ""}`}>
+                <span>2</span>
               </div>
+            </div>
 
-              <div className="auth-card__info">
-                <Icon name="info_outline" />
-                <span>Como administrador, luego podrás agregar empleados y asignarles roles desde el dashboard.</span>
+            {errorMessage ? (
+              <div className="auth-alert auth-alert--error">
+                <Icon name="error_outline" />
+                <span>{errorMessage}</span>
               </div>
+            ) : null}
 
-              <div className="btn-row">
-                <button
-                  type="button"
-                  className="auth-btn auth-btn--outline"
-                  onClick={() => { setCurrentStep(0); setErrorMessage(""); }}
-                >
-                  <Icon name="arrow_back" />
-                  <span>Atrás</span>
-                </button>
-                <button type="submit" className="auth-btn" disabled={isLoading}>
-                  {isLoading ? (
-                    <div className="spinner" />
-                  ) : (
-                    <>
-                      <span>Crear cuenta</span>
-                      <Icon name="rocket_launch" />
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
+            {currentStep === 0 ? (
+              <>
+                <h1 className="auth-card__title">Crea tu cuenta de Strova</h1>
+                <p className="auth-card__subtitle">Paso 1 de 2 — Tus datos de administrador</p>
+
+                <form className="auth-card__form" onSubmit={handleNextStep}>
+                  <div className="form-group">
+                    <label>Nombre completo</label>
+                    <div
+                      className={`input-wrapper ${touchedPersonal.fullName && fullName.length < 3 ? "error" : ""}`}
+                    >
+                      <span className="input-icon"><Icon name="person_outline" /></span>
+                      <input
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        onBlur={() => setTouchedPersonal((t) => ({ ...t, fullName: true }))}
+                        placeholder="Ej: Juan Pérez"
+                      />
+                    </div>
+                    {touchedPersonal.fullName && fullName.length < 3 ? (
+                      <span className="form-error">El nombre es requerido</span>
+                    ) : null}
+                  </div>
+
+                  <div className="form-group">
+                    <label>Email</label>
+                    <div
+                      className={`input-wrapper ${touchedPersonal.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "error" : ""}`}
+                    >
+                      <span className="input-icon"><Icon name="mail_outline" /></span>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        onBlur={() => setTouchedPersonal((t) => ({ ...t, email: true }))}
+                        placeholder="tu@email.com"
+                      />
+                    </div>
+                    {touchedPersonal.email && !email ? (
+                      <span className="form-error">El email es requerido</span>
+                    ) : null}
+                    {touchedPersonal.email && email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? (
+                      <span className="form-error">Email inválido</span>
+                    ) : null}
+                  </div>
+
+                  <div className="form-group">
+                    <label>Teléfono <span className="optional">(opcional)</span></label>
+                    <div className="input-wrapper input-wrapper--phone">
+                      <Select
+                        value={phonePrefix}
+                        onValueChange={(val: string) => {
+                          setPhonePrefix(val);
+                          if (val === "+53" && phoneDigits.replace(/\D/g, "").length > 8)
+                            setPhoneDigits((d) => d.replace(/\D/g, "").slice(0, 8));
+                        }}
+                      >
+                        <SelectTrigger className="phone-prefix-trigger">
+                          <SelectValue>
+                            {phonePrefix === "+53" ? (
+                              <span className="phone-option">
+                                <img src="https://flagcdn.com/w20/cu.png" alt="CU" width={20} height={14} className="phone-flag" />
+                                +53
+                              </span>
+                            ) : (
+                              <span className="phone-option">
+                                <img src="https://flagcdn.com/w20/us.png" alt="US" width={20} height={14} className="phone-flag" />
+                                +1
+                              </span>
+                            )}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="+53">
+                              <span className="phone-option">
+                                <img src="https://flagcdn.com/w20/cu.png" alt="CU" width={20} height={14} className="phone-flag" />
+                                +53
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="+1">
+                              <span className="phone-option">
+                                <img src="https://flagcdn.com/w20/us.png" alt="US" width={20} height={14} className="phone-flag" />
+                                +1
+                              </span>
+                            </SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        value={phoneDigits}
+                        onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, "").slice(0, phonePrefix === "+1" ? 10 : 8))}
+                        onBlur={() => setTouchedPersonal((t) => ({ ...t, phone: true }))}
+                        placeholder="+1 234 567"
+                        className="phone-number-input"
+                      />
+                    </div>
+                    {touchedPersonal.phone && phoneDigitsOnly && !phoneValidByPrefix ? (
+                      <span className="form-error">
+                        {phonePrefix === "+53" ? "Introduce 7 u 8 dígitos (ej. 51234567)." : "Introduce 10 dígitos (ej. 2345678901)."}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="form-group">
+                    <label>Fecha de nacimiento</label>
+                    <DatePickerSimple
+                      date={birthday}
+                      setDate={(date) => setBirthday(date ? date : "")}
+                    />
+                    {touchedPersonal.birthday && !birthday ? (
+                      <span className="form-error">La fecha es requerida</span>
+                    ) : null}
+                  </div>
+
+                  <div className="form-group">
+                    <label>Contraseña</label>
+                    <div
+                      className={`input-wrapper ${touchedPersonal.password && password.length > 0 && !passwordValid ? "error" : ""}`}
+                    >
+                      <span className="input-icon"><Icon name="lock_outline" /></span>
+                      <input
+                        type={hidePassword ? "password" : "text"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        onBlur={() => setTouchedPersonal((t) => ({ ...t, password: true }))}
+                        placeholder="Escriba su contraseña"
+                      />
+                      <button
+                        type="button"
+                        className="input-toggle"
+                        onClick={() => setHidePassword((v) => !v)}
+                        aria-label={hidePassword ? "Mostrar contraseña" : "Ocultar contraseña"}
+                      >
+                        <Icon name={hidePassword ? "visibility_off" : "visibility"} />
+                      </button>
+                    </div>
+                    <span className="form-hint">Mínimo 6 caracteres, al menos 1 mayúscula y 1 carácter especial.</span>
+                    {touchedPersonal.password && password.length > 0 && !passwordValid ? (
+                      <span className="form-error">La contraseña requiere 6 caracteres, incluyendo al menos 1 letra en mayúsculas y 1 carácter especial.</span>
+                    ) : null}
+                  </div>
+
+                  <div className="form-group">
+                    <label>Confirmar contraseña</label>
+                    <div
+                      className={`input-wrapper ${passwordMismatch && touchedPersonal.confirmationPassword ? "error" : ""}`}
+                    >
+                      <span className="input-icon"><Icon name="lock_outline" /></span>
+                      <input
+                        type={hideConfirm ? "password" : "text"}
+                        value={confirmationPassword}
+                        onChange={(e) => setConfirmationPassword(e.target.value)}
+                        onBlur={() => setTouchedPersonal((t) => ({ ...t, confirmationPassword: true }))}
+                        placeholder="Repite tu contraseña"
+                      />
+                      <button
+                        type="button"
+                        className="input-toggle"
+                        onClick={() => setHideConfirm((v) => !v)}
+                        aria-label={hideConfirm ? "Mostrar contraseña" : "Ocultar contraseña"}
+                      >
+                        <Icon name={hideConfirm ? "visibility_off" : "visibility"} />
+                      </button>
+                    </div>
+                    {passwordMismatch && touchedPersonal.confirmationPassword ? (
+                      <span className="form-error">Las contraseñas no coinciden</span>
+                    ) : null}
+                  </div>
+
+                  <button type="submit" className="auth-btn" disabled={!personalValid}>
+                    <span>Siguiente</span>
+                    <Icon name="arrow_forward" />
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
+                <h1 className="auth-card__title">Tu organización</h1>
+                <p className="auth-card__subtitle">Paso 2 de 2 — Plan, empresa o negocio</p>
+
+                <form className="auth-card__form" onSubmit={handleSubmit}>
+                  <div className="form-group">
+                    <label>Nombre de la empresa</label>
+                    <div className="input-wrapper">
+                      <span className="input-icon"><Icon name="business" /></span>
+                      <input
+                        value={orgName}
+                        onChange={(e) => setOrgName(e.target.value)}
+                        onBlur={() => {
+                          setTouchedOrg((t) => ({ ...t, name: true }));
+                          generateCode();
+                        }}
+                        placeholder="Ej: Mi Empresa S.A."
+                      />
+                    </div>
+                    {touchedOrg.name && orgName.length < 2 ? (
+                      <span className="form-error">El nombre es requerido</span>
+                    ) : null}
+                  </div>
+
+                  <div className="form-group">
+                    <label>Código único</label>
+                    <div className="input-wrapper">
+                      <span className="input-icon"><Icon name="tag" /></span>
+                      <input
+                        value={orgCode}
+                        onChange={(e) => {
+                          setOrgCode(e.target.value);
+                          setCodeDirty(true);
+                          setTouchedOrg((t) => ({ ...t, code: true }));
+                        }}
+                        placeholder="MIEMPRESA"
+                        style={{ textTransform: "uppercase" }}
+                      />
+                    </div>
+                    <span className="form-hint">Identificador único de tu organización (se genera automáticamente)</span>
+                    {touchedOrg.code && orgCode.length < 2 ? (
+                      <span className="form-error">El código es requerido</span>
+                    ) : null}
+                  </div>
+
+                  <div className="register-plan-section">
+                    <label>Plan</label>
+                    {plansLoading ? (
+                      <p className="register-plans-loading">Cargando planes…</p>
+                    ) : plansQueryError ? (
+                      <p className="form-error" role="alert">
+                        No se pudieron cargar los planes. Recarga la página.
+                      </p>
+                    ) : plans.length === 0 ? (
+                      <p className="form-error" role="alert">
+                        No hay planes disponibles.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="register-plan-grid" role="listbox" aria-label="Planes disponibles">
+                          {plans.map((plan) => {
+                            const selected = plan.id === selectedPlanId;
+                            return (
+                              <button
+                                key={plan.id}
+                                type="button"
+                                role="option"
+                                aria-selected={selected}
+                                className={`register-plan-card ${selected ? "register-plan-card--selected" : ""}`}
+                                onClick={() => setSelectedPlanId(plan.id)}
+                              >
+                                <h3 className="register-plan-card__name">{plan.displayName}</h3>
+                                <p className="register-plan-card__price">
+                                  Mensual: {formatPlanPriceDisplay(plan.monthlyPrice)}
+                                </p>
+                                <p className="register-plan-card__price">
+                                  Anual: {formatPlanPriceDisplay(plan.annualPrice)}
+                                </p>
+                                <div className="register-plan-card__limits">
+                                  Productos: {formatPlanLimit(plan.productsLimit)}
+                                  <br />
+                                  Usuarios: {formatPlanLimit(plan.usersLimit)}
+                                  <br />
+                                  Ubicaciones: {formatPlanLimit(plan.locationsLimit)}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {selectedIsPaid ? (
+                          <div className="register-plan-section" style={{ marginTop: 8 }}>
+                            <label>Facturación</label>
+                            <div className="register-billing-toggle" role="group" aria-label="Ciclo de facturación">
+                              <button
+                                type="button"
+                                className={`register-billing-toggle__btn ${billingCycle === "monthly" ? "register-billing-toggle__btn--active" : ""}`}
+                                onClick={() => setBillingCycle("monthly")}
+                              >
+                                Mensual
+                              </button>
+                              <button
+                                type="button"
+                                className={`register-billing-toggle__btn ${billingCycle === "annual" ? "register-billing-toggle__btn--active" : ""}`}
+                                onClick={() => setBillingCycle("annual")}
+                              >
+                                Anual
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="auth-card__info">
+                    <Icon name="info_outline" />
+                    <span>Como administrador, luego podrás agregar empleados y asignarles roles desde el dashboard.</span>
+                  </div>
+
+                  <div className="btn-row">
+                    <button
+                      type="button"
+                      className="auth-btn auth-btn--outline"
+                      onClick={() => {
+                        setCurrentStep(0);
+                        setErrorMessage("");
+                      }}
+                    >
+                      <Icon name="arrow_back" />
+                      <span>Atrás</span>
+                    </button>
+                    <button
+                      type="submit"
+                      className="auth-btn"
+                      disabled={isLoading || !orgValid || !planValid}
+                    >
+                      {isLoading ? (
+                        <div className="spinner" />
+                      ) : (
+                        <>
+                          <span>Crear cuenta</span>
+                          <Icon name="rocket_launch" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {!paidRegistrationSuccess ? (
+              <p className="auth-card__footer">
+                ¿Ya tienes cuenta? <Link href="/login">Iniciar sesión</Link>
+              </p>
+            ) : null}
           </>
         )}
-
-        <p className="auth-card__footer">
-          ¿Ya tienes cuenta? <Link href="/login">Iniciar sesión</Link>
-        </p>
       </div>
     </div>
   );

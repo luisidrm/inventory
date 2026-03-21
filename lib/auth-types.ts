@@ -20,6 +20,8 @@ export interface CreateOrganizationRequest {
 }
 
 
+export type RegistrationBillingCycle = "monthly" | "annual";
+
 export interface RegisterWithOrganizationRequest {
   organizationName: string;
   organizationCode: string;
@@ -30,6 +32,8 @@ export interface RegisterWithOrganizationRequest {
   birthday: string;
   phone: string;
   gender: number | null;
+  planId: number;
+  billingCycle: RegistrationBillingCycle;
 }
 
 export interface UserResponse {
