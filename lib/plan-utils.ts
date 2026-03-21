@@ -2,6 +2,8 @@
 export interface PublicPlan {
   id: number;
   displayName: string;
+  /** Slug del plan desde la API (ej. free, pro, enterprise). */
+  name: string;
   monthlyPrice: number;
   annualPrice: number;
   productsLimit: number;
@@ -18,6 +20,7 @@ function normalizePlan(item: Record<string, unknown>): PublicPlan {
   return {
     id: num(item.id ?? item.Id ?? item.planId ?? item.PlanId, -1),
     displayName: String(item.displayName ?? item.DisplayName ?? ""),
+    name: String(item.name ?? item.Name ?? "").toLowerCase(),
     monthlyPrice: num(item.monthlyPrice ?? item.MonthlyPrice, 0),
     annualPrice: num(item.annualPrice ?? item.AnnualPrice, 0),
     productsLimit: num(
@@ -41,6 +44,32 @@ function normalizePlan(item: Record<string, unknown>): PublicPlan {
   };
 }
 
+/** Orden fijo para UI: Free → Pro → Enterprise; el resto al final por nombre. */
+function planTierRank(plan: PublicPlan): number {
+  const n = plan.name;
+  if (n === "free") return 0;
+  if (n === "pro") return 1;
+  if (n === "enterprise") return 2;
+  const d = plan.displayName.toLowerCase().trim();
+  if (d === "free") return 0;
+  if (d === "pro") return 1;
+  if (d.includes("enterprise")) return 2;
+  return 50;
+}
+
+export function sortPlansDisplayOrder(plans: PublicPlan[]): PublicPlan[] {
+  return [...plans].sort((a, b) => {
+    const ra = planTierRank(a);
+    const rb = planTierRank(b);
+    if (ra !== rb) return ra - rb;
+    return a.displayName.localeCompare(b.displayName, "es");
+  });
+}
+
+export function isProPlan(plan: PublicPlan): boolean {
+  return plan.name === "pro" || plan.displayName.toLowerCase().trim() === "pro";
+}
+
 export function parsePlansFromApi(raw: unknown): PublicPlan[] {
   let list: unknown[] = [];
   if (Array.isArray(raw)) list = raw;
@@ -50,13 +79,15 @@ export function parsePlansFromApi(raw: unknown): PublicPlan[] {
     if (Array.isArray(inner)) list = inner;
     else if (Array.isArray(o.plans)) list = o.plans as unknown[];
   }
-  return list
+  const parsed = list
     .filter((item): item is Record<string, unknown> => item !== null && typeof item === "object")
     .map(normalizePlan)
     .filter((p) => p.id >= 0 && p.displayName.length > 0);
+  return sortPlansDisplayOrder(parsed);
 }
 
-export function formatPlanLimit(value: number): string {
+export function formatPlanLimit(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
   return value === -1 ? "Ilimitado" : String(value);
 }
 

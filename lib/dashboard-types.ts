@@ -496,12 +496,15 @@ export type SubscriptionBillingCycle = "monthly" | "annual";
 
 export interface MySubscriptionDto {
   planName: string;
+  /** Id del plan actual (útil para upgrades). */
+  planId: number | null;
   status: SubscriptionStatus;
   billingCycle: SubscriptionBillingCycle;
   startDate: string;
   endDate: string;
   daysRemaining: number;
-  productsLimit: number;
-  usersLimit: number;
-  locationsLimit: number;
+  /** null = no informado por la API; -1 = ilimitado explícito */
+  productsLimit: number | null;
+  usersLimit: number | null;
+  locationsLimit: number | null;
 }

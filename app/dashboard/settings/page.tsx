@@ -10,7 +10,6 @@ import {
 import "../products/products-modal.css";
 import "./settings.css";
 import Switch from "@/components/Switch";
-import { formatPlanLimit } from "@/lib/plan-utils";
 import type { MySubscriptionDto, SubscriptionStatus } from "@/lib/dashboard-types";
 
 type SettingsTab = "general" | "subscription";
@@ -23,18 +22,49 @@ function formatSubscriptionDate(iso: string): string {
 }
 
 function subscriptionStatusBadge(status: SubscriptionStatus): { className: string; label: string } {
+  const base =
+    "inline-flex shrink-0 items-center justify-center rounded-full px-3 py-1.5 text-xs font-semibold tracking-wide ring-1";
   switch (status) {
     case "active":
-      return { className: "sub-badge sub-badge--active", label: "Activa" };
+      return {
+        className: `${base} bg-emerald-100 text-emerald-800 ring-emerald-200/70`,
+        label: "Activa",
+      };
     case "pending":
-      return { className: "sub-badge sub-badge--pending", label: "Pendiente de aprobación" };
+      return {
+        className: `${base} bg-amber-100 text-amber-950 ring-amber-200/80`,
+        label: "Pendiente de aprobación",
+      };
     case "expired":
-      return { className: "sub-badge sub-badge--expired", label: "Vencida" };
+      return {
+        className: `${base} bg-red-100 text-red-900 ring-red-200/70`,
+        label: "Vencida",
+      };
     case "cancelled":
-      return { className: "sub-badge sub-badge--cancelled", label: "Cancelada" };
+      return {
+        className: `${base} bg-slate-200/80 text-slate-700 ring-slate-300/80`,
+        label: "Cancelada",
+      };
     default:
-      return { className: "sub-badge sub-badge--pending", label: "Pendiente de aprobación" };
+      return {
+        className: `${base} bg-amber-100 text-amber-950 ring-amber-200/80`,
+        label: "Pendiente de aprobación",
+      };
   }
+}
+
+function planHeaderSurfaceClass(planName: string): string {
+  const n = planName.toLowerCase();
+  if (n.includes("enterprise")) return "bg-violet-50/90";
+  if (n.includes("pro")) return "bg-indigo-50/80";
+  if (n.includes("free")) return "bg-slate-50/95";
+  return "bg-slate-50/90";
+}
+
+function formatLimitStat(value: number | null): string {
+  if (value === null || value === undefined) return "—";
+  if (value === -1) return "∞";
+  return String(value);
 }
 
 function billingCycleLabel(cycle: MySubscriptionDto["billingCycle"]): string {
@@ -54,19 +84,25 @@ function SubscriptionPanel({
 }) {
   if (isLoading) {
     return (
-      <div className="settings-subscription-state">
-        <div className="dt-state__spinner" style={{ margin: "0 auto 16px" }} />
-        <span>Cargando suscripción…</span>
+      <div className="flex max-w-2xl flex-col items-center justify-center gap-3 rounded-xl border border-slate-200/90 bg-white px-8 py-14 text-center text-slate-500 shadow-sm">
+        <div className="dt-state__spinner" />
+        <span className="text-sm font-medium">Cargando suscripción…</span>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="settings-subscription-state">
-        <Icon name="error_outline" />
-        <p>No se pudo cargar la suscripción.</p>
-        <button type="button" className="settings-subscription-retry" onClick={onRetry}>
+      <div className="flex max-w-2xl flex-col items-center justify-center gap-3 rounded-xl border border-slate-200/90 bg-white px-8 py-14 text-center text-slate-600 shadow-sm">
+        <div className="text-4xl leading-none text-slate-400" aria-hidden>
+          <Icon name="error_outline" />
+        </div>
+        <p className="text-sm">No se pudo cargar la suscripción.</p>
+        <button
+          type="button"
+          className="mt-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          onClick={onRetry}
+        >
           Reintentar
         </button>
       </div>
@@ -75,9 +111,11 @@ function SubscriptionPanel({
 
   if (!subscription) {
     return (
-      <div className="settings-subscription-state">
-        <Icon name="info_outline" />
-        <p>No hay información de suscripción disponible.</p>
+      <div className="flex max-w-2xl flex-col items-center justify-center gap-3 rounded-xl border border-slate-200/90 bg-white px-8 py-14 text-center text-slate-600 shadow-sm">
+        <div className="text-4xl leading-none text-slate-400" aria-hidden>
+          <Icon name="info_outline" />
+        </div>
+        <p className="text-sm">No hay información de suscripción disponible.</p>
       </div>
     );
   }
@@ -88,69 +126,117 @@ function SubscriptionPanel({
   const daysNegative = sub.daysRemaining < 0;
 
   return (
-    <>
-      {sub.status === "pending" ? (
-        <div className="settings-subscription-banner settings-subscription-banner--info" role="status">
-          <Icon name="hourglass_empty" />
-          <span>
-            Tu solicitud de suscripción está siendo revisada. Te notificaremos cuando sea aprobada.
-          </span>
+    <article className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-950/5">
+      <header
+        className={`flex flex-col gap-4 border-b border-slate-200/80 px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6 ${planHeaderSurfaceClass(sub.planName)}`}
+      >
+        <div className="min-w-0 flex-1">
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">{sub.planName}</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Ciclo de facturación:{" "}
+            <span className="font-medium text-slate-800">{billingCycleLabel(sub.billingCycle)}</span>
+          </p>
         </div>
-      ) : null}
-
-      {sub.status === "expired" ? (
-        <div className="settings-subscription-banner settings-subscription-banner--warning" role="alert">
-          <Icon name="warning_amber" />
-          <span>
-            Tu suscripción ha vencido. Tu organización está inactiva. Contacta al administrador para renovar.
-          </span>
-        </div>
-      ) : null}
-
-      <section className="settings-subscription-card">
-        <div className="settings-subscription-card__head">
-          <h2 className="settings-subscription-card__plan">{sub.planName}</h2>
+        <div className="flex sm:justify-end">
           <span className={badge.className}>{badge.label}</span>
         </div>
+      </header>
 
-        <div className="settings-subscription-grid">
-          <div className="settings-subscription-field">
-            <label>Ciclo de facturación</label>
-            <p>{billingCycleLabel(sub.billingCycle)}</p>
-          </div>
-          <div className="settings-subscription-field">
-            <label>Fecha de inicio</label>
-            <p>{formatSubscriptionDate(sub.startDate)}</p>
-          </div>
-          <div className="settings-subscription-field">
-            <label>Fecha de vencimiento</label>
-            <p>{formatSubscriptionDate(sub.endDate)}</p>
-          </div>
-          <div className="settings-subscription-field">
-            <label>Días restantes</label>
-            <p
-              className={
-                daysNegative
-                  ? "settings-subscription-days--expired"
-                  : daysLow
-                    ? "settings-subscription-days--warn"
-                    : undefined
-              }
-            >
-              {sub.daysRemaining} días
-            </p>
-          </div>
-          <div className="settings-subscription-field settings-subscription-field--limits">
-            <label>Límites del plan</label>
-            <div className="settings-subscription-limits">
-              <span>Productos: {formatPlanLimit(sub.productsLimit)}</span>
-              <span>Usuarios: {formatPlanLimit(sub.usersLimit)}</span>
-              <span>Ubicaciones: {formatPlanLimit(sub.locationsLimit)}</span>
+      <div className="grid gap-0 divide-y divide-slate-100 md:grid-cols-2 md:divide-x md:divide-y-0">
+        <div className="space-y-6 px-6 py-6">
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Vigencia</h3>
+            <div className="mt-4 space-y-5 border-t border-slate-100 pt-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Fecha de inicio</p>
+                <p className="mt-1 text-base font-medium text-slate-900">{formatSubscriptionDate(sub.startDate)}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Fecha de vencimiento</p>
+                <p className="mt-1 text-base font-medium text-slate-900">{formatSubscriptionDate(sub.endDate)}</p>
+              </div>
+              <div className="rounded-lg border border-slate-100 bg-slate-50/80 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Días restantes</p>
+                <p
+                  className={`mt-1 text-lg font-semibold tabular-nums ${
+                    daysNegative ? "text-red-600" : daysLow ? "text-orange-600" : "text-slate-900"
+                  }`}
+                >
+                  {sub.daysRemaining} días
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </section>
-    </>
+
+        <div className="px-6 py-6">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Límites del plan</h3>
+          <div className="mt-4 flex flex-col gap-3">
+            <div className="flex items-center gap-4 rounded-xl border border-slate-200/80 bg-slate-50/50 px-4 py-3.5 shadow-sm">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-xl text-slate-600 shadow-sm ring-1 ring-slate-200/60">
+                <Icon name="inventory" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Productos</p>
+                <p className="text-2xl font-bold leading-tight tabular-nums text-slate-900">
+                  {formatLimitStat(sub.productsLimit)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 rounded-xl border border-slate-200/80 bg-slate-50/50 px-4 py-3.5 shadow-sm">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-xl text-slate-600 shadow-sm ring-1 ring-slate-200/60">
+                <Icon name="people" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Usuarios</p>
+                <p className="text-2xl font-bold leading-tight tabular-nums text-slate-900">
+                  {formatLimitStat(sub.usersLimit)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 rounded-xl border border-slate-200/80 bg-slate-50/50 px-4 py-3.5 shadow-sm">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-xl text-slate-600 shadow-sm ring-1 ring-slate-200/60">
+                <Icon name="place" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Ubicaciones</p>
+                <p className="text-2xl font-bold leading-tight tabular-nums text-slate-900">
+                  {formatLimitStat(sub.locationsLimit)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {sub.status === "pending" ? (
+        <footer
+          className="flex items-start gap-3 border-t border-amber-200/80 bg-amber-50 px-6 py-4 text-sm leading-relaxed text-amber-950"
+          role="status"
+        >
+          <span className="shrink-0 text-xl leading-none text-amber-700" aria-hidden>
+            <Icon name="hourglass_empty" />
+          </span>
+          <span>
+            Tu solicitud de suscripción está siendo revisada. Te notificaremos cuando sea aprobada.
+          </span>
+        </footer>
+      ) : null}
+
+      {sub.status === "expired" ? (
+        <footer
+          className="flex items-start gap-3 border-t border-red-200/80 bg-red-50 px-6 py-4 text-sm leading-relaxed text-red-950"
+          role="alert"
+        >
+          <span className="shrink-0 text-xl leading-none text-red-700" aria-hidden>
+            <Icon name="warning_amber" />
+          </span>
+          <span>
+            Tu suscripción ha vencido. Tu organización está inactiva. Contacta al administrador para renovar.
+          </span>
+        </footer>
+      ) : null}
+    </article>
   );
 }
 
@@ -434,7 +520,7 @@ export default function SettingsPage() {
           </>
         )
       ) : (
-        <div style={{ paddingTop: 16 }}>
+        <div className="px-6 pb-10 pt-4 lg:px-8">
           <SubscriptionPanel
             subscription={subscription}
             isLoading={subLoading}

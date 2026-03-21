@@ -13,13 +13,35 @@ import Image from "next/image";
 import { DatePickerSimple } from "@/components/DatePickerSimple";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { RegistrationBillingCycle } from "@/lib/auth-types";
-import {
-  formatPlanLimit,
-  formatPlanPriceDisplay,
-  isPaidPlan,
-} from "@/lib/plan-utils";
+import { formatPlanPriceDisplay, isPaidPlan, isProPlan, type PublicPlan } from "@/lib/plan-utils";
 import { useAppDispatch } from "@/store/store";
 import { loginSuccessfull, type AuthState } from "../_slices/authSlice";
+
+function isEnterprisePlan(plan: PublicPlan): boolean {
+  const d = plan.displayName.toLowerCase();
+  return plan.name.includes("enterprise") || d.includes("enterprise");
+}
+
+function planPriceLabel(plan: PublicPlan, cycle: RegistrationBillingCycle): string {
+  if (isEnterprisePlan(plan)) return "Custom";
+  const raw = cycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
+  if (raw < 0) return "Custom";
+  if (raw === 0) return "Gratis para siempre";
+  const formatted = formatPlanPriceDisplay(raw);
+  return cycle === "annual" ? `${formatted} / año` : `${formatted} / mes`;
+}
+
+function featureProducts(n: number): string {
+  return n === -1 ? "Ilimitado" : `Hasta ${n} productos`;
+}
+
+function featureUsers(n: number): string {
+  return n === -1 ? "Ilimitado" : `Hasta ${n} usuarios`;
+}
+
+function featureLocations(n: number): string {
+  return n === -1 ? "Ilimitado" : `Hasta ${n} ubicaciones`;
+}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -48,15 +70,19 @@ export default function RegisterPage() {
   const [touchedPersonal, setTouchedPersonal] = useState<Record<string, boolean>>({});
   const [touchedOrg, setTouchedOrg] = useState<Record<string, boolean>>({});
 
-  const { data: plans = [], isLoading: plansLoading, isError: plansQueryError } = useGetPlansQuery();
+  const { data: plans = [], isLoading: plansLoading, isError: plansQueryError } = useGetPlansQuery(
+    undefined,
+    { skip: currentStep !== 2 },
+  );
   const [registerWithOrganization] = useRegiterWithOrganizationMutation();
   const [login] = useLoginMutation();
 
   useEffect(() => {
+    if (currentStep !== 2) return;
     if (plans.length > 0 && selectedPlanId === null) {
       setSelectedPlanId(plans[0].id);
     }
-  }, [plans, selectedPlanId]);
+  }, [plans, selectedPlanId, currentStep]);
 
   const selectedPlan = useMemo(
     () => plans.find((p) => p.id === selectedPlanId),
@@ -122,10 +148,16 @@ export default function RegisterPage() {
     setCurrentStep(1);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleOrgNext = (e: React.FormEvent) => {
     e.preventDefault();
     setTouchedOrg({ name: true, code: true });
     if (!orgValid) return;
+    setErrorMessage("");
+    setCurrentStep(2);
+  };
+
+  const handleFinalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!planValid || selectedPlanId === null) {
       setErrorMessage(
         plansQueryError
@@ -190,7 +222,9 @@ export default function RegisterPage() {
   const cardClass =
     currentStep === 0
       ? "auth-card auth-card--wide"
-      : "auth-card auth-card--wide auth-card--register-step2";
+      : currentStep === 1
+        ? "auth-card auth-card--wide auth-card--register-step2"
+        : "auth-card auth-card--wide auth-card--register-pricing";
 
   return (
     <div className="auth-page auth-page--register">
@@ -214,7 +248,7 @@ export default function RegisterPage() {
             <div className="register-success-block">
               <Icon name="check_circle" />
               <h1 className="auth-card__title" style={{ marginBottom: 0 }}>
-                Solicitud registrada
+                Registro completado
               </h1>
               <p>
                 Tu cuenta ha sido creada. Un administrador revisará tu solicitud y activará tu organización en breve.
@@ -230,15 +264,21 @@ export default function RegisterPage() {
           </>
         ) : (
           <>
-            <div className="steps-indicator">
+            <div className="steps-indicator steps-indicator--3">
               <div
                 className={`step-dot ${currentStep === 0 ? "active" : ""} ${currentStep > 0 ? "done" : ""}`}
               >
                 {currentStep > 0 ? <Icon name="check" /> : <span>1</span>}
               </div>
               <div className={`step-line ${currentStep > 0 ? "active" : ""}`} />
-              <div className={`step-dot ${currentStep === 1 ? "active" : ""}`}>
-                <span>2</span>
+              <div
+                className={`step-dot ${currentStep === 1 ? "active" : ""} ${currentStep > 1 ? "done" : ""}`}
+              >
+                {currentStep > 1 ? <Icon name="check" /> : <span>2</span>}
+              </div>
+              <div className={`step-line ${currentStep > 1 ? "active" : ""}`} />
+              <div className={`step-dot ${currentStep === 2 ? "active" : ""}`}>
+                <span>3</span>
               </div>
             </div>
 
@@ -252,7 +292,7 @@ export default function RegisterPage() {
             {currentStep === 0 ? (
               <>
                 <h1 className="auth-card__title">Crea tu cuenta de Strova</h1>
-                <p className="auth-card__subtitle">Paso 1 de 2 — Tus datos de administrador</p>
+                <p className="auth-card__subtitle">Paso 1 de 3 — Tus datos de administrador</p>
 
                 <form className="auth-card__form" onSubmit={handleNextStep}>
                   <div className="form-group">
@@ -427,12 +467,12 @@ export default function RegisterPage() {
                   </button>
                 </form>
               </>
-            ) : (
+            ) : currentStep === 1 ? (
               <>
                 <h1 className="auth-card__title">Tu organización</h1>
-                <p className="auth-card__subtitle">Paso 2 de 2 — Plan, empresa o negocio</p>
+                <p className="auth-card__subtitle">Paso 2 de 3 — Datos de tu empresa o negocio</p>
 
-                <form className="auth-card__form" onSubmit={handleSubmit}>
+                <form className="auth-card__form" onSubmit={handleOrgNext}>
                   <div className="form-group">
                     <label>Nombre de la empresa</label>
                     <div className="input-wrapper">
@@ -473,76 +513,6 @@ export default function RegisterPage() {
                     ) : null}
                   </div>
 
-                  <div className="register-plan-section">
-                    <label>Plan</label>
-                    {plansLoading ? (
-                      <p className="register-plans-loading">Cargando planes…</p>
-                    ) : plansQueryError ? (
-                      <p className="form-error" role="alert">
-                        No se pudieron cargar los planes. Recarga la página.
-                      </p>
-                    ) : plans.length === 0 ? (
-                      <p className="form-error" role="alert">
-                        No hay planes disponibles.
-                      </p>
-                    ) : (
-                      <>
-                        <div className="register-plan-grid" role="listbox" aria-label="Planes disponibles">
-                          {plans.map((plan) => {
-                            const selected = plan.id === selectedPlanId;
-                            return (
-                              <button
-                                key={plan.id}
-                                type="button"
-                                role="option"
-                                aria-selected={selected}
-                                className={`register-plan-card ${selected ? "register-plan-card--selected" : ""}`}
-                                onClick={() => setSelectedPlanId(plan.id)}
-                              >
-                                <h3 className="register-plan-card__name">{plan.displayName}</h3>
-                                <p className="register-plan-card__price">
-                                  Mensual: {formatPlanPriceDisplay(plan.monthlyPrice)}
-                                </p>
-                                <p className="register-plan-card__price">
-                                  Anual: {formatPlanPriceDisplay(plan.annualPrice)}
-                                </p>
-                                <div className="register-plan-card__limits">
-                                  Productos: {formatPlanLimit(plan.productsLimit)}
-                                  <br />
-                                  Usuarios: {formatPlanLimit(plan.usersLimit)}
-                                  <br />
-                                  Ubicaciones: {formatPlanLimit(plan.locationsLimit)}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {selectedIsPaid ? (
-                          <div className="register-plan-section" style={{ marginTop: 8 }}>
-                            <label>Facturación</label>
-                            <div className="register-billing-toggle" role="group" aria-label="Ciclo de facturación">
-                              <button
-                                type="button"
-                                className={`register-billing-toggle__btn ${billingCycle === "monthly" ? "register-billing-toggle__btn--active" : ""}`}
-                                onClick={() => setBillingCycle("monthly")}
-                              >
-                                Mensual
-                              </button>
-                              <button
-                                type="button"
-                                className={`register-billing-toggle__btn ${billingCycle === "annual" ? "register-billing-toggle__btn--active" : ""}`}
-                                onClick={() => setBillingCycle("annual")}
-                              >
-                                Anual
-                              </button>
-                            </div>
-                          </div>
-                        ) : null}
-                      </>
-                    )}
-                  </div>
-
                   <div className="auth-card__info">
                     <Icon name="info_outline" />
                     <span>Como administrador, luego podrás agregar empleados y asignarles roles desde el dashboard.</span>
@@ -560,11 +530,107 @@ export default function RegisterPage() {
                       <Icon name="arrow_back" />
                       <span>Atrás</span>
                     </button>
+                    <button type="submit" className="auth-btn" disabled={!orgValid}>
+                      <span>Siguiente</span>
+                      <Icon name="arrow_forward" />
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <form className="auth-card__form" onSubmit={handleFinalSubmit} style={{ gap: 0 }}>
+                <p className="auth-card__subtitle" style={{ textAlign: "center", marginBottom: 0 }}>
+                  Paso 3 de 3 — Elige tu plan
+                </p>
+
+                <div className="register-pricing">
+                  <div className="register-pricing-head">
+                    <h2>Elige tu plan</h2>
+                    <p>Sin contratos. Sin sorpresas. Cancela cuando quieras.</p>
+                  </div>
+
+                  <div className="register-pricing-cycle">
+                    <div className="register-pricing-cycle-inner" role="group" aria-label="Ciclo de facturación">
+                      <button
+                        type="button"
+                        className={`register-pricing-cycle-btn ${billingCycle === "monthly" ? "register-pricing-cycle-btn--active" : ""}`}
+                        onClick={() => setBillingCycle("monthly")}
+                      >
+                        Mensual
+                      </button>
+                      <button
+                        type="button"
+                        className={`register-pricing-cycle-btn ${billingCycle === "annual" ? "register-pricing-cycle-btn--active" : ""}`}
+                        onClick={() => setBillingCycle("annual")}
+                      >
+                        Anual
+                      </button>
+                    </div>
+                  </div>
+
+                  {plansLoading ? (
+                    <p className="register-plans-loading">Cargando planes…</p>
+                  ) : plansQueryError ? (
+                    <p className="form-error" role="alert" style={{ textAlign: "center" }}>
+                      No se pudieron cargar los planes. Recarga la página.
+                    </p>
+                  ) : plans.length === 0 ? (
+                    <p className="form-error" role="alert" style={{ textAlign: "center" }}>
+                      No hay planes disponibles.
+                    </p>
+                  ) : (
+                    <div className="register-pricing-grid">
+                      {plans.map((plan) => {
+                        const selected = plan.id === selectedPlanId;
+                        const popular = isProPlan(plan);
+                        return (
+                          <div
+                            key={plan.id}
+                            className={`register-pricing-card ${popular ? "register-pricing-card--popular" : ""} ${selected ? "register-pricing-card--selected" : ""}`}
+                          >
+                            {popular ? <span className="register-pricing-badge">Más Popular</span> : null}
+                            <h3 className="register-pricing-card__title">{plan.displayName}</h3>
+                            <div className="register-pricing-card__price">{planPriceLabel(plan, billingCycle)}</div>
+                            <ul className="register-pricing-features">
+                              <li>
+                                <Icon name="check_circle" />
+                                <span>{featureProducts(plan.productsLimit)}</span>
+                              </li>
+                              <li>
+                                <Icon name="check_circle" />
+                                <span>{featureUsers(plan.usersLimit)}</span>
+                              </li>
+                              <li>
+                                <Icon name="check_circle" />
+                                <span>{featureLocations(plan.locationsLimit)}</span>
+                              </li>
+                            </ul>
+                            <button
+                              type="button"
+                              className="register-pricing-select"
+                              onClick={() => setSelectedPlanId(plan.id)}
+                            >
+                              {selected ? "Plan seleccionado" : "Seleccionar plan"}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="btn-row" style={{ marginTop: 8 }}>
                     <button
-                      type="submit"
-                      className="auth-btn"
-                      disabled={isLoading || !orgValid || !planValid}
+                      type="button"
+                      className="auth-btn auth-btn--outline"
+                      onClick={() => {
+                        setCurrentStep(1);
+                        setErrorMessage("");
+                      }}
                     >
+                      <Icon name="arrow_back" />
+                      <span>Atrás</span>
+                    </button>
+                    <button type="submit" className="auth-btn" disabled={isLoading || !planValid}>
                       {isLoading ? (
                         <div className="spinner" />
                       ) : (
@@ -575,8 +641,8 @@ export default function RegisterPage() {
                       )}
                     </button>
                   </div>
-                </form>
-              </>
+                </div>
+              </form>
             )}
 
             {!paidRegistrationSuccess ? (
