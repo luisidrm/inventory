@@ -46,7 +46,7 @@ export function SaleOrderDetailBody({ row }: { row: SaleOrderResponse }) {
               <ul className="gd-detail-list">
                 {items.map((it) => (
                   <li key={it.id}>
-                    {it.productName} × {it.quantity} — {fmt(it.lineTotal)}
+                    {it.productName} × {it.quantity} — {formatCup(it.lineTotal)}
                   </li>
                 ))}
               </ul>

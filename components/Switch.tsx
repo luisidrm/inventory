@@ -6,19 +6,21 @@ interface SwitchProps {
   onChange: (checked: boolean) => void;
   id?: string;
   className?: string;
+  disabled?: boolean;
 }
 
-const Switch: React.FC<SwitchProps> = ({ checked, onChange, id, className }) => {
+const Switch: React.FC<SwitchProps> = ({ checked, onChange, id, className, disabled = false }) => {
   const autoId = useId();
   const switchId = id ?? autoId;
 
   return (
-    <StyledSwitch className={className}>
+    <StyledSwitch className={className} data-disabled={disabled ? "true" : undefined}>
       <input
         type="checkbox"
         className="switch__input"
         id={switchId}
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
       />
       <label className="switch__track" htmlFor={switchId}>
@@ -72,6 +74,11 @@ const StyledSwitch = styled.div`
 
   .switch__input:checked + .switch__track .switch__thumb {
     transform: translateX(18px);
+  }
+
+  &[data-disabled="true"] .switch__track {
+    cursor: not-allowed;
+    opacity: 0.55;
   }
 `;
 

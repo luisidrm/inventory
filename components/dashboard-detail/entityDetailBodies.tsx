@@ -296,11 +296,12 @@ export function UserDetailBody({
   roleName: string;
 }) {
   const active = String(row.status ?? "").toUpperCase() === "ACTIVE";
-  const ext = row as UserResponse & { lastLoginAt?: string; lastAccessAt?: string };
-  const last =
-    ext.lastLoginAt ?? ext.lastAccessAt ?? (row as Record<string, unknown>).lastLogin as
-      | string
-      | undefined;
+  const ext = row as UserResponse & {
+    lastLoginAt?: string;
+    lastAccessAt?: string;
+    lastLogin?: string;
+  };
+  const last = ext.lastLoginAt ?? ext.lastAccessAt ?? ext.lastLogin;
   return (
     <>
       <DetailField label="Nombre" value={displayDash(row.fullName)} />
