@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
 import { useAppSelector } from "@/store/store";
 import { CartDrawer } from "./components/CartDrawer";
+import { TopbarCurrencySelector } from "@/components/TopbarCurrencySelector";
 import "./catalog.css";
 
 interface CatalogCtx {
@@ -46,6 +47,8 @@ export default function CatalogLayout({ children }: { children: React.ReactNode 
           </Link>
 
           <div className="store-nav__spacer" />
+
+          <TopbarCurrencySelector />
 
           <div className="store-nav__actions">
             {!hideCart && (

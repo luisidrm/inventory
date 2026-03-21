@@ -1,6 +1,7 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { getApiUrl, getToken } from "@/lib/auth-api";
 import type {
+  AccountUpdateProfileRequest,
   GroupedSettingsResponse,
   MySubscriptionDto,
   UpdateGroupedSettingsRequest,
@@ -38,6 +39,10 @@ export const settingsApi = createApi({
       query: (body) => ({ url: "/setting/grouped", method: "PUT", body }),
       invalidatesTags: ["Setting"],
     }),
+    updateAccountProfile: builder.mutation<void, AccountUpdateProfileRequest>({
+      query: (body) => ({ url: "/account/update-profile", method: "POST", body }),
+      invalidatesTags: ["Setting"],
+    }),
     getMySubscription: builder.query<MySubscriptionDto | null, void>({
       query: () => "/subscription/my-subscription",
       transformResponse: (raw: unknown) => parseMySubscriptionResponse(raw),
@@ -50,4 +55,5 @@ export const {
   useGetGroupedSettingsQuery,
   useGetMySubscriptionQuery,
   useUpdateGroupedSettingsMutation,
+  useUpdateAccountProfileMutation,
 } = settingsApi;

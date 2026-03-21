@@ -11,6 +11,7 @@ import { useFavorites } from "@/lib/useFavorites";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import AllProductsView from "./AllProductsView";
 import { useCatalogCtx } from "./layout";
+import { getProxiedImageSrc } from "@/lib/proxiedImageSrc";
 
 const PRODUCT_FUSE_KEYS = [
   { name: "name" as const, weight: 0.5 },
@@ -91,7 +92,7 @@ function LocationCard({
     <Link href={`/catalog/${loc.id}`} className="loc2-card">
       <div className="loc2-card__img">
         {loc.photoUrl ? (
-          <img src={loc.photoUrl} alt={loc.name} />
+          <img src={getProxiedImageSrc(loc.photoUrl) ?? loc.photoUrl} alt={loc.name} />
         ) : (
           <div className="loc2-card__placeholder">
             <Icon name="storefront" />

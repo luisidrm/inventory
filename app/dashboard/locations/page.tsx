@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import {
+  usePrefetchAllPagesWhileSearching,
+  SEARCH_TABLE_CHUNK_PAGE_SIZE,
+  TABLE_SEARCH_DEBOUNCE_MS,
+} from "@/lib/usePrefetchAllPagesWhileSearching";
 import type { LocationResponse } from "@/lib/auth-types";
 import type { CreateLocationRequest, BusinessHoursDto } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
@@ -18,6 +24,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useAppSelector } from "@/store/store";
 import "../products/products-modal.css";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
+import { GridFilterBar } from "@/components/dashboard";
 import { CUBA_PROVINCES, getMunicipalitiesByProvince } from "@/lib/cuba-locations";
 import {
   BusinessHoursEditor,
@@ -27,6 +34,8 @@ import {
   type BusinessHoursFormState,
 } from "./BusinessHoursEditor";
 import LocationPicker from "./LocationPicker";
+import { getProxiedImageSrc } from "@/lib/proxiedImageSrc";
+import { LocationDetailBody } from "@/components/dashboard-detail/entityDetailBodies";
 
 function formatAddress(loc: { street?: string | null; municipality?: string | null; province?: string | null }): string {
   const parts = [loc.street, loc.municipality, loc.province].filter(Boolean);
@@ -38,9 +47,11 @@ const COLUMNS: DataTableColumn<LocationResponse>[] = [
     key: "photoUrl",
     label: "Foto",
     width: "64px",
+    sortable: false,
+    exportable: false,
     render: (row) =>
       row.photoUrl ? (
-        <img src={row.photoUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8 }} />
+        <img src={getProxiedImageSrc(row.photoUrl) ?? row.photoUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8 }} />
       ) : (
         <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", display: "grid", placeItems: "center", color: "#94a3b8", fontSize: 20 }}>
           <Icon name="location_on" />
@@ -77,7 +88,11 @@ const initialForm = {
 export default function LocationsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [filterText, setFilterText] = useState("");
+  const debouncedFilterText = useDebouncedValue(filterText, TABLE_SEARCH_DEBOUNCE_MS);
+  const shouldPrefetchAll = debouncedFilterText.trim().length > 0;
+  const perPage = shouldPrefetchAll ? Math.max(pageSize, SEARCH_TABLE_CHUNK_PAGE_SIZE) : pageSize;
+  const loadNextPage = useCallback(() => setPage((p) => p + 1), []);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<LocationResponse | null>(null);
   const [form, setForm] = useState(initialForm);
@@ -107,7 +122,7 @@ export default function LocationsPage() {
 
   const { data: result, isLoading, isFetching } = useGetLocationsQuery({
     page,
-    perPage: pageSize,
+    perPage,
     ...(organizationId ? { organizationId } : {}),
   });
   const [createLocation] = useCreateLocationMutation();
@@ -127,6 +142,13 @@ export default function LocationsPage() {
     });
   }, [result?.data, page]);
 
+  usePrefetchAllPagesWhileSearching({
+    isSearchActive: shouldPrefetchAll,
+    isFetching,
+    pagination: result?.pagination,
+    loadNextPage,
+  });
+
   useEffect(() => {
     if (!isFetching) {
       isLoadingMore.current = false;
@@ -137,22 +159,29 @@ export default function LocationsPage() {
     if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
-  }, [searchTerm, organizationId]);
+  }, [debouncedFilterText, organizationId]);
 
   const loadedRows =
     page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
 
-  const filteredData = searchTerm.trim()
-    ? loadedRows.filter((row) =>
-        Object.values(row).some((val) =>
-          String(val ?? "").toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      )
-    : loadedRows;
+  const clearGridFilters = () => setFilterText("");
 
-  const hasMore = result?.pagination
-    ? page < result.pagination.totalPages
-    : false;
+  const filteredData = useMemo(() => {
+    const q = debouncedFilterText.trim().toLowerCase();
+    if (!q) return loadedRows;
+    return loadedRows.filter(
+      (row) =>
+        String(row.name ?? "").toLowerCase().includes(q) ||
+        String(row.code ?? "").toLowerCase().includes(q),
+    );
+  }, [loadedRows, debouncedFilterText]);
+
+  const gridFiltersActive = filterText.trim() !== "";
+
+  const hasMore =
+    !shouldPrefetchAll && result?.pagination
+      ? page < result.pagination.totalPages
+      : false;
 
   const handleLoadMore = () => {
     if (isLoadingMore.current || !hasMore) return;
@@ -326,6 +355,13 @@ export default function LocationsPage() {
     setDeleteBlockedByApi(false);
   };
 
+  const handleBulkDeleteLocations = async (ids: number[]) => {
+    for (const id of ids) {
+      await deleteLocation(id).unwrap();
+    }
+    setAllRows((prev) => prev.filter((r) => !ids.includes(r.id)));
+  };
+
   const handleDelete = async () => {
     if (!deleting) return;
     setDeleteError("");
@@ -352,13 +388,32 @@ export default function LocationsPage() {
   return (
     <>
       <DataTable
+        gridConfig={{
+          storageKey: "dashboard-locations",
+          exportFilenamePrefix: "ubicaciones",
+          primaryColumnKey: "name",
+          bulkEntityLabel: "ubicaciones",
+        }}
+        onBulkDeleteSelected={canDeleteLocation ? handleBulkDeleteLocations : undefined}
+        filters={
+          <GridFilterBar onClear={clearGridFilters}>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Nombre / código</span>
+              <input
+                type="search"
+                className={`grid-filter-bar__control grid-filter-bar__control--wide ${filterText.trim() ? "grid-filter-bar__control--active" : ""}`}
+                placeholder="Buscar…"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
+            </div>
+          </GridFilterBar>
+        }
         data={filteredData}
         columns={COLUMNS}
         loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Ubicaciones"
         titleIcon="warehouse"
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
         addLabel="Nueva ubicación"
         onAdd={openCreate}
         addDisabled={!canCreateLocation}
@@ -366,13 +421,25 @@ export default function LocationsPage() {
           { icon: "edit", label: "Editar", onClick: openEdit, disabled: () => !canEditLocation },
           { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger", disabled: () => !canDeleteLocation },
         ]}
+        detailDrawer={{
+          entityLabelPlural: "ubicaciones",
+          getTitle: (row) => row.name,
+          getStatusBadge: () => <span className="dt-tag dt-tag--green">Activo</span>,
+          render: (row) => <LocationDetailBody row={row} />,
+          onEdit: openEdit,
+          showEditButton: () => canEditLocation,
+        }}
         infiniteScroll
         onLoadMore={handleLoadMore}
         hasMore={hasMore}
         loadingMore={isFetching && page > 1}
         emptyIcon="warehouse"
         emptyTitle="Sin registros"
-        emptyDesc={searchTerm ? "No se encontraron resultados" : "Aún no hay ubicaciones"}
+        emptyDesc={
+          gridFiltersActive && loadedRows.length > 0
+            ? "Ninguna ubicación coincide con el filtro."
+            : "Aún no hay ubicaciones"
+        }
       />
 
       {formOpen && (
@@ -431,7 +498,7 @@ export default function LocationsPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               {form.photoUrl ? (
                 <>
-                  <img src={form.photoUrl} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }} />
+                  <img src={getProxiedImageSrc(form.photoUrl) ?? form.photoUrl} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }} />
                   <div>
                     <button type="button" className="modal-btn modal-btn--secondary" onClick={() => fileInputRef.current?.click()} disabled={uploadingImage}>
                       {uploadingImage ? "Subiendo…" : "Cambiar foto"}

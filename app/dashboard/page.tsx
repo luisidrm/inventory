@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   StatCard,
   LineChartCard,
@@ -24,15 +25,19 @@ import {
 } from "./_service/dashboardApi";
 import type { DashboardSummary } from "./_service/dashboardApi";
 import { useGetOrderStatsQuery, useGetOrdersQuery } from "./sales/_service/salesApi";
+import { useDisplayCurrency } from "@/contexts/DisplayCurrencyContext";
+import { cupToDisplayAmount, roundPriceDecimals } from "@/lib/displayCurrencyFormat";
 
 // ─── Fallbacks estáticos (si la API no está disponible o falla) ─────────────
 
-const FALLBACK_KPIS = [
+function getFallbackKpis(formatCup: (n: number) => string) {
+  return [
   { label: "Total Productos", value: "1,284", icon: "inventory_2" as const, trend: "+12% vs mes pasado", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-  { label: "Valor Inventario", value: "$45,200", icon: "payments" as const, trend: "+5.4% vs mes pasado", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
+  { label: "Valor Inventario", value: formatCup(45200), icon: "payments" as const, trend: "+5.4% vs mes pasado", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
   { label: "Stock Bajo", value: "18", icon: "warning" as const, trend: "-2 desde ayer", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
   { label: "Órdenes Semanales", value: "156", icon: "shopping_cart" as const, trend: "+22% vs mes pasado", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
 ];
+}
 
 const FALLBACK_FLOW = [
   { label: "Lun", value: 45 }, { label: "Mar", value: 52 }, { label: "Mié", value: 48 },
@@ -80,10 +85,10 @@ const FALLBACK_LIST_MOV: { primary: string; secondary?: string }[] = [
 ];
 
 const FALLBACK_LIST_LOC: { primary: string; secondary?: string }[] = [
-  { primary: "Almacén Central", secondary: "$22k" },
-  { primary: "Sucursal Norte", secondary: "$12k" },
-  { primary: "Sucursal Sur", secondary: "$8k" },
-  { primary: "Showroom", secondary: "$3k" },
+  { primary: "Almacén Central", secondary: "~22k" },
+  { primary: "Sucursal Norte", secondary: "~12k" },
+  { primary: "Sucursal Sur", secondary: "~8k" },
+  { primary: "Showroom", secondary: "~3k" },
 ];
 
 const FALLBACK_LIST_RECENT: { primary: string; secondary?: string }[] = [
@@ -94,20 +99,32 @@ const FALLBACK_LIST_RECENT: { primary: string; secondary?: string }[] = [
   { primary: "Funda laptop", secondary: "Añadido hace 2 semanas" },
 ];
 
-function buildKpisFromSummary(s: DashboardSummary | null | undefined) {
-  if (!s) return FALLBACK_KPIS;
+function buildKpisFromSummary(
+  s: DashboardSummary | null | undefined,
+  formatCup: (n: number) => string,
+) {
+  if (!s) return getFallbackKpis(formatCup);
   const k: DashboardSummary = s;
   const fmt = (n: number | undefined) => (n != null ? n.toLocaleString("es") : "—");
   const trendStr = (n: number | undefined, suffix = "%") => (n != null ? (n >= 0 ? `+${n}${suffix}` : `${n}${suffix}`) : "");
   return [
     { label: "Total Productos", value: fmt(k.totalProducts), icon: "inventory_2" as const, trend: trendStr(k.totalProductsTrend) + " vs mes pasado", trendUp: (k.totalProductsTrend ?? 0) >= 0, iconBg: "#EEF2FF", iconColor: theme.accent },
-    { label: "Valor Inventario", value: k.inventoryValue != null ? `$${k.inventoryValue.toLocaleString("es")}` : "$45,200", icon: "payments" as const, trend: trendStr(k.inventoryValueTrend) + " vs mes pasado", trendUp: (k.inventoryValueTrend ?? 0) >= 0, iconBg: "#F0FDF4", iconColor: theme.success },
+    {
+      label: "Valor Inventario",
+      value: k.inventoryValue != null ? formatCup(k.inventoryValue) : formatCup(45200),
+      icon: "payments" as const,
+      trend: trendStr(k.inventoryValueTrend) + " vs mes pasado",
+      trendUp: (k.inventoryValueTrend ?? 0) >= 0,
+      iconBg: "#F0FDF4",
+      iconColor: theme.success,
+    },
     { label: "Stock Bajo", value: fmt(k.lowStockCount), icon: "warning" as const, trend: (k.lowStockChange != null ? (k.lowStockChange >= 0 ? "+" : "") + k.lowStockChange + " desde ayer" : "-2 desde ayer"), trendUp: (k.lowStockChange ?? 0) <= 0, iconBg: "#FEF2F2", iconColor: theme.error },
     { label: "Órdenes Semanales", value: fmt(k.weeklyOrders), icon: "shopping_cart" as const, trend: trendStr(k.weeklyOrdersTrend) + " vs mes pasado", trendUp: (k.weeklyOrdersTrend ?? 0) >= 0, iconBg: "#EEF2FF", iconColor: theme.accent },
   ];
 }
 
 export default function DashboardPage() {
+  const { formatCup, selectedCurrency, priceDecimals } = useDisplayCurrency();
   const { data: summary } = useGetSummaryQuery();
   const { data: flowData } = useGetInventoryFlowQuery();
   const { data: categoryData } = useGetCategoryDistributionQuery();
@@ -123,10 +140,20 @@ export default function DashboardPage() {
   const { data: salesStats } = useGetOrderStatsQuery(30);
   const { data: recentOrdersResult } = useGetOrdersQuery({ page: 1, perPage: 5, sortOrder: "desc" });
 
-  const kpis = buildKpisFromSummary(summary ?? null);
+  const kpis = useMemo(
+    () => buildKpisFromSummary(summary ?? null, formatCup),
+    [summary, formatCup],
+  );
   const flow = (flowData && flowData.length > 0) ? flowData : FALLBACK_FLOW;
   const categoryPie = (categoryData && categoryData.length > 0) ? categoryData : FALLBACK_CATEGORY_PIE;
-  const evolution = (evolutionData && evolutionData.length > 0) ? evolutionData : FALLBACK_EVOLUCION;
+  const evolution = useMemo(() => {
+    const raw = (evolutionData && evolutionData.length > 0) ? evolutionData : FALLBACK_EVOLUCION;
+    const rate = selectedCurrency.exchangeRate;
+    return raw.map((d) => ({
+      label: d.label,
+      value: roundPriceDecimals(cupToDisplayAmount(d.value * 1000, rate) / 1000, priceDecimals),
+    }));
+  }, [evolutionData, selectedCurrency.exchangeRate, priceDecimals]);
   const estadoStock = (stockStatusData && stockStatusData.length > 0) ? stockStatusData : FALLBACK_ESTADO_STOCK;
   const entradasSalidas = (entriesExitsData && entriesExitsData.length > 0) ? entriesExitsData : FALLBACK_ENTRADAS_SALIDAS;
   const alertas = (alertsData && alertsData.length > 0) ? alertsData : FALLBACK_ALERTAS;
@@ -144,7 +171,7 @@ export default function DashboardPage() {
   // ── Ventas ──────────────────────────────────────────────────────────────────
   const ss = salesStats as Record<string, number> | null | undefined;
   const fmtMoney = (n: number | undefined) =>
-    n != null ? `$${n.toLocaleString("es", { minimumFractionDigits: 0 })}` : "—";
+    n != null ? formatCup(n) : "—";
   const fmtNum = (n: number | undefined) => (n != null ? String(n) : "—");
 
   const salesKpis = [
@@ -195,7 +222,7 @@ export default function DashboardPage() {
           secondary: `${
             (o.status ?? "").toLowerCase() === "confirmed" ? "Aceptada" :
             (o.status ?? "").toLowerCase() === "cancelled" || (o.status ?? "").toLowerCase() === "canceled" ? "Cancelada" : "Pendiente"
-          } · $${(o.total ?? 0).toLocaleString("es")}`,
+          } · ${formatCup(o.total ?? 0)}`,
         }))
       : [{ primary: "Sin órdenes recientes" }];
 
@@ -258,7 +285,13 @@ export default function DashboardPage() {
       </section>
 
       <section style={{ display: "flex", flexWrap: "wrap", gap: 16, width: "100%" }}>
-        <LineChartCard title="Evolución del valor del inventario" subtitle="Últimos 6 meses (miles $)" data={evolution} height={280} filled={false} />
+        <LineChartCard
+          title="Evolución del valor del inventario"
+          subtitle={`Últimos 6 meses (miles ${selectedCurrency.code})`}
+          data={evolution}
+          height={280}
+          filled={false}
+        />
         <PieChartCard title="Estado del stock (En rango / Bajo / Crítico)" data={estadoStock} height={280} colors={[theme.success, "#F59E0B", theme.error]} />
       </section>
 

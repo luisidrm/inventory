@@ -85,6 +85,7 @@ export const usersApi = createApi({
         if (body.locationId !== undefined) b.locationId = body.locationId;
         if (body.organizationId !== undefined) b.organizationId = body.organizationId;
         if (body.roleId !== undefined) b.roleId = body.roleId;
+        if (body.statusId !== undefined) b.statusId = body.statusId;
         return { url: "/user/" + id, method: "PUT", body: Object.keys(b).length ? b : {} };
       },
       invalidatesTags: (_r, _e, { id }) => [{ type: "User", id }, { type: "User", id: "LIST" }],

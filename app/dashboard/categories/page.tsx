@@ -1,21 +1,26 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import {
+  usePrefetchAllPagesWhileSearching,
+  SEARCH_TABLE_CHUNK_PAGE_SIZE,
+  TABLE_SEARCH_DEBOUNCE_MS,
+} from "@/lib/usePrefetchAllPagesWhileSearching";
 import type { ProductCategoryResponse } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
 import {
   useGetCategoriesQuery,
-  useGetCategoryStatsQuery,
-  useGetItemDistributionQuery,
-  useGetStorageUsageQuery,
   useCreateCategoryMutation,
   useUpdateCategoryMutation,
   useDeleteCategoryMutation,
 } from "./_service/categoriesApi";
+import { useGetProductsQuery } from "../products/_service/productsApi";
+import { CategoryDetailBody } from "@/components/dashboard-detail/entityDetailBodies";
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
-import { StatCard, BarChartCard, PieChartCard, theme } from "@/components/dashboard";
+import { GridFilterBar } from "@/components/dashboard";
 import "../products/products-modal.css";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 
@@ -58,7 +63,11 @@ const initialForm = { name: "", description: "", color: "#6366f1" };
 export default function CategoriesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [filterText, setFilterText] = useState("");
+  const debouncedFilterText = useDebouncedValue(filterText, TABLE_SEARCH_DEBOUNCE_MS);
+  const shouldPrefetchAll = debouncedFilterText.trim().length > 0;
+  const perPage = shouldPrefetchAll ? Math.max(pageSize, SEARCH_TABLE_CHUNK_PAGE_SIZE) : pageSize;
+  const loadNextPage = useCallback(() => setPage((p) => p + 1), []);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ProductCategoryResponse | null>(null);
   const [form, setForm] = useState(initialForm);
@@ -77,7 +86,15 @@ export default function CategoriesPage() {
   const canEditCategory = hasPermission("productcategory.update");
   const canDeleteCategory = hasPermission("productcategory.delete");
 
-  const { data: result, isLoading, isFetching } = useGetCategoriesQuery({ page, perPage: pageSize });
+  const { data: result, isLoading, isFetching } = useGetCategoriesQuery({ page, perPage });
+  const { data: productsForCount } = useGetProductsQuery({ page: 1, perPage: 500 });
+  const categoryProductCounts = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const p of productsForCount?.data ?? []) {
+      m.set(p.categoryId, (m.get(p.categoryId) ?? 0) + 1);
+    }
+    return m;
+  }, [productsForCount?.data]);
   const [createCategory] = useCreateCategoryMutation();
   const [updateCategory] = useUpdateCategoryMutation();
   const [deleteCategory] = useDeleteCategoryMutation();
@@ -95,6 +112,13 @@ export default function CategoriesPage() {
     });
   }, [result?.data, page]);
 
+  usePrefetchAllPagesWhileSearching({
+    isSearchActive: shouldPrefetchAll,
+    isFetching,
+    pagination: result?.pagination,
+    loadNextPage,
+  });
+
   // Reset guard cuando termina el fetch
   useEffect(() => {
     if (!isFetching) {
@@ -107,22 +131,25 @@ export default function CategoriesPage() {
     if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
-  }, [searchTerm]);
+  }, [debouncedFilterText]);
 
   const loadedRows =
     page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
 
-  const filteredData = searchTerm.trim()
-    ? loadedRows.filter((r) =>
-        Object.values(r).some((v) =>
-          String(v ?? "").toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      )
-    : loadedRows;
+  const clearGridFilters = () => setFilterText("");
 
-  const hasMore = result?.pagination
-    ? page < result.pagination.totalPages
-    : false;
+  const filteredData = useMemo(() => {
+    const q = debouncedFilterText.trim().toLowerCase();
+    if (!q) return loadedRows;
+    return loadedRows.filter((r) => String(r.name ?? "").toLowerCase().includes(q));
+  }, [loadedRows, debouncedFilterText]);
+
+  const gridFiltersActive = filterText.trim() !== "";
+
+  const hasMore =
+    !shouldPrefetchAll && result?.pagination
+      ? page < result.pagination.totalPages
+      : false;
 
   const handleLoadMore = () => {
     if (isLoadingMore.current || !hasMore) return;
@@ -212,49 +239,42 @@ export default function CategoriesPage() {
     }
   };
 
-  const { data: categoryStatsApi } = useGetCategoryStatsQuery();
-  const { data: distributionApi } = useGetItemDistributionQuery();
-  const { data: storageApi } = useGetStorageUsageQuery();
-
-  const categoryStats = categoryStatsApi && typeof categoryStatsApi === "object"
-    ? [
-        { label: "Total Categorías", value: String((categoryStatsApi as Record<string, unknown>).totalCategories ?? "24"), icon: "category" as const, iconBg: "#EEF2FF", iconColor: theme.accent },
-        { label: "Más Activa", value: String((categoryStatsApi as Record<string, unknown>).mostActiveCategoryName ?? "Comida"), icon: "trending_up" as const, iconBg: "#F0FDF4", iconColor: theme.success },
-        { label: "Última Edición", value: String((categoryStatsApi as Record<string, unknown>).lastEditedAgo ?? "2h"), icon: "schedule" as const, iconBg: "#FFFBEB", iconColor: "#F59E0B" },
-        { label: "Items Totales", value: String((categoryStatsApi as Record<string, unknown>).totalItems ?? "1,240"), icon: "bar_chart" as const, iconBg: "#ECFEFF", iconColor: "#06B6D4" },
-      ]
-    : [
-        { label: "Total Categorías", value: "24", icon: "category" as const, iconBg: "#EEF2FF", iconColor: theme.accent },
-        { label: "Más Activa", value: "Comida", icon: "trending_up" as const, iconBg: "#F0FDF4", iconColor: theme.success },
-        { label: "Última Edición", value: "2h ago", icon: "schedule" as const, iconBg: "#FFFBEB", iconColor: "#F59E0B" },
-        { label: "Items Totales", value: "1,240", icon: "bar_chart" as const, iconBg: "#ECFEFF", iconColor: "#06B6D4" },
-      ];
-  const distributionData = (distributionApi && distributionApi.length > 0) ? distributionApi : [
-    { label: "Liq", value: 45 }, { label: "Sol", value: 32 }, { label: "Tec", value: 67 }, { label: "Ase", value: 23 }, { label: "Com", value: 89 }, { label: "Per", value: 12 }, { label: "Mis", value: 54 },
-  ];
-  const storagePie = (storageApi && storageApi.length > 0) ? storageApi : [
-    { name: "Comida", value: 40 }, { name: "Tecno", value: 25 }, { name: "Aseo", value: 20 }, { name: "Otros", value: 15 },
-  ];
+  const handleBulkDeleteCategories = async (ids: number[]) => {
+    for (const id of ids) {
+      await deleteCategory(id).unwrap();
+    }
+    setAllRows((prev) => prev.filter((r) => !ids.includes(r.id)));
+  };
 
   return (
     <>
-      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-          {categoryStats.map((s) => <StatCard key={s.label} {...s} />)}
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-          <BarChartCard title="Distribución de Items" subtitle="Por categoría" data={distributionData} height={300} horizontal />
-          <PieChartCard title="Uso de Almacenamiento" data={storagePie} height={300} />
-        </div>
-      </div>
       <DataTable
+        gridConfig={{
+          storageKey: "dashboard-categories",
+          exportFilenamePrefix: "categorias",
+          primaryColumnKey: "name",
+          bulkEntityLabel: "categorías",
+        }}
+        onBulkDeleteSelected={canDeleteCategory ? handleBulkDeleteCategories : undefined}
+        filters={
+          <GridFilterBar onClear={clearGridFilters}>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Nombre</span>
+              <input
+                type="search"
+                className={`grid-filter-bar__control grid-filter-bar__control--wide ${filterText.trim() ? "grid-filter-bar__control--active" : ""}`}
+                placeholder="Buscar por nombre…"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
+            </div>
+          </GridFilterBar>
+        }
         data={filteredData}
         columns={COLUMNS}
         loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Categorías"
         titleIcon="category"
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
         addLabel="Nueva categoría"
         onAdd={openCreate}
         addDisabled={!canCreateCategory}
@@ -262,13 +282,30 @@ export default function CategoriesPage() {
           { icon: "edit", label: "Editar", onClick: openEdit, disabled: () => !canEditCategory },
           { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger", disabled: () => !canDeleteCategory },
         ]}
+        detailDrawer={{
+          entityLabelPlural: "categorías",
+          getTitle: (row) => row.name,
+          getStatusBadge: () => <span className="dt-tag dt-tag--green">Activo</span>,
+          render: (row) => (
+            <CategoryDetailBody
+              row={row}
+              productCount={categoryProductCounts.get(row.id) ?? null}
+            />
+          ),
+          onEdit: openEdit,
+          showEditButton: () => canEditCategory,
+        }}
         infiniteScroll
         onLoadMore={handleLoadMore}
         hasMore={hasMore}
         loadingMore={isFetching && page > 1}
         emptyIcon="category"
         emptyTitle="Sin registros"
-        emptyDesc={searchTerm ? "No se encontraron resultados" : "Aún no hay categorías"}
+        emptyDesc={
+          gridFiltersActive && loadedRows.length > 0
+            ? "Ninguna categoría coincide con el filtro."
+            : "Aún no hay categorías"
+        }
       />
       {formOpen && (
         <FormModal

@@ -7,6 +7,8 @@ import { useCatalogCtx } from "./layout";
 import { useGetAllPublicProductsQuery, useGetPublicTagsQuery } from "./_service/catalogApi";
 import { useFuseSearch } from "@/hooks/useFuseSearch";
 import type { PublicCatalogItem } from "@/lib/dashboard-types";
+import { getProxiedImageSrc } from "@/lib/proxiedImageSrc";
+import { useDisplayCurrency } from "@/contexts/DisplayCurrencyContext";
 
 const PRODUCT_FUSE_KEYS = [
   { name: "name" as const, weight: 0.5 },
@@ -18,10 +20,6 @@ const PRODUCT_FUSE_KEYS = [
 type SortKey = "default" | "price-asc" | "price-desc" | "name-asc" | "name-desc";
 
 const PAGE_SIZE = 50;
-
-function fmtPrice(v: number) {
-  return `$${v.toFixed(2)}`;
-}
 
 function hexToRgb(hex: string): string | null {
   const h = hex.replace("#", "");
@@ -38,11 +36,13 @@ function PriceRangeSlider({
   max,
   value,
   onChange,
+  formatPrice,
 }: {
   min: number;
   max: number;
   value: [number, number];
   onChange: (v: [number, number]) => void;
+  formatPrice: (n: number) => string;
 }) {
   const range = max - min || 1;
   const leftPct = ((value[0] - min) / range) * 100;
@@ -51,8 +51,8 @@ function PriceRangeSlider({
   return (
     <>
       <div className="filter-price-display">
-        <span>{fmtPrice(value[0])}</span>
-        <span>{fmtPrice(value[1])}</span>
+        <span>{formatPrice(value[0])}</span>
+        <span>{formatPrice(value[1])}</span>
       </div>
       <div className="filter-range-wrap">
         <div className="filter-range-track" />
@@ -103,6 +103,7 @@ function FilterSidebar({
   setOnlyInStock,
   sortKey,
   setSortKey,
+  formatPrice,
 }: {
   categories: { name: string; color: string; count: number }[];
   selectedCategory: string | null;
@@ -117,6 +118,7 @@ function FilterSidebar({
   setOnlyInStock: (v: boolean) => void;
   sortKey: SortKey;
   setSortKey: (v: SortKey) => void;
+  formatPrice: (n: number) => string;
 }) {
   const [visibleTagCount, setVisibleTagCount] = useState(6);
 
@@ -207,6 +209,7 @@ function FilterSidebar({
           max={priceExtent[1]}
           value={priceRange}
           onChange={setPriceRange}
+          formatPrice={formatPrice}
         />
       </section>
 
@@ -260,9 +263,11 @@ function SkeletonGrid({ count = 12 }: { count?: number }) {
 function ProductCard({
   item,
   onGoToStore,
+  formatPrice,
 }: {
   item: PublicCatalogItem;
   onGoToStore: () => void;
+  formatPrice: (n: number) => string;
 }) {
   const baseColor = item.categoryColor ?? "#378ADD";
   const rgb = hexToRgb(baseColor);
@@ -284,7 +289,7 @@ function ProductCard({
       <div className="p-explore-img" onClick={onGoToStore}>
         {item.imagenUrl ? (
           <img
-            src={item.imagenUrl}
+            src={getProxiedImageSrc(item.imagenUrl) ?? item.imagenUrl}
             alt={item.name}
             className="p-explore-img__inner"
             loading="lazy"
@@ -333,7 +338,7 @@ function ProductCard({
           </button>
         )}
 
-        <div className="p-explore-price">{fmtPrice(item.precio)}</div>
+        <div className="p-explore-price">{formatPrice(item.precio)}</div>
 
         <button
           type="button"
@@ -348,6 +353,7 @@ function ProductCard({
 }
 
 export default function AllProductsView() {
+  const { formatCup } = useDisplayCurrency();
   const router = useRouter();
   const { search, setSearch } = useCatalogCtx();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -676,6 +682,7 @@ export default function AllProductsView() {
           setOnlyInStock={setOnlyInStock}
           sortKey={sortKey}
           setSortKey={setSortKey}
+          formatPrice={formatCup}
         />
 
         <div className="allprod-grid-wrap">
@@ -689,6 +696,7 @@ export default function AllProductsView() {
                     key={`${item.id}-${item.locationId ?? "x"}`}
                     item={item}
                     onGoToStore={() => goToStore(item.locationId)}
+                    formatPrice={formatCup}
                   />
                 ))}
               </div>
@@ -746,6 +754,7 @@ export default function AllProductsView() {
               setOnlyInStock={setOnlyInStock}
               sortKey={sortKey}
               setSortKey={setSortKey}
+              formatPrice={formatCup}
             />
           </div>
         </div>

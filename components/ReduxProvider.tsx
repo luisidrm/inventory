@@ -4,6 +4,7 @@ import { Provider } from 'react-redux';
 import { persistor, store } from '../store/store';
 import { PersistGate } from 'redux-persist/integration/react';
 import { AuthRestore } from './AuthRestore';
+import { DisplayCurrencyProvider } from '@/contexts/DisplayCurrencyContext';
 
 /** Shown while redux-persist rehydrates; avoids a blank screen during navigation/refresh. */
 function RehydrateFallback() {
@@ -43,7 +44,7 @@ export function ReduxProvider({ children }: { children: React.ReactNode }) {
       <PersistGate loading={<RehydrateFallback />} persistor={persistor}>
         <>
           <AuthRestore />
-          {children}
+          <DisplayCurrencyProvider>{children}</DisplayCurrencyProvider>
         </>
       </PersistGate>
     </Provider>

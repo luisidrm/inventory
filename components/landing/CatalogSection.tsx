@@ -1,10 +1,12 @@
 "use client";
 
 import { useRef, useEffect, useMemo, useState } from "react";
+import { useDisplayCurrency } from "@/contexts/DisplayCurrencyContext";
 import Link from "next/link";
 import { useGetPublicLocationsQuery, useLazyGetPublicCatalogQuery } from "@/app/catalog/_service/catalogApi";
 import type { PublicCatalogItem } from "@/lib/dashboard-types";
 import { Icon } from "@/components/ui/Icon";
+import { getProxiedImageSrc } from "@/lib/proxiedImageSrc";
 
 const LOW_STOCK_THRESHOLD = 10;
 const DEFAULT_ACCENT = "#534AB7";
@@ -19,7 +21,10 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-function mapApiItemToCard(item: PublicCatalogItem): {
+function mapApiItemToCard(
+  item: PublicCatalogItem,
+  formatCup: (n: number) => string,
+): {
   id: number;
   cat: string;
   name: string;
@@ -42,7 +47,7 @@ function mapApiItemToCard(item: PublicCatalogItem): {
     cat: item.categoryName || "Sin categoría",
     name: item.name,
     sku: item.code || `#${item.id}`,
-    price: `$${Number(item.precio).toFixed(2)}`,
+    price: formatCup(Number(item.precio)),
     stock: stockLabel,
     sc,
     bg: hexToRgba(cc, 0.12),
@@ -57,6 +62,7 @@ const STEP = CARD_W + GAP;
 const SPEED = 0.6;
 
 export function CatalogSection() {
+  const { formatCup } = useDisplayCurrency();
   const trackRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
@@ -95,8 +101,8 @@ export function CatalogSection() {
 
   const products = useMemo(() => {
     if (!mergedItems.length) return [];
-    return mergedItems.map(mapApiItemToCard);
-  }, [mergedItems]);
+    return mergedItems.map((item) => mapApiItemToCard(item, formatCup));
+  }, [mergedItems, formatCup]);
 
   const N = products.length;
   const TOTAL = STEP * N;
@@ -187,7 +193,7 @@ export function CatalogSection() {
                   >
                     {p.imagenUrl ? (
                       <img
-                        src={p.imagenUrl}
+                        src={getProxiedImageSrc(p.imagenUrl) ?? p.imagenUrl}
                         alt={p.name}
                         className="catalog-track__card-img-el"
                       />

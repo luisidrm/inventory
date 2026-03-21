@@ -1,33 +1,26 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import {
+  usePrefetchAllPagesWhileSearching,
+  SEARCH_TABLE_CHUNK_PAGE_SIZE,
+  TABLE_SEARCH_DEBOUNCE_MS,
+} from "@/lib/usePrefetchAllPagesWhileSearching";
 import { Icon } from "@/components/ui/Icon";
 import { DataTable } from "@/components/DataTable";
-import { StatCard, theme } from "@/components/dashboard";
+import { GridFilterBar, GridFilterSelect } from "@/components/dashboard";
+import { DatePickerSimple } from "@/components/DatePickerSimple";
+import { useGetUsersQuery } from "../users/_service/usersApi";
 import type { DataTableColumn, DataTableAction } from "@/components/DataTable";
 import {
   useGetOrdersQuery,
-  useGetOrderByIdQuery,
   useConfirmOrderMutation,
   useCancelOrderMutation,
-  useGetOrderStatsQuery,
 } from "./_service/salesApi";
 import type { SaleOrderResponse } from "@/lib/dashboard-types";
 import "./sales.css";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmt(v: number) {
-  return `$${v.toLocaleString("es", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function fmtDate(s: string) {
-  return new Date(s).toLocaleDateString("es", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
+import { SaleOrderDetailBody } from "@/components/dashboard-detail/SaleOrderDetailBody";
 
 /** Normaliza el estado que puede venir "Draft"/"draft" etc. de la API */
 function normalizeStatus(status: string): string {
@@ -55,193 +48,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Order detail modal ────────────────────────────────────────────────────────
-
-function OrderDetailModal({
-  orderId,
-  onClose,
-  onConfirm,
-  onCancel,
-}: {
-  orderId: number;
-  onClose: () => void;
-  onConfirm: (id: number) => Promise<void>;
-  onCancel: (id: number) => Promise<void>;
-}) {
-  const { data: order, isLoading } = useGetOrderByIdQuery(orderId);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-
-  const handle = async (fn: () => Promise<void>) => {
-    setBusy(true);
-    setErr("");
-    try {
-      await fn();
-      onClose();
-    } catch {
-      setErr("Ocurrió un error. Intenta de nuevo.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="order-modal-overlay" onClick={onClose}>
-      <div className="order-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="order-modal__header">
-          <div className="order-modal__icon">
-            <Icon name="receipt_long" />
-          </div>
-          <h2 className="order-modal__title">
-            {isLoading ? "Cargando…" : `Orden ${order?.folio ?? `#${orderId}`}`}
-          </h2>
-          <button type="button" className="order-modal__close" onClick={onClose}>
-            <Icon name="close" />
-          </button>
-        </div>
-
-        {isLoading ? (
-          <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
-            Cargando detalle…
-          </div>
-        ) : order ? (
-          <>
-            <div className="order-modal__body">
-              {/* Info grid */}
-              <div className="order-info-grid">
-                <div className="order-info-item">
-                  <span className="order-info-item__label">Estado</span>
-                  <StatusBadge status={order.status} />
-                </div>
-                <div className="order-info-item">
-                  <span className="order-info-item__label">Ubicación</span>
-                  <span className="order-info-item__value">{order.locationName}</span>
-                </div>
-                <div className="order-info-item">
-                  <span className="order-info-item__label">Fecha</span>
-                  <span className="order-info-item__value">{fmtDate(order.createdAt)}</span>
-                </div>
-                <div className="order-info-item">
-                  <span className="order-info-item__label">Total</span>
-                  <span className="order-info-item__value" style={{ fontWeight: 800 }}>
-                    {fmt(order.total)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Notes */}
-              {order.notes && (
-                <div>
-                  <p className="order-items-title">
-                    <Icon name="notes" />
-                    Notas
-                  </p>
-                  <div className="order-notes">{order.notes}</div>
-                </div>
-              )}
-
-              {/* Items table */}
-              <div>
-                <p className="order-items-title">
-                  <Icon name="inventory_2" />
-                  Productos ({order.items.length})
-                </p>
-                <table className="order-items-table">
-                  <thead>
-                    <tr>
-                      <th>Producto</th>
-                      <th className="td-right">Cant.</th>
-                      <th className="td-right">P. Unit.</th>
-                      <th className="td-right">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {order.items.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.productName}</td>
-                        <td className="td-right">{item.quantity}</td>
-                        <td className="td-right">{fmt(item.unitPrice)}</td>
-                        <td className="td-right">{fmt(item.lineTotal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Totals */}
-              <div className="order-totals">
-                <div className="order-totals__row">
-                  <span>Subtotal</span>
-                  <span>{fmt(order.subtotal)}</span>
-                </div>
-                {order.discountAmount > 0 && (
-                  <div className="order-totals__row">
-                    <span>Descuento</span>
-                    <span style={{ color: "#16a34a" }}>−{fmt(order.discountAmount)}</span>
-                  </div>
-                )}
-                <div className="order-totals__row order-totals__row--total">
-                  <span>Total</span>
-                  <span>{fmt(order.total)}</span>
-                </div>
-              </div>
-
-              {err && (
-                <p style={{ fontSize: "0.8rem", color: "#ef4444", textAlign: "center" }}>
-                  {err}
-                </p>
-              )}
-            </div>
-
-            <div className="order-modal__footer">
-              <button type="button" className="order-modal-btn order-modal-btn--ghost" onClick={onClose}>
-                Cerrar
-              </button>
-              {normalizeStatus(order.status) === "Draft" && (
-                <>
-                  <button
-                    type="button"
-                    className="order-modal-btn order-modal-btn--cancel"
-                    disabled={busy}
-                    onClick={() => handle(() => onCancel(order.id))}
-                  >
-                    <Icon name="cancel" />
-                    Cancelar orden
-                  </button>
-                  <button
-                    type="button"
-                    className="order-modal-btn order-modal-btn--confirm"
-                    disabled={busy}
-                    onClick={() => handle(() => onConfirm(order.id))}
-                  >
-                    <Icon name="check_circle" />
-                    Aceptar orden
-                  </button>
-                </>
-              )}
-              {normalizeStatus(order.status) === "Confirmed" && (
-                <button
-                  type="button"
-                  className="order-modal-btn order-modal-btn--cancel"
-                  disabled={busy}
-                  onClick={() => handle(() => onCancel(order.id))}
-                >
-                  <Icon name="cancel" />
-                  Cancelar orden
-                </button>
-              )}
-            </div>
-          </>
-        ) : (
-          <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
-            No se pudo cargar el detalle.
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ─── Columns ──────────────────────────────────────────────────────────────────
 
 const COLUMNS: DataTableColumn<SaleOrderResponse>[] = [
@@ -250,6 +56,8 @@ const COLUMNS: DataTableColumn<SaleOrderResponse>[] = [
   {
     key: "status",
     label: "Estado",
+    sortValue: (row) => normalizeStatus(row.status),
+    exportValue: (row) => STATUS_DISPLAY[normalizeStatus(row.status)]?.label ?? row.status,
     render: (row) => <StatusBadge status={row.status} />,
   },
   {
@@ -257,6 +65,7 @@ const COLUMNS: DataTableColumn<SaleOrderResponse>[] = [
     label: "Productos",
     type: "number",
     width: "90px",
+    sortValue: (row) => row.items.length,
   },
   { key: "total",     label: "Total",  type: "currency" },
   { key: "createdAt", label: "Fecha",  type: "date" },
@@ -275,16 +84,29 @@ export default function SalesPage() {
   const [page, setPage]         = useState(1);
   const [pageSize]              = useState(10);
   const [statusFilter, setStatus] = useState("");
-  const [searchTerm, setSearch] = useState("");
+  const [filterText, setFilterText] = useState("");
+  const debouncedFilterText = useDebouncedValue(filterText, TABLE_SEARCH_DEBOUNCE_MS);
+  const [saleDateFrom, setSaleDateFrom] = useState("");
+  const [saleDateTo, setSaleDateTo] = useState("");
+  const [amountMin, setAmountMin] = useState("");
+  const [amountMax, setAmountMax] = useState("");
+  const [filterSellerId, setFilterSellerId] = useState("");
+  const shouldPrefetchAll =
+    debouncedFilterText.trim().length > 0 ||
+    saleDateFrom !== "" ||
+    saleDateTo !== "" ||
+    amountMin.trim() !== "" ||
+    amountMax.trim() !== "" ||
+    filterSellerId !== "";
+  const perPage = shouldPrefetchAll ? Math.max(pageSize, SEARCH_TABLE_CHUNK_PAGE_SIZE) : pageSize;
+  const loadNextPage = useCallback(() => setPage((p) => p + 1), []);
   const [allRows, setAllRows]   = useState<SaleOrderResponse[]>([]);
-  const [detailId, setDetailId] = useState<number | null>(null);
 
   const { data: result, isLoading, isFetching } = useGetOrdersQuery({
     page,
-    perPage: pageSize,
+    perPage,
     status: statusFilter,
   });
-  const { data: stats } = useGetOrderStatsQuery(30);
 
   const [confirmOrder, { isLoading: isConfirming }] = useConfirmOrderMutation();
   const [cancelOrder,  { isLoading: isCancelling }]  = useCancelOrderMutation();
@@ -301,80 +123,104 @@ export default function SalesPage() {
     });
   }, [result?.data, result?.pagination?.currentPage, page]);
 
-  // Reset on filter / search change
+  usePrefetchAllPagesWhileSearching({
+    isSearchActive: shouldPrefetchAll,
+    isFetching,
+    pagination: result?.pagination,
+    loadNextPage,
+  });
+
   useEffect(() => {
     if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
-  }, [statusFilter, searchTerm]);
+  }, [statusFilter, debouncedFilterText, saleDateFrom, saleDateTo, amountMin, amountMax, filterSellerId]);
 
   const loadedRows =
     page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
 
+  const { data: usersPage } = useGetUsersQuery({ page: 1, perPage: 500 });
+
+  const userIdToName = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const u of usersPage?.data ?? []) {
+      m.set(u.id, u.fullName?.trim() || u.email?.trim() || String(u.id));
+    }
+    return m;
+  }, [usersPage?.data]);
+
+  const sellerIdsInData = useMemo(() => {
+    const s = new Set<number>();
+    for (const r of loadedRows) {
+      if (r.userId != null && r.userId > 0) s.add(r.userId);
+    }
+    return [...s].sort((a, b) => a - b);
+  }, [loadedRows]);
+
+  const clearGridFilters = () => {
+    setFilterText("");
+    setSaleDateFrom("");
+    setSaleDateTo("");
+    setAmountMin("");
+    setAmountMax("");
+    setFilterSellerId("");
+  };
+
   const filtered = useMemo(() => {
-    if (!searchTerm.trim()) return loadedRows;
-    const q = searchTerm.toLowerCase();
-    return loadedRows.filter(
-      (r) =>
-        r.folio.toLowerCase().includes(q) ||
-        r.locationName.toLowerCase().includes(q)
-    );
-  }, [loadedRows, searchTerm]);
+    let rows = loadedRows;
+    const q = debouncedFilterText.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(
+        (r) =>
+          r.folio.toLowerCase().includes(q) ||
+          r.locationName.toLowerCase().includes(q) ||
+          String(r.contactName ?? "").toLowerCase().includes(q),
+      );
+    }
+    if (saleDateFrom) {
+      const t = new Date(saleDateFrom).getTime();
+      rows = rows.filter((r) => new Date(r.createdAt).getTime() >= t);
+    }
+    if (saleDateTo) {
+      const t = new Date(saleDateTo);
+      t.setHours(23, 59, 59, 999);
+      rows = rows.filter((r) => new Date(r.createdAt).getTime() <= t.getTime());
+    }
+    const mn = parseFloat(amountMin.replace(",", "."));
+    if (!Number.isNaN(mn)) rows = rows.filter((r) => r.total >= mn);
+    const mx = parseFloat(amountMax.replace(",", "."));
+    if (!Number.isNaN(mx)) rows = rows.filter((r) => r.total <= mx);
+    if (filterSellerId !== "") {
+      const uid = Number(filterSellerId);
+      rows = rows.filter((r) => r.userId === uid);
+    }
+    return rows;
+  }, [
+    loadedRows,
+    debouncedFilterText,
+    saleDateFrom,
+    saleDateTo,
+    amountMin,
+    amountMax,
+    filterSellerId,
+  ]);
 
-  const hasMore = result?.pagination
-    ? page < result.pagination.totalPages
-    : false;
+  const gridFiltersActive =
+    filterText.trim() !== "" ||
+    saleDateFrom !== "" ||
+    saleDateTo !== "" ||
+    amountMin.trim() !== "" ||
+    amountMax.trim() !== "" ||
+    filterSellerId !== "";
 
-  // ─── Stats ──────────────────────────────────────────────────────────────────
-  const s = stats as Record<string, unknown> | null | undefined;
-  const statCards = [
-    {
-      label: "Órdenes Totales",
-      value: String(s?.totalOrders ?? result?.pagination?.totalCount ?? "—"),
-      icon: "receipt_long" as const,
-      trend: "",
-      trendUp: true,
-      iconBg: "#EEF2FF",
-      iconColor: theme.accent,
-    },
-    {
-      label: "Aceptadas",
-      value: String(s?.confirmedCount ?? "—"),
-      icon: "check_circle" as const,
-      trend: "",
-      trendUp: true,
-      iconBg: "#F0FDF4",
-      iconColor: theme.success,
-    },
-    {
-      label: "Pendientes",
-      value: String(s?.draftCount ?? "—"),
-      icon: "pending" as const,
-      trend: "",
-      trendUp: true,
-      iconBg: "#EEF2FF",
-      iconColor: "#6366f1",
-    },
-    {
-      label: "Ingresos (30d)",
-      value: s?.revenue != null ? `$${Number(s.revenue).toLocaleString("es")}` : "—",
-      icon: "payments" as const,
-      trend: "",
-      trendUp: true,
-      iconBg: "#F0FDF4",
-      iconColor: theme.success,
-    },
-  ];
+  const hasMore =
+    !shouldPrefetchAll && result?.pagination
+      ? page < result.pagination.totalPages
+      : false;
 
   const isBusy = isConfirming || isCancelling;
 
   const actions: DataTableAction<SaleOrderResponse>[] = [
-    {
-      icon: "visibility",
-      label: "Ver detalle",
-      onClick: (row) => setDetailId(row.id),
-      disabled: () => isBusy,
-    },
     {
       icon: processingId !== null && isConfirming ? "hourglass_empty" : "check_circle",
       label: isConfirming ? "Aceptando…" : "Aceptar",
@@ -412,37 +258,111 @@ export default function SalesPage() {
 
   return (
     <>
-      {/* Stats */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
-        {statCards.map((s) => (
-          <StatCard key={s.label} {...s} />
-        ))}
-      </div>
-
-      {/* Status filter */}
-      <div className="sales-filter">
-        {STATUS_FILTERS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            className={`sales-filter__chip ${statusFilter === f.value ? "sales-filter__chip--active" : ""}`}
-            onClick={() => setStatus(f.value)}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Table */}
       <DataTable
+        gridConfig={{
+          storageKey: "dashboard-sales",
+          exportFilenamePrefix: "ventas",
+          primaryColumnKey: "folio",
+          bulkEntityLabel: "ventas",
+        }}
+        filters={
+          <GridFilterBar
+            onClear={() => {
+              clearGridFilters();
+              setStatus("");
+            }}
+          >
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Buscar</span>
+              <input
+                type="search"
+                className={`grid-filter-bar__control grid-filter-bar__control--wide ${filterText.trim() ? "grid-filter-bar__control--active" : ""}`}
+                placeholder="Cliente, folio, referencia…"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Estado</span>
+              <GridFilterSelect
+                aria-label="Estado de venta"
+                value={statusFilter}
+                onChange={setStatus}
+                active={statusFilter !== ""}
+                className="grid-filter-bar__control--medium"
+                options={STATUS_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+              />
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Desde</span>
+              <DatePickerSimple
+                date={saleDateFrom}
+                setDate={setSaleDateFrom}
+                emptyLabel="Seleccionar"
+                buttonClassName={`grid-filter-bar__date-trigger grid-filter-bar__control--medium ${saleDateFrom ? "grid-filter-bar__control--active" : ""}`}
+              />
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Hasta</span>
+              <DatePickerSimple
+                date={saleDateTo}
+                setDate={setSaleDateTo}
+                emptyLabel="Seleccionar"
+                buttonClassName={`grid-filter-bar__date-trigger grid-filter-bar__control--medium ${saleDateTo ? "grid-filter-bar__control--active" : ""}`}
+              />
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Monto</span>
+              <div className="grid-filter-bar__price-range">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className={`grid-filter-bar__control grid-filter-bar__control--narrow ${amountMin.trim() ? "grid-filter-bar__control--active" : ""}`}
+                  placeholder="Min"
+                  aria-label="Monto mínimo"
+                  value={amountMin}
+                  onChange={(e) => setAmountMin(e.target.value)}
+                />
+                <span className="grid-filter-bar__price-dash" aria-hidden>
+                  –
+                </span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className={`grid-filter-bar__control grid-filter-bar__control--narrow ${amountMax.trim() ? "grid-filter-bar__control--active" : ""}`}
+                  placeholder="Max"
+                  aria-label="Monto máximo"
+                  value={amountMax}
+                  onChange={(e) => setAmountMax(e.target.value)}
+                />
+              </div>
+            </div>
+            {sellerIdsInData.length > 0 ? (
+              <div className="grid-filter-bar__field">
+                <span className="grid-filter-bar__label">Vendedor</span>
+                <GridFilterSelect
+                  aria-label="Vendedor"
+                  value={filterSellerId}
+                  onChange={setFilterSellerId}
+                  active={filterSellerId !== ""}
+                  className="grid-filter-bar__control--medium"
+                  options={[
+                    { value: "", label: "Todos" },
+                    ...sellerIdsInData.map((id) => ({
+                      value: String(id),
+                      label: userIdToName.get(id) ?? String(id),
+                    })),
+                  ]}
+                />
+              </div>
+            ) : null}
+          </GridFilterBar>
+        }
         data={filtered}
         columns={COLUMNS}
         loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Órdenes de Venta"
         titleIcon="point_of_sale"
-        searchTerm={searchTerm}
-        onSearchChange={setSearch}
-        searchPlaceholder="Buscar por folio o ubicación…"
         actions={actions}
         infiniteScroll
         onLoadMore={() => { if (!isFetching && hasMore) setPage((p) => p + 1); }}
@@ -450,26 +370,19 @@ export default function SalesPage() {
         loadingMore={isFetching && page > 1}
         emptyIcon="receipt_long"
         emptyTitle="Sin órdenes"
-        emptyDesc={searchTerm ? "No se encontraron resultados" : "Aún no hay órdenes de venta"}
+        emptyDesc={
+          (gridFiltersActive || statusFilter) && loadedRows.length > 0
+            ? "Ninguna orden coincide con los filtros."
+            : "Aún no hay órdenes de venta"
+        }
+        detailDrawer={{
+          entityLabelPlural: "ventas",
+          getTitle: (row) => row.folio || `Orden #${row.id}`,
+          getStatusBadge: (row) => <StatusBadge status={row.status} />,
+          render: (row) => <SaleOrderDetailBody row={row} />,
+          showEditButton: false,
+        }}
       />
-
-      {/* Detail modal */}
-      {detailId !== null && (
-        <OrderDetailModal
-          orderId={detailId}
-          onClose={() => setDetailId(null)}
-          onConfirm={async (id) => {
-            await confirmOrder(id).unwrap();
-            setPage(1);
-            setAllRows([]);
-          }}
-          onCancel={async (id) => {
-            await cancelOrder(id).unwrap();
-            setPage(1);
-            setAllRows([]);
-          }}
-        />
-      )}
     </>
   );
 }

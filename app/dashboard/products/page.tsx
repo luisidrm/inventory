@@ -1,18 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import {
+  usePrefetchAllPagesWhileSearching,
+  SEARCH_TABLE_CHUNK_PAGE_SIZE,
+  TABLE_SEARCH_DEBOUNCE_MS,
+} from "@/lib/usePrefetchAllPagesWhileSearching";
 import { Icon } from "@/components/ui/Icon";
 import type { ProductResponse, CreateProductRequest, ProductTipo } from "@/lib/dashboard-types";
 import "./products-modal.css";
 import { DataTable } from "@/components/DataTable";
-import { StatCard, BarChartCard, PieChartCard, theme } from "@/components/dashboard";
+import { GridFilterBar, GridFilterSelect } from "@/components/dashboard";
 import type { DataTableColumn } from "@/components/DataTable";
 import {
   useGetProductsQuery,
   useGetProductCategoriesQuery,
-  useGetProductStatsQuery,
-  useGetProductPerformanceQuery,
-  useGetProductStockByCategoryQuery,
   useCreateProductMutation,
   useUpdateProductMutation,
   useDeleteProductMutation,
@@ -23,20 +26,145 @@ import { FormModal } from "@/components/FormModal";
 import Switch from "@/components/Switch";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
 import { TagSelector } from "./TagSelector";
+import { getProxiedImageSrc } from "@/lib/proxiedImageSrc";
+import { useDisplayCurrency } from "@/contexts/DisplayCurrencyContext";
+import "./products-table.css";
+import { ProductDetailBody } from "@/components/dashboard-detail/entityDetailBodies";
+import { ProductsBulkToolbar } from "@/components/DataTableBulkToolbar";
+
+function ProductMarginCell({ row }: { row: ProductResponse }) {
+  const { formatCup } = useDisplayCurrency();
+  const p = Number(row.precio);
+  const c = Number(row.costo);
+  if (!Number.isFinite(p) || !Number.isFinite(c)) return <span>—</span>;
+  const diff = p - c;
+  const pct = p > 0 ? (diff / p) * 100 : NaN;
+  const pctLabel = p > 0 ? `${pct.toFixed(1)}%` : "—";
+  const pctClass =
+    p > 0 && Number.isFinite(pct)
+      ? pct >= 40
+        ? "product-margin-cell__pct--g"
+        : pct >= 20
+          ? "product-margin-cell__pct--y"
+          : pct >= 10
+            ? "product-margin-cell__pct--o"
+            : "product-margin-cell__pct--r"
+      : "";
+  return (
+    <div className="product-margin-cell">
+      <span className="dt-cell-mono">{formatCup(diff)}</span>
+      <span className={`product-margin-cell__pct ${pctClass}`.trim()}>{pctLabel}</span>
+    </div>
+  );
+}
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
 
-const COLUMNS: DataTableColumn<ProductResponse>[] = [
-  { key: "code",        label: "Código",      width: "100px" },
-  { key: "name",        label: "Nombre" },
-  { key: "description", label: "Descripción" },
-  { key: "precio",      label: "Precio",      type: "currency" },
-  { key: "costo",       label: "Costo",       type: "currency" },
-  { key: "totalStock",  label: "Stock",       type: "number" },
-  { key: "isAvailable", label: "Disponible",  type: "boolean" },
-  { key: "isForSale",   label: "En Venta",    type: "boolean" },
-  { key: "createdAt",   label: "Creado",      type: "date" },
-];
+const MARGIN_COLUMN_HEADER_TOOLTIP = (
+  <div className="dt-th-hint__content">
+    <p className="dt-th-hint__lead">Rentabilidad del producto:</p>
+    <div className="dt-th-hint__lines">
+      <div className="dt-th-hint__line">
+        <span className="dt-th-hint__glyph" aria-hidden>
+          🟢
+        </span>
+        <span className="dt-th-hint__text">Verde → Excelente (40% o más)</span>
+      </div>
+      <div className="dt-th-hint__line">
+        <span className="dt-th-hint__glyph" aria-hidden>
+          🟡
+        </span>
+        <span className="dt-th-hint__text">Amarillo → Bueno (20% – 39%)</span>
+      </div>
+      <div className="dt-th-hint__line">
+        <span className="dt-th-hint__glyph" aria-hidden>
+          🟠
+        </span>
+        <span className="dt-th-hint__text">Naranja → Bajo (10% – 19%)</span>
+      </div>
+      <div className="dt-th-hint__line">
+        <span className="dt-th-hint__glyph" aria-hidden>
+          🔴
+        </span>
+        <span className="dt-th-hint__text">Rojo → Muy bajo (menos del 10%)</span>
+      </div>
+    </div>
+  </div>
+);
+
+function useProductColumns(): DataTableColumn<ProductResponse>[] {
+  const { formatCup } = useDisplayCurrency();
+  return useMemo(
+    () => [
+      {
+        key: "imagenUrl",
+        label: "Foto",
+        width: "56px",
+        sortable: false,
+        exportable: false,
+        render: (row) => (
+          <div
+            className="product-grid-thumb-wrap"
+            title={[row.code, row.name].filter(Boolean).join(" · ")}
+          >
+            {row.imagenUrl ? (
+              <img
+                src={getProxiedImageSrc(row.imagenUrl) ?? row.imagenUrl}
+                alt={row.name || ""}
+                className="product-grid-thumb"
+                loading="lazy"
+              />
+            ) : (
+              <span className="product-grid-thumb product-grid-thumb--placeholder" aria-hidden>
+                <Icon name="inventory_2" />
+              </span>
+            )}
+          </div>
+        ),
+      },
+      { key: "name", label: "Nombre", width: "min(180px, 16vw)" },
+      {
+        key: "description",
+        label: "Descripción",
+        width: "min(240px, 28vw)",
+        render: (row) => (
+          <span className="product-grid-desc" title={(row.description ?? "").trim() || undefined}>
+            {(row.description ?? "").trim() ? row.description : "—"}
+          </span>
+        ),
+      },
+      { key: "precio", label: "Precio", type: "currency", width: "108px" },
+      { key: "costo", label: "Costo", type: "currency", width: "108px" },
+      {
+        key: "__margin",
+        label: "Margen",
+        width: "104px",
+        render: (row) => <ProductMarginCell row={row} />,
+        sortValue: (row) => {
+          const p = Number(row.precio);
+          const c = Number(row.costo);
+          if (!Number.isFinite(p) || !Number.isFinite(c) || p <= 0) return Number.NEGATIVE_INFINITY;
+          return ((p - c) / p) * 100;
+        },
+        exportValue: (row) => {
+          const p = Number(row.precio);
+          const c = Number(row.costo);
+          if (!Number.isFinite(p) || !Number.isFinite(c)) return "";
+          const diff = p - c;
+          const pct = p > 0 ? `${((diff / p) * 100).toFixed(1)}%` : "";
+          return pct ? `${formatCup(diff)} (${pct})` : formatCup(diff);
+        },
+        headerTooltip: MARGIN_COLUMN_HEADER_TOOLTIP,
+      },
+      { key: "totalStock", label: "Stock", type: "number", width: "80px" },
+      /* Anchos fijos: si no, en table-layout:fixed se estiran y “Activo” queda con un hueco enorme entre columnas */
+      { key: "isAvailable", label: "Disponible", type: "boolean", width: "96px" },
+      { key: "isForSale", label: "En Venta", type: "boolean", width: "96px" },
+      { key: "createdAt", label: "Creado", type: "date", width: "112px" },
+    ],
+    [formatCup],
+  );
+}
 
 const PRODUCT_TIPO_OPTIONS: { value: ProductTipo; label: string }[] = [
   { value: "inventariable", label: "Inventariable" },
@@ -125,7 +253,7 @@ function ImageUploader({ value, onChange }: ImageUploaderProps) {
           </div>
         ) : hasImage ? (
           <>
-            <img src={value} alt="Preview" className="img-uploader__preview" />
+            <img src={getProxiedImageSrc(value) ?? value} alt="Preview" className="img-uploader__preview" />
             <div className="img-uploader__overlay">
               <button
                 type="button"
@@ -209,9 +337,25 @@ function ImageUploader({ value, onChange }: ImageUploaderProps) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ProductsPage() {
+  const productColumns = useProductColumns();
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [filterText, setFilterText] = useState("");
+  const debouncedFilterText = useDebouncedValue(filterText, TABLE_SEARCH_DEBOUNCE_MS);
+  const [filterCategoryId, setFilterCategoryId] = useState<string>("");
+  const [filterAvailable, setFilterAvailable] = useState<string>("");
+  const [filterForSale, setFilterForSale] = useState<string>("");
+  const [priceMin, setPriceMin] = useState("");
+  const [priceMax, setPriceMax] = useState("");
+  const shouldPrefetchAll =
+    debouncedFilterText.trim().length > 0 ||
+    filterCategoryId !== "" ||
+    filterAvailable !== "" ||
+    filterForSale !== "" ||
+    priceMin.trim() !== "" ||
+    priceMax.trim() !== "";
+  const perPage = shouldPrefetchAll ? Math.max(pageSize, SEARCH_TABLE_CHUNK_PAGE_SIZE) : pageSize;
+  const loadNextPage = useCallback(() => setPage((p) => p + 1), []);
   const [allRows, setAllRows] = useState<ProductResponse[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -229,7 +373,7 @@ export default function ProductsPage() {
 
   // ─── Queries ──────────────────────────────────────────────────────────────
 
-  const { data: result, isLoading, isFetching } = useGetProductsQuery({ page, perPage: pageSize });
+  const { data: result, isLoading, isFetching } = useGetProductsQuery({ page, perPage });
   const { data: categoriesResult } = useGetProductCategoriesQuery({ perPage: 100 });
 
   const [createProduct] = useCreateProductMutation();
@@ -262,24 +406,74 @@ export default function ProductsPage() {
     });
   }, [result?.data, result?.pagination?.currentPage, page]);
 
-  // Reset on search change
+  usePrefetchAllPagesWhileSearching({
+    isSearchActive: shouldPrefetchAll,
+    isFetching,
+    pagination: result?.pagination,
+    loadNextPage,
+  });
+
   useEffect(() => {
     if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
-  }, [searchTerm]);
+  }, [debouncedFilterText, filterCategoryId, filterAvailable, filterForSale, priceMin, priceMax]);
 
-  const filteredData = searchTerm.trim()
-    ? loadedRows.filter((row) =>
-        Object.values(row).some((val) =>
-          String(val ?? "").toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      )
-    : loadedRows;
+  const clearGridFilters = () => {
+    setFilterText("");
+    setFilterCategoryId("");
+    setFilterAvailable("");
+    setFilterForSale("");
+    setPriceMin("");
+    setPriceMax("");
+  };
 
-  const hasMore = result?.pagination
-    ? page < result.pagination.totalPages
-    : false;
+  const filteredData = useMemo(() => {
+    let rows = loadedRows;
+    const q = debouncedFilterText.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(
+        (row) =>
+          String(row.name ?? "").toLowerCase().includes(q) ||
+          String(row.code ?? "").toLowerCase().includes(q) ||
+          String(row.description ?? "").toLowerCase().includes(q),
+      );
+    }
+    if (filterCategoryId !== "") {
+      const cid = Number(filterCategoryId);
+      rows = rows.filter((r) => r.categoryId === cid);
+    }
+    if (filterAvailable === "yes") rows = rows.filter((r) => r.isAvailable);
+    if (filterAvailable === "no") rows = rows.filter((r) => !r.isAvailable);
+    if (filterForSale === "yes") rows = rows.filter((r) => r.isForSale);
+    if (filterForSale === "no") rows = rows.filter((r) => !r.isForSale);
+    const pMin = parseFloat(priceMin.replace(",", "."));
+    if (!Number.isNaN(pMin)) rows = rows.filter((r) => r.precio >= pMin);
+    const pMax = parseFloat(priceMax.replace(",", "."));
+    if (!Number.isNaN(pMax)) rows = rows.filter((r) => r.precio <= pMax);
+    return rows;
+  }, [
+    loadedRows,
+    debouncedFilterText,
+    filterCategoryId,
+    filterAvailable,
+    filterForSale,
+    priceMin,
+    priceMax,
+  ]);
+
+  const gridFiltersActive =
+    filterText.trim() !== "" ||
+    filterCategoryId !== "" ||
+    filterAvailable !== "" ||
+    filterForSale !== "" ||
+    priceMin.trim() !== "" ||
+    priceMax.trim() !== "";
+
+  const hasMore =
+    !shouldPrefetchAll && result?.pagination
+      ? page < result.pagination.totalPages
+      : false;
 
   const handleLoadMore = () => {
     if (!isFetching && hasMore) setPage((p) => p + 1);
@@ -412,52 +606,145 @@ export default function ProductsPage() {
     }
   };
 
-  // ─── Estadísticas desde API (fallback estático) ─────────────────────────────
-  const { data: productStatsApi } = useGetProductStatsQuery();
-  const { data: performanceApi } = useGetProductPerformanceQuery();
-  const { data: stockByCategoryApi } = useGetProductStockByCategoryQuery();
+  const handleBulkDeleteProducts = async (ids: number[]) => {
+    for (const id of ids) {
+      await deleteProduct(id).unwrap();
+    }
+    setAllRows((prev) => prev.filter((r) => !ids.includes(r.id)));
+  };
 
-  const productStats = productStatsApi && typeof productStatsApi === "object"
-    ? [
-        { label: "Total Productos", value: String((productStatsApi as Record<string, unknown>).totalProducts ?? "1,284"), icon: "inventory_2" as const, trend: `+${(productStatsApi as Record<string, unknown>).totalProductsTrend ?? 12}% vs mes pasado`, trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-        { label: "Valor Inventario", value: (productStatsApi as Record<string, unknown>).inventoryValue != null ? `$${Number((productStatsApi as Record<string, unknown>).inventoryValue).toLocaleString("es")}` : "$45,200", icon: "payment" as const, trend: `+${(productStatsApi as Record<string, unknown>).inventoryValueTrend ?? 4}% vs mes pasado`, trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
-        { label: "Stock Crítico", value: String((productStatsApi as Record<string, unknown>).criticalStockCount ?? "18"), icon: "warning" as const, trend: "↓2% vs mes pasado", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
-        { label: "Movimientos Hoy", value: String((productStatsApi as Record<string, unknown>).movementsToday ?? "142"), icon: "swap_horiz" as const, trend: `+${(productStatsApi as Record<string, unknown>).movementsTodayTrend ?? 8}% vs mes pasado`, trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-      ]
-    : [
-        { label: "Total Productos", value: "1,284", icon: "inventory_2" as const, trend: "+12% vs mes pasado", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-        { label: "Valor Inventario", value: "$45,200", icon: "payment" as const, trend: "+4% vs mes pasado", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
-        { label: "Stock Crítico", value: "18", icon: "warning" as const, trend: "↓2% vs mes pasado", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
-        { label: "Movimientos Hoy", value: "142", icon: "swap_horiz" as const, trend: "+8% vs mes pasado", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-      ];
-  const performanceData = (performanceApi && performanceApi.length > 0) ? performanceApi : [
-    { label: "Lun", value: 45 }, { label: "Mar", value: 52 }, { label: "Mié", value: 38 }, { label: "Jue", value: 65 }, { label: "Vie", value: 48 }, { label: "Sáb", value: 80 }, { label: "Dom", value: 72 },
-  ];
-  const stockByCategory = (stockByCategoryApi && stockByCategoryApi.length > 0) ? stockByCategoryApi : [
-    { name: "Higiene", value: 40 }, { name: "Alimentos", value: 25 }, { name: "Limpieza", value: 20 }, { name: "Otros", value: 15 },
-  ];
+  const handleBulkSetAvailable = async (value: boolean, ids: number[]) => {
+    for (const id of ids) {
+      await updateProduct({ id, body: { isAvailable: value } }).unwrap();
+    }
+    setAllRows((prev) =>
+      prev.map((r) => (ids.includes(r.id) ? { ...r, isAvailable: value } : r)),
+    );
+  };
+
+  const handleBulkSetForSale = async (value: boolean, ids: number[]) => {
+    for (const id of ids) {
+      await updateProduct({ id, body: { isForSale: value } }).unwrap();
+    }
+    setAllRows((prev) =>
+      prev.map((r) => (ids.includes(r.id) ? { ...r, isForSale: value } : r)),
+    );
+  };
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
-      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-          {productStats.map((s) => <StatCard key={s.label} {...s} />)}
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-          <BarChartCard title="Rendimiento de Inventario" subtitle="Unidades por día" data={performanceData} height={300} />
-          <PieChartCard title="Stock por Categoría" data={stockByCategory} height={300} />
-        </div>
-      </div>
+      <div className="products-page-wrap">
       <DataTable
+        gridConfig={{
+          storageKey: "dashboard-products",
+          exportFilenamePrefix: "productos",
+          primaryColumnKey: "name",
+          bulkEntityLabel: "productos",
+        }}
+        renderBulkToolbar={(ctx) => (
+          <ProductsBulkToolbar
+            count={ctx.count}
+            onClear={ctx.clearSelection}
+            onDeleteSelected={
+              canDeleteProduct ? () => void handleBulkDeleteProducts(ctx.selectedIds) : undefined
+            }
+            onSetAvailable={(v) => void handleBulkSetAvailable(v, ctx.selectedIds)}
+            onSetForSale={(v) => void handleBulkSetForSale(v, ctx.selectedIds)}
+            exportSelectedCsv={ctx.exportSelectedCsv}
+            exportSelectedXlsx={ctx.exportSelectedXlsx}
+            showDelete={canDeleteProduct}
+            disableMutations={!canEditProduct}
+          />
+        )}
+        filters={
+          <GridFilterBar onClear={clearGridFilters}>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Buscar</span>
+              <input
+                type="search"
+                className={`grid-filter-bar__control grid-filter-bar__control--wide ${filterText.trim() ? "grid-filter-bar__control--active" : ""}`}
+                placeholder="Nombre, código, descripción…"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Categoría</span>
+              <GridFilterSelect
+                aria-label="Categoría"
+                value={filterCategoryId}
+                onChange={setFilterCategoryId}
+                active={filterCategoryId !== ""}
+                className="grid-filter-bar__control--medium"
+                options={[
+                  { value: "", label: "Todas" },
+                  ...categories.map((c) => ({ value: String(c.id), label: c.name })),
+                ]}
+              />
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Disponible</span>
+              <GridFilterSelect
+                aria-label="Disponible"
+                value={filterAvailable}
+                onChange={setFilterAvailable}
+                active={filterAvailable !== ""}
+            options={[
+              { value: "", label: "Todos" },
+              { value: "yes", label: "Activo" },
+              { value: "no", label: "Inactivo" },
+            ]}
+          />
+        </div>
+        <div className="grid-filter-bar__field">
+          <span className="grid-filter-bar__label">En venta</span>
+          <GridFilterSelect
+            aria-label="En venta"
+            value={filterForSale}
+            onChange={setFilterForSale}
+            active={filterForSale !== ""}
+            options={[
+              { value: "", label: "Todos" },
+                  { value: "yes", label: "Activo" },
+                  { value: "no", label: "Inactivo" },
+                ]}
+              />
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Precio</span>
+              <div className="grid-filter-bar__price-range">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className={`grid-filter-bar__control grid-filter-bar__control--narrow ${priceMin.trim() ? "grid-filter-bar__control--active" : ""}`}
+                  placeholder="Min"
+                  aria-label="Precio mínimo"
+                  value={priceMin}
+                  onChange={(e) => setPriceMin(e.target.value)}
+                />
+                <span className="grid-filter-bar__price-dash" aria-hidden>
+                  –
+                </span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className={`grid-filter-bar__control grid-filter-bar__control--narrow ${priceMax.trim() ? "grid-filter-bar__control--active" : ""}`}
+                  placeholder="Max"
+                  aria-label="Precio máximo"
+                  value={priceMax}
+                  onChange={(e) => setPriceMax(e.target.value)}
+                />
+              </div>
+            </div>
+          </GridFilterBar>
+        }
         data={filteredData}
-        columns={COLUMNS}
+        columns={productColumns}
         loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Productos"
         titleIcon="inventory_2"
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
         addLabel="Nuevo Producto"
         onAdd={openCreate}
         addDisabled={!canCreateProduct}
@@ -466,14 +753,38 @@ export default function ProductsPage() {
           { icon: "edit", label: "Editar", onClick: openEdit, disabled: () => !canEditProduct },
           { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger", disabled: () => !canDeleteProduct },
         ]}
+        detailDrawer={{
+          entityLabelPlural: "productos",
+          getTitle: (row) => row.name?.trim() || row.code || `Producto #${row.id}`,
+          getStatusBadge: (row) => (
+            <span className={`dt-tag ${row.isAvailable ? "dt-tag--green" : "dt-tag--red"}`}>
+              {row.isAvailable ? "Activo" : "Inactivo"}
+            </span>
+          ),
+          render: (row) => (
+            <ProductDetailBody
+              row={row}
+              categoryName={categories.find((c) => c.id === row.categoryId)?.name ?? "—"}
+            />
+          ),
+          onEdit: openEdit,
+          showEditButton: () => canEditProduct,
+        }}
         infiniteScroll
         onLoadMore={handleLoadMore}
         hasMore={hasMore}
         loadingMore={isFetching && page > 1}
         emptyIcon="inventory_2"
         emptyTitle="Sin registros"
-        emptyDesc={searchTerm ? "No se encontraron resultados" : "Aún no hay productos"}
+        emptyDesc={
+          gridFiltersActive && loadedRows.length > 0
+            ? "Ningún producto coincide con los filtros."
+            : loadedRows.length === 0
+              ? "Aún no hay productos"
+              : "Sin resultados"
+        }
       />
+      </div>
 
       {/* ── Form modal ── */}
       <FormModal

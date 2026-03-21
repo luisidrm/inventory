@@ -115,228 +115,26 @@
 }
 
 .register-pricing-head {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .register-pricing-head h2 {
   margin: 0 0 10px;
-  font-size: 1.65rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-size: clamp(1.45rem, 3.5vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
   color: #0f172a;
+  line-height: 1.15;
 }
 
 .register-pricing-head p {
   margin: 0;
   font-size: 0.95rem;
   color: #64748b;
-  line-height: 1.5;
-  max-width: 36ch;
+  line-height: 1.55;
+  max-width: 38ch;
   margin-left: auto;
   margin-right: auto;
-}
-
-.register-pricing-cycle {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 28px;
-}
-
-.register-pricing-cycle-inner {
-  display: inline-flex;
-  padding: 4px;
-  border-radius: 999px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  gap: 2px;
-}
-
-.register-pricing-cycle-btn {
-  border: none;
-  background: transparent;
-  padding: 10px 22px;
-  border-radius: 999px;
-  font-family: var(--font-body);
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: #64748b;
-  cursor: pointer;
-  transition:
-    background 0.2s ease,
-    color 0.2s ease;
-}
-
-.register-pricing-cycle-btn--active {
-  background: #fff;
-  color: #2563eb;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-.register-pricing-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-  margin-bottom: 28px;
-  align-items: start;
-  text-align: left;
-}
-
-@media (max-width: 800px) {
-  .register-pricing-grid {
-    grid-template-columns: 1fr;
-    max-width: 420px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .register-pricing-card--popular {
-    transform: none !important;
-  }
-}
-
-.register-pricing-card {
-  position: relative;
-  border: 2px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 22px 18px 18px;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  min-height: 300px;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    transform 0.2s ease;
-}
-
-@media (min-width: 801px) {
-  .register-pricing-card--popular {
-    transform: scale(1.04);
-    border-color: #3b82f6;
-    box-shadow: 0 16px 48px rgba(37, 99, 235, 0.14);
-    z-index: 2;
-  }
-}
-
-.register-pricing-card--selected {
-  border-color: #635bff !important;
-  box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.22);
-  background: linear-gradient(180deg, #fafaff 0%, #fff 45%);
-}
-
-.register-pricing-card--popular.register-pricing-card--selected {
-  border-color: #4f46e5 !important;
-  box-shadow:
-    0 0 0 3px rgba(79, 70, 229, 0.28),
-    0 16px 48px rgba(37, 99, 235, 0.14);
-}
-
-.register-pricing-badge {
-  position: absolute;
-  top: -11px;
-  left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
-}
-
-.register-pricing-card__title {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 8px 0 12px;
-  text-align: center;
-}
-
-.register-pricing-card__price {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #0f172a;
-  text-align: center;
-  margin-bottom: 16px;
-  min-height: 2.6em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1.3;
-}
-
-.register-pricing-features {
-  list-style: none;
-  margin: 0 0 auto;
-  padding: 0;
-  flex: 1;
-  font-size: 0.86rem;
-  color: #475569;
-  line-height: 1.5;
-}
-
-.register-pricing-features li {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.register-pricing-features li .material-icons {
-  font-size: 16px;
-  width: 16px;
-  color: #22c55e;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.register-pricing-select {
-  margin-top: 18px;
-  width: 100%;
-  height: 46px;
-  border-radius: 10px;
-  border: 2px solid #e2e8f0;
-  background: #fff;
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #334155;
-  cursor: pointer;
-  transition:
-    border-color 0.2s ease,
-    background 0.2s ease,
-    color 0.2s ease;
-}
-
-.register-pricing-select:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-}
-
-.register-pricing-card--selected .register-pricing-select {
-  border-color: #635bff;
-  background: #635bff;
-  color: #fff;
-}
-
-.register-pricing-card--popular .register-pricing-select {
-  border-color: #93c5fd;
-  color: #1d4ed8;
-}
-
-.register-pricing-card--popular .register-pricing-select:hover {
-  border-color: #3b82f6;
-  background: #eff6ff;
-}
-
-.register-pricing-card--popular.register-pricing-card--selected .register-pricing-select {
-  border-color: #4f46e5;
-  background: #4f46e5;
-  color: #fff;
 }
 
 .steps-indicator--3 .step-line {
@@ -890,12 +688,6 @@
   border-color: #635bff;
   background: #f5f3ff;
   color: #4f46e5;
-}
-
-.register-plans-loading {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  padding: 8px 0;
 }
 
 .register-success-block {

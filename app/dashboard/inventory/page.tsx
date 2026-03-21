@@ -1,16 +1,22 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import {
+  usePrefetchAllPagesWhileSearching,
+  SEARCH_TABLE_CHUNK_PAGE_SIZE,
+  TABLE_SEARCH_DEBOUNCE_MS,
+} from "@/lib/usePrefetchAllPagesWhileSearching";
 import type { InventoryResponse } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
-import {
-  useGetInventoriesQuery,
-  useGetInventoryStatsQuery,
-  useGetInventoryFlowQuery,
-  useGetStockByLocationQuery,
-} from "./_service/inventoryApi";
-import { StatCard, LineChartCard, BarChartCard, theme } from "@/components/dashboard";
+import { useGetInventoriesQuery } from "./_service/inventoryApi";
+import { useGetProductsQuery, useGetProductCategoriesQuery } from "../products/_service/productsApi";
+import { useGetLocationsQuery } from "../locations/_service/locationsApi";
+import { useAppSelector } from "@/store/store";
+import { GridFilterBar, GridFilterSelect } from "@/components/dashboard";
+import { DatePickerSimple } from "@/components/DatePickerSimple";
+import { InventoryDetailBody } from "@/components/dashboard-detail/entityDetailBodies";
 
 const COLUMNS: DataTableColumn<InventoryResponse>[] = [
   { key: "productName", label: "Producto", width: "180px" },
@@ -23,12 +29,44 @@ const COLUMNS: DataTableColumn<InventoryResponse>[] = [
 export default function InventoryPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [filterText, setFilterText] = useState("");
+  const debouncedFilterText = useDebouncedValue(filterText, TABLE_SEARCH_DEBOUNCE_MS);
+  const [filterLocationId, setFilterLocationId] = useState<string>("");
+  const [filterCategoryId, setFilterCategoryId] = useState<string>("");
+  const [onlyCriticalStock, setOnlyCriticalStock] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const orgId = useAppSelector((s) => s.auth?.organizationId) ?? 0;
+  const shouldPrefetchAll =
+    debouncedFilterText.trim().length > 0 ||
+    filterLocationId !== "" ||
+    filterCategoryId !== "" ||
+    onlyCriticalStock ||
+    dateFrom !== "" ||
+    dateTo !== "";
+  const perPage = shouldPrefetchAll ? Math.max(pageSize, SEARCH_TABLE_CHUNK_PAGE_SIZE) : pageSize;
+  const loadNextPage = useCallback(() => setPage((p) => p + 1), []);
   const isLoadingMore = useRef(false);
   const filtersChanged = useRef(false);
 
-  const { data: result, isLoading, isFetching } = useGetInventoriesQuery({ page, perPage: pageSize });
+  const { data: result, isLoading, isFetching } = useGetInventoriesQuery({ page, perPage });
+  const { data: productsLookup } = useGetProductsQuery({ page: 1, perPage: 500 });
+  const { data: categoriesResult } = useGetProductCategoriesQuery({ perPage: 100 });
+  const categories = categoriesResult?.data ?? [];
+  const { data: locationsLookup } = useGetLocationsQuery({
+    page: 1,
+    perPage: 200,
+    ...(orgId ? { organizationId: orgId } : {}),
+  });
   const [allRows, setAllRows] = useState<InventoryResponse[]>([]);
+
+  const productIdToCategoryId = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const p of productsLookup?.data ?? []) {
+      m.set(p.id, p.categoryId);
+    }
+    return m;
+  }, [productsLookup?.data]);
 
   useEffect(() => {
     if (!result?.data) return;
@@ -40,6 +78,13 @@ export default function InventoryPage() {
     });
   }, [result?.data, page]);
 
+  usePrefetchAllPagesWhileSearching({
+    isSearchActive: shouldPrefetchAll,
+    isFetching,
+    pagination: result?.pagination,
+    loadNextPage,
+  });
+
   useEffect(() => {
     if (!isFetching) {
       isLoadingMore.current = false;
@@ -50,22 +95,80 @@ export default function InventoryPage() {
     if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
-  }, [searchTerm]);
+  }, [debouncedFilterText, filterLocationId, filterCategoryId, onlyCriticalStock, dateFrom, dateTo]);
 
   const loadedRows =
     page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
 
-  const filteredData = searchTerm.trim()
-    ? loadedRows.filter((row) =>
-        Object.values(row).some((val) =>
-          String(val ?? "").toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      )
-    : loadedRows;
+  const clearGridFilters = () => {
+    setFilterText("");
+    setFilterLocationId("");
+    setFilterCategoryId("");
+    setOnlyCriticalStock(false);
+    setDateFrom("");
+    setDateTo("");
+  };
 
-  const hasMore = result?.pagination
-    ? page < result.pagination.totalPages
-    : false;
+  const filteredData = useMemo(() => {
+    let rows = loadedRows;
+    const q = debouncedFilterText.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter((row) => String((row as InventoryResponse & { productName?: string }).productName ?? "").toLowerCase().includes(q));
+    }
+    if (filterLocationId !== "") {
+      const lid = Number(filterLocationId);
+      rows = rows.filter((r) => r.locationId === lid);
+    }
+    if (filterCategoryId !== "") {
+      const cid = Number(filterCategoryId);
+      rows = rows.filter((r) => productIdToCategoryId.get(r.productId) === cid);
+    }
+    if (onlyCriticalStock) {
+      rows = rows.filter((r) => r.currentStock <= r.minimumStock);
+    }
+    if (dateFrom) {
+      const t = new Date(dateFrom).getTime();
+      rows = rows.filter((r) => new Date(r.modifiedAt ?? r.createdAt).getTime() >= t);
+    }
+    if (dateTo) {
+      const t = new Date(dateTo);
+      t.setHours(23, 59, 59, 999);
+      rows = rows.filter((r) => new Date(r.modifiedAt ?? r.createdAt).getTime() <= t.getTime());
+    }
+    return rows;
+  }, [
+    loadedRows,
+    debouncedFilterText,
+    filterLocationId,
+    filterCategoryId,
+    onlyCriticalStock,
+    dateFrom,
+    dateTo,
+    productIdToCategoryId,
+  ]);
+
+  const gridFiltersActive =
+    filterText.trim() !== "" ||
+    filterLocationId !== "" ||
+    filterCategoryId !== "" ||
+    onlyCriticalStock ||
+    dateFrom !== "" ||
+    dateTo !== "";
+
+  const locationOptions = locationsLookup?.data ?? [];
+
+  const inventoryCategoryName = useCallback(
+    (row: InventoryResponse) => {
+      const cid = productIdToCategoryId.get(row.productId);
+      return categories.find((c) => c.id === cid)?.name ?? "—";
+    },
+    [categories, productIdToCategoryId],
+  );
+
+  const hasMore =
+    !shouldPrefetchAll && result?.pagination
+      ? page < result.pagination.totalPages
+      : false;
 
   const handleLoadMore = () => {
     if (isLoadingMore.current || !hasMore) return;
@@ -73,59 +176,122 @@ export default function InventoryPage() {
     setPage((p) => p + 1);
   };
 
-  const { data: inventoryStatsApi } = useGetInventoryStatsQuery();
-  const { data: flowApi } = useGetInventoryFlowQuery();
-  const { data: stockByLocationApi } = useGetStockByLocationQuery();
-
-  const inventoryStats = inventoryStatsApi && typeof inventoryStatsApi === "object"
-    ? [
-        { label: "Valor Total", value: typeof inventoryStatsApi.totalValue === "number" ? `$${inventoryStatsApi.totalValue.toLocaleString("es")}` : "$45,280.00", icon: "payment" as const, trend: `+${inventoryStatsApi.totalValueTrend ?? 12}% vs mes pasado`, trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
-        { label: "Stock Bajo", value: String(inventoryStatsApi.lowStockCount ?? 12), icon: "warning" as const, trend: `${inventoryStatsApi.lowStockNewToday ?? 3} nuevos hoy`, trendUp: true, iconBg: "#FEF2F2", iconColor: theme.error },
-        { label: "Movimientos", value: String(inventoryStatsApi.movementsCount ?? 142), icon: "swap_vert" as const, trend: `${(inventoryStatsApi.movementsTrend as number ?? -5) >= 0 ? "+" : ""}${inventoryStatsApi.movementsTrend ?? -5}% vs ayer`, trendUp: (inventoryStatsApi.movementsTrend as number ?? 0) >= 0, iconBg: "#EEF2FF", iconColor: theme.accent },
-        { label: "Productos", value: String(inventoryStatsApi.productsCount ?? 854), icon: "inventory" as const, trend: `+${inventoryStatsApi.productsNewCount ?? 8} nuevos`, trendUp: true, iconBg: "#F1F5F9", iconColor: theme.primary },
-      ]
-    : [
-        { label: "Valor Total", value: "$45,280.00", icon: "payment" as const, trend: "+12% vs mes pasado", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
-        { label: "Stock Bajo", value: "12", icon: "warning" as const, trend: "3 nuevos hoy", trendUp: true, iconBg: "#FEF2F2", iconColor: theme.error },
-        { label: "Movimientos", value: "142", icon: "swap_vert" as const, trend: "-5% vs ayer", trendUp: false, iconBg: "#EEF2FF", iconColor: theme.accent },
-        { label: "Productos", value: "854", icon: "inventory" as const, trend: "+8 nuevos", trendUp: true, iconBg: "#F1F5F9", iconColor: theme.primary },
-      ];
-  const flowData = (flowApi && flowApi.length > 0) ? flowApi : [
-    { label: "Lun", value: 45 }, { label: "Mar", value: 52 }, { label: "Mié", value: 48 }, { label: "Jue", value: 70 }, { label: "Vie", value: 65 }, { label: "Sáb", value: 85 }, { label: "Dom", value: 92 },
-  ];
-  const stockByLocation = (stockByLocationApi && stockByLocationApi.length > 0) ? stockByLocationApi : [
-    { label: "Almacén A", value: 420 }, { label: "Almacén B", value: 280 }, { label: "Sucursal Centro", value: 195 }, { label: "Sucursal Norte", value: 120 }, { label: "Showroom", value: 85 },
-  ];
-
   return (
     <>
-      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-          {inventoryStats.map((s) => <StatCard key={s.label} {...s} />)}
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-          <LineChartCard title="Flujo de Inventario (7 días)" data={flowData} height={340} />
-          <BarChartCard title="Stock por Ubicación" subtitle="Unidades por ubicación" data={stockByLocation} height={340} />
-        </div>
-      </div>
-      <p style={{ fontSize: "0.875rem", color: "#64748b", marginBottom: 8, marginTop: 0 }}>
-        Vista informativa del stock por producto y ubicación. Para registrar entradas o salidas, usa la sección <strong>Movimientos</strong>.
-      </p>
       <DataTable
+        gridConfig={{
+          storageKey: "dashboard-inventory",
+          exportFilenamePrefix: "inventario",
+          primaryColumnKey: "productName",
+          bulkEntityLabel: "registros",
+        }}
+        filters={
+          <GridFilterBar onClear={clearGridFilters}>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Producto</span>
+              <input
+                type="search"
+                className={`grid-filter-bar__control grid-filter-bar__control--wide ${filterText.trim() ? "grid-filter-bar__control--active" : ""}`}
+                placeholder="Nombre de producto…"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Ubicación</span>
+              <GridFilterSelect
+                aria-label="Ubicación"
+                value={filterLocationId}
+                onChange={setFilterLocationId}
+                active={filterLocationId !== ""}
+                className="grid-filter-bar__control--medium"
+                options={[
+                  { value: "", label: "Todas" },
+                  ...locationOptions.map((loc) => ({ value: String(loc.id), label: loc.name })),
+                ]}
+              />
+            </div>
+            {categories.length > 0 ? (
+              <div className="grid-filter-bar__field">
+                <span className="grid-filter-bar__label">Categoría</span>
+                <GridFilterSelect
+                  aria-label="Categoría"
+                  value={filterCategoryId}
+                  onChange={setFilterCategoryId}
+                  active={filterCategoryId !== ""}
+                  className="grid-filter-bar__control--medium"
+                  options={[
+                    { value: "", label: "Todas" },
+                    ...categories.map((c) => ({ value: String(c.id), label: c.name })),
+                  ]}
+                />
+              </div>
+            ) : null}
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label grid-filter-bar__label--spacer" aria-hidden="true">
+                &nbsp;
+              </span>
+              <div className="grid-filter-bar__checkbox-row">
+                <input
+                  id="inv-crit"
+                  type="checkbox"
+                  className="grid-filter-bar__checkbox"
+                  checked={onlyCriticalStock}
+                  onChange={(e) => setOnlyCriticalStock(e.target.checked)}
+                />
+                <label htmlFor="inv-crit" className="grid-filter-bar__checkbox-label">
+                  Solo stock crítico
+                </label>
+              </div>
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Actualizado desde</span>
+              <DatePickerSimple
+                date={dateFrom}
+                setDate={setDateFrom}
+                emptyLabel="Seleccionar"
+                buttonClassName={`grid-filter-bar__date-trigger grid-filter-bar__control--medium ${dateFrom ? "grid-filter-bar__control--active" : ""}`}
+              />
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Hasta</span>
+              <DatePickerSimple
+                date={dateTo}
+                setDate={setDateTo}
+                emptyLabel="Seleccionar"
+                buttonClassName={`grid-filter-bar__date-trigger grid-filter-bar__control--medium ${dateTo ? "grid-filter-bar__control--active" : ""}`}
+              />
+            </div>
+          </GridFilterBar>
+        }
         data={filteredData}
         columns={COLUMNS}
         loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Inventario"
         titleIcon="inventory"
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
         emptyIcon="inventory"
         emptyTitle="Sin registros"
-        emptyDesc={searchTerm ? "No se encontraron resultados" : "Stock por producto y ubicación. Las entradas y salidas se registran en Movimientos."}
+        emptyDesc={
+          gridFiltersActive && loadedRows.length > 0
+            ? "Ninguna fila coincide con los filtros."
+            : "Stock por producto y ubicación. Las entradas y salidas se registran en Movimientos."
+        }
         infiniteScroll
         onLoadMore={handleLoadMore}
         hasMore={hasMore}
         loadingMore={isFetching && page > 1}
+        detailDrawer={{
+          entityLabelPlural: "registros",
+          getTitle: (row) => {
+            const r = row as InventoryResponse & { productName?: string };
+            return r.productName?.trim() || `Inventario #${row.id}`;
+          },
+          getStatusBadge: () => <span className="dt-tag dt-tag--green">Activo</span>,
+          render: (row) => (
+            <InventoryDetailBody row={row} categoryName={inventoryCategoryName(row)} />
+          ),
+          showEditButton: false,
+        }}
       />
     </>
   );

@@ -13,35 +13,10 @@ import Image from "next/image";
 import { DatePickerSimple } from "@/components/DatePickerSimple";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { RegistrationBillingCycle } from "@/lib/auth-types";
-import { formatPlanPriceDisplay, isPaidPlan, isProPlan, type PublicPlan } from "@/lib/plan-utils";
+import { isPaidPlan } from "@/lib/plan-utils";
+import { PricingPlanCards } from "@/components/pricing";
 import { useAppDispatch } from "@/store/store";
 import { loginSuccessfull, type AuthState } from "../_slices/authSlice";
-
-function isEnterprisePlan(plan: PublicPlan): boolean {
-  const d = plan.displayName.toLowerCase();
-  return plan.name.includes("enterprise") || d.includes("enterprise");
-}
-
-function planPriceLabel(plan: PublicPlan, cycle: RegistrationBillingCycle): string {
-  if (isEnterprisePlan(plan)) return "Custom";
-  const raw = cycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
-  if (raw < 0) return "Custom";
-  if (raw === 0) return "Gratis para siempre";
-  const formatted = formatPlanPriceDisplay(raw);
-  return cycle === "annual" ? `${formatted} / año` : `${formatted} / mes`;
-}
-
-function featureProducts(n: number): string {
-  return n === -1 ? "Ilimitado" : `Hasta ${n} productos`;
-}
-
-function featureUsers(n: number): string {
-  return n === -1 ? "Ilimitado" : `Hasta ${n} usuarios`;
-}
-
-function featureLocations(n: number): string {
-  return n === -1 ? "Ilimitado" : `Hasta ${n} ubicaciones`;
-}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -400,6 +375,7 @@ export default function RegisterPage() {
                     <DatePickerSimple
                       date={birthday}
                       setDate={(date) => setBirthday(date ? date : "")}
+                      emptyLabel="Select date"
                     />
                     {touchedPersonal.birthday && !birthday ? (
                       <span className="form-error">La fecha es requerida</span>
@@ -549,73 +525,25 @@ export default function RegisterPage() {
                     <p>Sin contratos. Sin sorpresas. Cancela cuando quieras.</p>
                   </div>
 
-                  <div className="register-pricing-cycle">
-                    <div className="register-pricing-cycle-inner" role="group" aria-label="Ciclo de facturación">
-                      <button
-                        type="button"
-                        className={`register-pricing-cycle-btn ${billingCycle === "monthly" ? "register-pricing-cycle-btn--active" : ""}`}
-                        onClick={() => setBillingCycle("monthly")}
-                      >
-                        Mensual
-                      </button>
-                      <button
-                        type="button"
-                        className={`register-pricing-cycle-btn ${billingCycle === "annual" ? "register-pricing-cycle-btn--active" : ""}`}
-                        onClick={() => setBillingCycle("annual")}
-                      >
-                        Anual
-                      </button>
-                    </div>
-                  </div>
-
                   {plansLoading ? (
-                    <p className="register-plans-loading">Cargando planes…</p>
+                    <div className="pricing-plans-loading">Cargando planes…</div>
                   ) : plansQueryError ? (
-                    <p className="form-error" role="alert" style={{ textAlign: "center" }}>
+                    <div className="pricing-plans-error" role="alert">
                       No se pudieron cargar los planes. Recarga la página.
-                    </p>
-                  ) : plans.length === 0 ? (
-                    <p className="form-error" role="alert" style={{ textAlign: "center" }}>
-                      No hay planes disponibles.
-                    </p>
-                  ) : (
-                    <div className="register-pricing-grid">
-                      {plans.map((plan) => {
-                        const selected = plan.id === selectedPlanId;
-                        const popular = isProPlan(plan);
-                        return (
-                          <div
-                            key={plan.id}
-                            className={`register-pricing-card ${popular ? "register-pricing-card--popular" : ""} ${selected ? "register-pricing-card--selected" : ""}`}
-                          >
-                            {popular ? <span className="register-pricing-badge">Más Popular</span> : null}
-                            <h3 className="register-pricing-card__title">{plan.displayName}</h3>
-                            <div className="register-pricing-card__price">{planPriceLabel(plan, billingCycle)}</div>
-                            <ul className="register-pricing-features">
-                              <li>
-                                <Icon name="check_circle" />
-                                <span>{featureProducts(plan.productsLimit)}</span>
-                              </li>
-                              <li>
-                                <Icon name="check_circle" />
-                                <span>{featureUsers(plan.usersLimit)}</span>
-                              </li>
-                              <li>
-                                <Icon name="check_circle" />
-                                <span>{featureLocations(plan.locationsLimit)}</span>
-                              </li>
-                            </ul>
-                            <button
-                              type="button"
-                              className="register-pricing-select"
-                              onClick={() => setSelectedPlanId(plan.id)}
-                            >
-                              {selected ? "Plan seleccionado" : "Seleccionar plan"}
-                            </button>
-                          </div>
-                        );
-                      })}
                     </div>
+                  ) : plans.length === 0 ? (
+                    <div className="pricing-plans-error" role="alert">
+                      No hay planes disponibles.
+                    </div>
+                  ) : (
+                    <PricingPlanCards
+                      variant="signup"
+                      plans={plans}
+                      billingCycle={billingCycle}
+                      onBillingCycleChange={setBillingCycle}
+                      selectedPlanId={selectedPlanId}
+                      onSelectPlan={setSelectedPlanId}
+                    />
                   )}
 
                   <div className="btn-row" style={{ marginTop: 8 }}>

@@ -1,25 +1,52 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import {
+  usePrefetchAllPagesWhileSearching,
+  SEARCH_TABLE_CHUNK_PAGE_SIZE,
+  TABLE_SEARCH_DEBOUNCE_MS,
+} from "@/lib/usePrefetchAllPagesWhileSearching";
 import type { InventoryMovementResponse, CreateInventoryMovementRequest, CreateProductRequest, ProductResponse } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
-import { useGetMovementsQuery, useGetMovementFormContextQuery, useGetMovementStatsQuery, useGetFlowWithCumulativeQuery, useGetDistributionByTypeQuery, useCreateMovementMutation } from "./_service/movementsApi";
+import { useGetMovementsQuery, useGetMovementFormContextQuery, useCreateMovementMutation } from "./_service/movementsApi";
 import { useGetProductsQuery, useCreateProductMutation, useGetProductCategoriesQuery, useUploadProductImageMutation } from "../products/_service/productsApi";
 import { useGetLocationsQuery } from "../locations/_service/locationsApi";
 import { FormModal } from "@/components/FormModal";
-import { StatCard, ComposedChartCard, PieChartCard, theme } from "@/components/dashboard";
+import { GridFilterBar, GridFilterSelect, theme } from "@/components/dashboard";
 import { Icon } from "@/components/ui/Icon";
+import { useAppSelector } from "@/store/store";
 import Switch from "@/components/Switch";
 import "../products/products-modal.css";
+import "./movements-table.css";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
+import { getProxiedImageSrc } from "@/lib/proxiedImageSrc";
+import { DatePickerSimple } from "@/components/DatePickerSimple";
+import { useGetUsersQuery } from "../users/_service/usersApi";
+import {
+  movementTypeLabel,
+  INVENTORY_MOVEMENT_REASONS,
+  MOVEMENT_REASON_LABEL,
+} from "@/lib/inventoryMovementUi";
+import { MovementDetailBody } from "@/components/dashboard-detail/entityDetailBodies";
 
-const MOVEMENT_TYPE_LABELS: Record<string, string> = {
-  "0": "Entrada",
-  "1": "Salida",
-  "2": "Ajuste",
-  "3": "Transferencia",
-};
+function movementTypeTone(type: unknown): "in" | "out" | "neutral" {
+  const key = String(type ?? "").toLowerCase();
+  if (key === "entry" || key === "0") return "in";
+  if (key === "exit" || key === "1") return "out";
+  return "neutral";
+}
+
+/** Alinea valores de API (entry/exit o numéricos) con el filtro "0"…"3" */
+function movementTypeFilterKey(type: unknown): string {
+  const s = String(type ?? "").toLowerCase();
+  if (s === "entry" || s === "0") return "0";
+  if (s === "exit" || s === "1") return "1";
+  if (s === "2") return "2";
+  if (s === "3") return "3";
+  return String(type ?? "");
+}
 
 const MOVEMENT_TYPES = [
   { value: 0, label: "Entrada" },
@@ -27,23 +54,6 @@ const MOVEMENT_TYPES = [
   { value: 2, label: "Ajuste" },
   { value: 3, label: "Transferencia" },
 ];
-
-const INVENTORY_MOVEMENT_REASONS = [
-  "Compra",
-  "Devolucion",
-  "Entrada",
-  "Venta",
-  "Daño",
-  "Uso Interno",
-  "Vencimiento",
-  "ConteoInventario",
-  "Correccion",
-  "Merma",
-  "Transferencia",
-  "Muestra",
-  "Donacion",
-  "Otro",
-] as const;
 
 // ─── Image Uploader (mismo que en productos) ───────────────────────────────────
 
@@ -113,7 +123,7 @@ function ImageUploader({ value, onChange }: ImageUploaderProps) {
           </div>
         ) : hasImage ? (
           <>
-            <img src={value} alt="Preview" className="img-uploader__preview" />
+            <img src={getProxiedImageSrc(value) ?? value} alt="Preview" className="img-uploader__preview" />
             <div className="img-uploader__overlay">
               <button
                 type="button"
@@ -217,7 +227,23 @@ const initialNewProduct = {
 export default function MovementsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [filterText, setFilterText] = useState("");
+  const debouncedFilterText = useDebouncedValue(filterText, TABLE_SEARCH_DEBOUNCE_MS);
+  const [filterType, setFilterType] = useState("");
+  const [filterLocationId, setFilterLocationId] = useState("");
+  const [movDateFrom, setMovDateFrom] = useState("");
+  const [movDateTo, setMovDateTo] = useState("");
+  const [filterUserId, setFilterUserId] = useState("");
+  const authOrgId = useAppSelector((s) => s.auth?.organizationId) ?? 0;
+  const shouldPrefetchAll =
+    debouncedFilterText.trim().length > 0 ||
+    filterType !== "" ||
+    filterLocationId !== "" ||
+    movDateFrom !== "" ||
+    movDateTo !== "" ||
+    filterUserId !== "";
+  const perPage = shouldPrefetchAll ? Math.max(pageSize, SEARCH_TABLE_CHUNK_PAGE_SIZE) : pageSize;
+  const loadNextPage = useCallback(() => setPage((p) => p + 1), []);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [formSubmitting, setFormSubmitting] = useState(false);
@@ -230,19 +256,25 @@ export default function MovementsPage() {
   const isLoadingMore = useRef(false);
   const filtersChanged = useRef(false);
 
-  const { data: result, isLoading, isFetching } = useGetMovementsQuery({ page, perPage: pageSize });
+  const { data: result, isLoading, isFetching } = useGetMovementsQuery({ page, perPage });
   const { data: formContext, isLoading: formContextLoading } = useGetMovementFormContextQuery(undefined, { skip: !formOpen });
   const { data: productsResult } = useGetProductsQuery({ page: 1, perPage: 100 });
   const { data: locationsResult } = useGetLocationsQuery(
     { page: 1, perPage: 100 },
     { skip: !formOpen || formContext?.isLocationLocked === true },
   );
+  const { data: locationsFilterResult } = useGetLocationsQuery({
+    page: 1,
+    perPage: 200,
+    ...(authOrgId ? { organizationId: authOrgId } : {}),
+  });
   const { data: categoriesResult } = useGetProductCategoriesQuery({ perPage: 100 });
   const [createMovement] = useCreateMovementMutation();
   const [createProduct] = useCreateProductMutation();
 
   const products = productsResult?.data ?? [];
   const locations = locationsResult?.data ?? [];
+  const locationsForGridFilter = locationsFilterResult?.data ?? [];
   const categories = categoriesResult?.data ?? [];
   const isLocationLocked = formContext?.isLocationLocked === true;
   const [allRows, setAllRows] = useState<InventoryMovementResponse[]>([]);
@@ -262,6 +294,13 @@ export default function MovementsPage() {
     });
   }, [result?.data, page]);
 
+  usePrefetchAllPagesWhileSearching({
+    isSearchActive: shouldPrefetchAll,
+    isFetching,
+    pagination: result?.pagination,
+    loadNextPage,
+  });
+
   useEffect(() => {
     if (!isFetching) {
       isLoadingMore.current = false;
@@ -272,7 +311,7 @@ export default function MovementsPage() {
     if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
-  }, [searchTerm]);
+  }, [debouncedFilterText, filterType, filterLocationId, movDateFrom, movDateTo, filterUserId]);
 
   // Si el usuario tiene ubicación fija, rellenar locationId al abrir el formulario
   useEffect(() => {
@@ -283,15 +322,102 @@ export default function MovementsPage() {
   const loadedRows =
     page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
 
-  const filteredData = searchTerm.trim()
-    ? loadedRows.filter((r) =>
-        Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(searchTerm.toLowerCase()))
-      )
-    : loadedRows;
+  const { data: usersPage } = useGetUsersQuery({ page: 1, perPage: 5000 });
 
-  const hasMore = result?.pagination
-    ? page < result.pagination.totalPages
-    : false;
+  const userIdToName = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const u of usersPage?.data ?? []) {
+      const label = u.fullName?.trim() || u.email?.trim() || String(u.id);
+      m.set(u.id, label);
+    }
+    return m;
+  }, [usersPage?.data]);
+
+  const productLabelById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const p of products) {
+      const label = p.code ? `${p.code} - ${p.name}` : p.name;
+      m.set(p.id, label);
+    }
+    return m;
+  }, [products]);
+
+  const userIdsInData = useMemo(() => {
+    const s = new Set<number>();
+    for (const r of loadedRows) {
+      if (r.userId != null && r.userId > 0) s.add(r.userId);
+    }
+    return [...s].sort((a, b) => a - b);
+  }, [loadedRows]);
+
+  const clearGridFilters = () => {
+    setFilterText("");
+    setFilterType("");
+    setFilterLocationId("");
+    setMovDateFrom("");
+    setMovDateTo("");
+    setFilterUserId("");
+  };
+
+  const filteredData = useMemo(() => {
+    let rows = loadedRows;
+    const q = debouncedFilterText.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter((r) => {
+        const userLabel =
+          (r.userFullName ?? r.userName ?? "").trim() ||
+          (r.userId != null && r.userId > 0 ? (userIdToName.get(r.userId) ?? "") : "");
+        return (
+          String(r.productName ?? "").toLowerCase().includes(q) ||
+          String(r.referenceDocument ?? "").toLowerCase().includes(q) ||
+          String(r.reason ?? "").toLowerCase().includes(q) ||
+          userLabel.toLowerCase().includes(q) ||
+          String(r.userId ?? "").includes(q)
+        );
+      });
+    }
+    if (filterType !== "") rows = rows.filter((r) => movementTypeFilterKey(r.type) === filterType);
+    if (filterLocationId !== "") {
+      const lid = Number(filterLocationId);
+      rows = rows.filter((r) => r.locationId === lid);
+    }
+    if (movDateFrom) {
+      const t = new Date(movDateFrom).getTime();
+      rows = rows.filter((r) => new Date(r.createdAt).getTime() >= t);
+    }
+    if (movDateTo) {
+      const t = new Date(movDateTo);
+      t.setHours(23, 59, 59, 999);
+      rows = rows.filter((r) => new Date(r.createdAt).getTime() <= t.getTime());
+    }
+    if (filterUserId !== "") {
+      const uid = Number(filterUserId);
+      rows = rows.filter((r) => r.userId === uid);
+    }
+    return rows;
+  }, [
+    loadedRows,
+    debouncedFilterText,
+    filterType,
+    filterLocationId,
+    movDateFrom,
+    movDateTo,
+    filterUserId,
+    userIdToName,
+  ]);
+
+  const gridFiltersActive =
+    filterText.trim() !== "" ||
+    filterType !== "" ||
+    filterLocationId !== "" ||
+    movDateFrom !== "" ||
+    movDateTo !== "" ||
+    filterUserId !== "";
+
+  const hasMore =
+    !shouldPrefetchAll && result?.pagination
+      ? page < result.pagination.totalPages
+      : false;
 
   const handleLoadMore = () => {
     if (isLoadingMore.current || !hasMore) return;
@@ -301,29 +427,98 @@ export default function MovementsPage() {
 
   const columns: DataTableColumn<InventoryMovementResponse>[] = useMemo(
     () => [
-      { key: "id", label: "ID", width: "60px" },
+      { key: "id", label: "ID", width: "72px" },
       {
         key: "productId",
         label: "Producto",
-        render: (row) => {
+        width: "min(280px, 26vw)",
+        sortValue: (row) => {
           if (row.productName) return row.productName;
           const p = products.find((x: ProductResponse) => x.id === row.productId);
           return p ? (p.code ? `${p.code} - ${p.name}` : p.name) : String(row.productId);
+        },
+        exportValue: (row) => {
+          if (row.productName) return row.productName;
+          const p = products.find((x: ProductResponse) => x.id === row.productId);
+          return p ? (p.code ? `${p.code} - ${p.name}` : p.name) : String(row.productId);
+        },
+        render: (row) => {
+          const text = row.productName
+            ? row.productName
+            : (() => {
+                const p = products.find((x: ProductResponse) => x.id === row.productId);
+                return p ? (p.code ? `${p.code} - ${p.name}` : p.name) : String(row.productId);
+              })();
+          return <span className="dt-movements-product">{text}</span>;
         },
       },
       {
         key: "type",
         label: "Tipo",
-        render: (row) => MOVEMENT_TYPE_LABELS[String(row.type)] ?? row.type,
+        width: "96px",
+        sortValue: (row) => movementTypeFilterKey(row.type),
+        exportValue: (row) => movementTypeLabel(row.type),
+        render: (row) => {
+          const label = movementTypeLabel(row.type);
+          const tone = movementTypeTone(row.type);
+          if (tone === "in") {
+            return <span className="dt-tag dt-tag--green">{label}</span>;
+          }
+          if (tone === "out") {
+            return <span className="dt-tag dt-tag--red">{label}</span>;
+          }
+          return <span>{label}</span>;
+        },
       },
-      { key: "quantity", label: "Cantidad", type: "number" },
-      { key: "previousStock", label: "Stock anterior", type: "number" },
-      { key: "newStock", label: "Stock nuevo", type: "number" },
-      { key: "locationName", label: "Ubicación" },
-      { key: "reason", label: "Razón" },
-      { key: "createdAt", label: "Fecha", type: "date" },
+      { key: "quantity", label: "Cantidad", type: "number", width: "88px" },
+      { key: "previousStock", label: "Stock anterior", type: "number", width: "108px" },
+      { key: "newStock", label: "Stock nuevo", type: "number", width: "100px" },
+      { key: "locationName", label: "Ubicación", width: "104px" },
+      {
+        key: "reason",
+        label: "Razón",
+        width: "118px",
+        sortValue: (row) => row.reason?.trim() ?? "",
+        exportValue: (row) => {
+          const raw = row.reason?.trim();
+          if (!raw) return "";
+          return MOVEMENT_REASON_LABEL[raw] ?? raw;
+        },
+        render: (row) => {
+          const raw = row.reason?.trim();
+          if (!raw) return "—";
+          return MOVEMENT_REASON_LABEL[raw] ?? raw;
+        },
+      },
+      {
+        key: "userId",
+        label: "Usuario",
+        width: "132px",
+        sortValue: (row) => {
+          const uid = row.userId;
+          if (uid == null || uid <= 0) return "";
+          const fromApi = (row.userFullName ?? row.userName)?.trim();
+          if (fromApi) return fromApi;
+          return userIdToName.get(uid) ?? "";
+        },
+        exportValue: (row) => {
+          const uid = row.userId;
+          if (uid == null || uid <= 0) return "";
+          const fromApi = (row.userFullName ?? row.userName)?.trim();
+          if (fromApi) return fromApi;
+          return userIdToName.get(uid) ?? String(uid);
+        },
+        render: (row) => {
+          const uid = row.userId;
+          if (uid == null || uid <= 0) return "—";
+          const fromApi = (row.userFullName ?? row.userName)?.trim();
+          if (fromApi) return fromApi;
+          return userIdToName.get(uid) ?? "—";
+        },
+      },
+      { key: "createdAt", label: "Fecha", type: "date", width: "108px" },
     ],
-    [products]
+    [products, userIdToName]
   );
 
   const openCreate = (type: 0 | 1 = 0) => {
@@ -408,36 +603,6 @@ export default function MovementsPage() {
     }
   };
 
-  const { data: movementStatsApi } = useGetMovementStatsQuery();
-  const { data: flowCumulativeApi } = useGetFlowWithCumulativeQuery();
-  const { data: typePieApi } = useGetDistributionByTypeQuery();
-
-  const movementStats = movementStatsApi && typeof movementStatsApi === "object"
-    ? [
-        { label: "Total Movimientos", value: String(movementStatsApi.totalMovements ?? "1,284"), icon: "sync_alt" as const, trend: `+${movementStatsApi.totalMovementsTrend ?? 12}% vs mes ant.`, trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-        { label: "Entradas (Stock)", value: String(movementStatsApi.entriesCount ?? 842), icon: "add_circle_outline" as const, trend: `+${movementStatsApi.entriesTrend ?? 5}% hoy`, trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
-        { label: "Salidas (Stock)", value: String(movementStatsApi.exitsCount ?? 442), icon: "remove_circle_outline" as const, trend: `${(movementStatsApi.exitsTrend as number ?? -2) >= 0 ? "+" : ""}${movementStatsApi.exitsTrend ?? -2}% hoy`, trendUp: (movementStatsApi.exitsTrend as number ?? 0) >= 0, iconBg: "#FEF2F2", iconColor: theme.error },
-        { label: "Ajustes Manuales", value: String(movementStatsApi.adjustmentsCount ?? 12), icon: "tune" as const, trend: String(movementStatsApi.adjustmentsLabel ?? "Estable"), trendUp: true, iconBg: "#F5F3FF", iconColor: theme.accent },
-      ]
-    : [
-        { label: "Total Movimientos", value: "1,284", icon: "sync_alt" as const, trend: "+12% vs mes ant.", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-        { label: "Entradas (Stock)", value: "842", icon: "add_circle_outline" as const, trend: "+5% hoy", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
-        { label: "Salidas (Stock)", value: "442", icon: "remove_circle_outline" as const, trend: "-2% hoy", trendUp: false, iconBg: "#FEF2F2", iconColor: theme.error },
-        { label: "Ajustes Manuales", value: "12", icon: "tune" as const, trend: "Estable", trendUp: true, iconBg: "#F5F3FF", iconColor: theme.accent },
-      ];
-  const flowWithCumulative = (flowCumulativeApi && flowCumulativeApi.length > 0) ? flowCumulativeApi : [
-    { label: "Lun", value: 45, lineValue: 45 },
-    { label: "Mar", value: 52, lineValue: 97 },
-    { label: "Mié", value: 38, lineValue: 135 },
-    { label: "Jue", value: 65, lineValue: 200 },
-    { label: "Vie", value: 48, lineValue: 248 },
-    { label: "Sáb", value: 72, lineValue: 320 },
-    { label: "Dom", value: 58, lineValue: 378 },
-  ];
-  const typePie = (typePieApi && typePieApi.length > 0) ? typePieApi : [
-    { name: "Entradas", value: 65 }, { name: "Salidas", value: 30 }, { name: "Ajustes", value: 5 },
-  ];
-
   const filteredProducts = useMemo(() => {
     const term = productSearch.trim().toLowerCase();
     if (!term) return products;
@@ -498,23 +663,105 @@ export default function MovementsPage() {
 
   return (
     <>
-      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-          {movementStats.map((s) => <StatCard key={s.label} {...s} />)}
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-          <ComposedChartCard title="Movimientos por día y acumulado" subtitle="Barras: cantidad diaria · Línea: acumulado" data={flowWithCumulative} height={220} lineName="Acumulado" />
-          <PieChartCard title="Distribución por Tipo" data={typePie} height={220} />
-        </div>
-      </div>
+      <div className="movements-table-wrap">
       <DataTable
+        gridConfig={{
+          storageKey: "dashboard-movements",
+          exportFilenamePrefix: "movimientos",
+          primaryColumnKey: "productId",
+          bulkEntityLabel: "movimientos",
+        }}
+        filters={
+          <GridFilterBar onClear={clearGridFilters}>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Buscar</span>
+              <input
+                type="search"
+                className={`grid-filter-bar__control grid-filter-bar__control--wide ${filterText.trim() ? "grid-filter-bar__control--active" : ""}`}
+                placeholder="Producto, referencia…"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Tipo</span>
+              <GridFilterSelect
+                aria-label="Tipo de movimiento"
+                value={filterType}
+                onChange={setFilterType}
+                active={filterType !== ""}
+                className="grid-filter-bar__control--medium"
+                options={[
+                  { value: "", label: "Todos" },
+                  { value: "0", label: "Entrada" },
+                  { value: "1", label: "Salida" },
+                  { value: "2", label: "Ajuste" },
+                ]}
+              />
+            </div>
+            {locationsForGridFilter.length > 0 ? (
+              <div className="grid-filter-bar__field">
+                <span className="grid-filter-bar__label">Ubicación</span>
+                <GridFilterSelect
+                  aria-label="Ubicación"
+                  value={filterLocationId}
+                  onChange={setFilterLocationId}
+                  active={filterLocationId !== ""}
+                  className="grid-filter-bar__control--medium"
+                  options={[
+                    { value: "", label: "Todas" },
+                    ...locationsForGridFilter.map((loc) => ({
+                      value: String(loc.id),
+                      label: loc.name,
+                    })),
+                  ]}
+                />
+              </div>
+            ) : null}
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Desde</span>
+              <DatePickerSimple
+                date={movDateFrom}
+                setDate={setMovDateFrom}
+                emptyLabel="Seleccionar"
+                buttonClassName={`grid-filter-bar__date-trigger grid-filter-bar__control--medium ${movDateFrom ? "grid-filter-bar__control--active" : ""}`}
+              />
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Hasta</span>
+              <DatePickerSimple
+                date={movDateTo}
+                setDate={setMovDateTo}
+                emptyLabel="Seleccionar"
+                buttonClassName={`grid-filter-bar__date-trigger grid-filter-bar__control--medium ${movDateTo ? "grid-filter-bar__control--active" : ""}`}
+              />
+            </div>
+            {userIdsInData.length > 0 ? (
+              <div className="grid-filter-bar__field">
+                <span className="grid-filter-bar__label">Usuario</span>
+                <GridFilterSelect
+                  aria-label="Usuario"
+                  value={filterUserId}
+                  onChange={setFilterUserId}
+                  active={filterUserId !== ""}
+                  className="grid-filter-bar__control--medium"
+                  options={[
+                    { value: "", label: "Todos" },
+                    ...userIdsInData.map((id) => ({
+                      value: String(id),
+                      label: userIdToName.get(id) ?? String(id),
+                    })),
+                  ]}
+                />
+              </div>
+            ) : null}
+          </GridFilterBar>
+        }
         data={filteredData}
         columns={columns}
         loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Movimientos de inventario"
         titleIcon="swap_horiz"
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
         toolbarExtra={movementToolbar}
         infiniteScroll
         onLoadMore={handleLoadMore}
@@ -522,8 +769,35 @@ export default function MovementsPage() {
         loadingMore={isFetching && page > 1}
         emptyIcon="swap_horiz"
         emptyTitle="Sin registros"
-        emptyDesc={searchTerm ? "No se encontraron resultados" : "Aún no hay movimientos"}
+        emptyDesc={
+          gridFiltersActive && loadedRows.length > 0
+            ? "Ningún movimiento coincide con los filtros."
+            : "Aún no hay movimientos"
+        }
+        detailDrawer={{
+          entityLabelPlural: "movimientos",
+          getTitle: (row) =>
+            row.productName?.trim() ||
+            productLabelById.get(row.productId) ||
+            `Movimiento #${row.id}`,
+          getStatusBadge: (row) => {
+            const tone = movementTypeTone(row.type);
+            const label = movementTypeLabel(row.type);
+            if (tone === "in") return <span className="dt-tag dt-tag--green">{label}</span>;
+            if (tone === "out") return <span className="dt-tag dt-tag--red">{label}</span>;
+            return <span className="dt-tag">{label}</span>;
+          },
+          render: (row) => (
+            <MovementDetailBody
+              row={row}
+              userIdToName={userIdToName}
+              productLabelById={productLabelById}
+            />
+          ),
+          showEditButton: false,
+        }}
       />
+      </div>
 
       {formOpen && (
         <FormModal
@@ -805,8 +1079,8 @@ export default function MovementsPage() {
             >
               <option value="">Seleccione razón</option>
               {INVENTORY_MOVEMENT_REASONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
+                <option key={r.value} value={r.value}>
+                  {r.label}
                 </option>
               ))}
             </select>

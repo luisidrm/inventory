@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
@@ -11,6 +11,8 @@ import "./dashboard.css";
 import { useAppSelector, useAppDispatch } from "@/store/store";
 import { useLogoutMutation } from "../login/_service/authApi";
 import { logoutSuccessfull } from "../login/_slices/authSlice";
+import { SETTINGS_SECTIONS } from "./settings/settingsNav";
+import { TopbarCurrencySelector } from "@/components/TopbarCurrencySelector";
 
 interface NavItem {
   icon: string;
@@ -28,7 +30,7 @@ const navItems: NavItem[] = [
   { icon: "warehouse", label: "Ubicaciones", route: "/dashboard/locations", permission: "location.read" },
   { icon: "inventory", label: "Inventario", route: "/dashboard/inventory", permission: "inventory.read" },
   { icon: "swap_horiz", label: "Movimientos", route: "/dashboard/movements", permission: "inventorymovement.read" },
-  { icon: "point_of_sale", label: "Ventas", route: "/dashboard/sales", permission: "saleorder.read" },
+  { icon: "point_of_sale", label: "Ventas", route: "/dashboard/sales", permission: "sale.read" },
 ];
 
 const adminItems: NavItem[] = [
@@ -41,6 +43,49 @@ const adminItems: NavItem[] = [
 function BrandIcon() {
   return (
     <img src="/assets/logo-claro-nobg.png" alt="Strova Logo" className="brand-logo" height={32} />
+  );
+}
+
+function DashboardSettingsNavItem({
+  collapsed,
+  label,
+  icon,
+}: {
+  collapsed: boolean;
+  label: string;
+  icon: string;
+}) {
+  const pathname = usePathname();
+  const expanded = pathname.startsWith("/dashboard/settings");
+  const [hash, setHash] = useState("");
+  useEffect(() => {
+    const sync = () => setHash(typeof window !== "undefined" ? window.location.hash.slice(1) : "");
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
+  const isActive = pathname.startsWith("/dashboard/settings");
+  return (
+    <div className="nav-expandable">
+      <Link href="/dashboard/settings" className={`nav-item ${isActive ? "active" : ""}`}>
+        <Icon name={icon} />
+        {!collapsed && <span>{label}</span>}
+      </Link>
+      {!collapsed && expanded && (
+        <div className="nav-sub" role="group" aria-label="Secciones de configuración">
+          {SETTINGS_SECTIONS.map((s) => (
+            <Link
+              key={s.id}
+              href={`/dashboard/settings#${s.id}`}
+              className={`nav-sub-item ${hash === s.id ? "nav-sub-item--active" : ""}`}
+            >
+              <span className="nav-sub-dot" aria-hidden />
+              <span>{s.label}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -118,16 +163,25 @@ export default function DashboardLayout({
           </div>
           <div className="nav-group">
             {!collapsed && visibleAdminItems.length > 0 && <div className="nav-group-label">ADMIN</div>}
-            {visibleAdminItems.map((item) => (
-              <Link
-                key={item.route}
-                href={item.route}
-                className={`nav-item ${isActive(item.route) ? "active" : ""}`}
-              >
-                <Icon name={item.icon} />
-                {!collapsed && <span>{item.label}</span>}
-              </Link>
-            ))}
+            {visibleAdminItems.map((item) =>
+              item.route === "/dashboard/settings" ? (
+                <DashboardSettingsNavItem
+                  key={item.route}
+                  collapsed={collapsed}
+                  label={item.label}
+                  icon={item.icon}
+                />
+              ) : (
+                <Link
+                  key={item.route}
+                  href={item.route}
+                  className={`nav-item ${isActive(item.route) ? "active" : ""}`}
+                >
+                  <Icon name={item.icon} />
+                  {!collapsed && <span>{item.label}</span>}
+                </Link>
+              )
+            )}
           </div>
         </nav>
 
@@ -165,6 +219,7 @@ export default function DashboardLayout({
             </button>
           </div>
           <div className="topbar-right">
+            <TopbarCurrencySelector />
             <button type="button" className="topbar-icon-btn" aria-label="Notificaciones">
               <Icon name="notifications_none" />
             </button>

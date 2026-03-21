@@ -1,141 +1,113 @@
-import { isRejectedWithValue, isFulfilled, type Middleware } from "@reduxjs/toolkit";
+import { type Middleware } from "@reduxjs/toolkit";
 import { toast } from "sonner";
 
-// Endpoints that should stay silent (e.g. background fetches)
-// All RTK Query GET endpoints go here so they don't disparar toasts en éxito/error.
-const SILENT_ENDPOINTS = new Set([
-  // ── Auth ──
-  "refreshToken",
+/**
+ * Mutaciones que no deben mostrar toast (renovación de token en segundo plano, etc.).
+ */
+const SILENT_MUTATIONS = new Set(["refreshToken"]);
 
-  // ── Productos ──
-  "getProducts",
-  "getProductCategories",
-  "getProductStats",
-  "getProductPerformance",
-  "getProductStockByCategory",
-
-  // ── Categorías ──
-  "getCategories",
-  "getCategoryStats",
-  "getItemDistribution",
-  "getStorageUsage",
-
-  // ── Proveedores ──
-  "getSuppliers",
-  "getSupplierStats",
-  "getDeliveryTimeline",
-  "getSupplierCategoryDistribution",
-
-  // ── Ubicaciones ──
-  "getLocations",
-
-  // ── Inventario ──
-  "getInventories",
-  "getInventoryStats",
-  "getInventoryFlow",              // también usado por dashboardApi
-  "getStockByLocation",
-  "getInventoryCategoryDistribution",
-
-  // ── Movimientos ──
-  "getMovements",
-  "getMovementStats",
-  "getFlowWithCumulative",
-  "getDistributionByType",
-
-  // ── Usuarios y roles ──
-  "getUsers",
-  "getRoles",
-  "getRoleById",
-  "getMyRole",
-  "getPermissions",
-
-  // ── Logs ──
-  "getLogs",
-
-  // ── Settings ──
-  "getGroupedSettings",
-
-  // ── Dashboard ──
-  "getSummary",
-  "getCategoryDistribution",
-  "getInventoryValueEvolution",
-  "getStockStatus",
-  "getEntriesVsExits",
-  "getLowStockAlertsByDay",
-  "getListTopMovements",
-  "getListLowStock",
-  "getListLatestMovements",
-  "getListValueByLocation",
-  "getListRecentProducts",
-
-  // Legacy names (por si acaso, aunque ahora no se usan)
-  "getInventory",
-  "getSettings",
-]);
-
-// Custom messages per endpoint — optional
+/**
+ * Solo estas mutaciones muestran toast de éxito con mensaje fijo.
+ * El resto de mutaciones exitosas no muestran nada (evita "Operación exitosa" genérico).
+ */
 const SUCCESS_MESSAGES: Record<string, string> = {
-  createProduct:  "Producto creado correctamente",
-  updateProduct:  "Producto actualizado correctamente",
-  deleteProduct:  "Producto eliminado correctamente",
-  login:          "Sesión iniciada correctamente",
-  logout:         "Sesión cerrada",
-  resetPassword:  "Correo de recuperación enviado",
-  createUser:     "Usuario creado correctamente",
-  updateUser:     "Usuario actualizado correctamente",
-  deleteUser:     "Usuario eliminado correctamente",
-  createInventory:  "Entrada de inventario creada",
-  updateInventory:  "Entrada de inventario actualizada",
-  deleteInventory:  "Entrada de inventario eliminada",
-  createCategory:   "Categoría creada correctamente",
-  updateCategory:   "Categoría actualizada correctamente",
-  deleteCategory:   "Categoría eliminada correctamente",
-  createSupplier:   "Proveedor creado correctamente",
-  updateSupplier:   "Proveedor actualizado correctamente",
-  deleteSupplier:   "Proveedor eliminado correctamente",
-  createLocation:   "Ubicación creada correctamente",
-  updateLocation:   "Ubicación actualizada correctamente",
-  deleteLocation:   "Ubicación eliminada correctamente",
-  createRole:       "Rol creado correctamente",
-  updateRole:       "Rol actualizado correctamente",
-  deleteRole:       "Rol eliminado correctamente",
+  // Auth
+  login: "Sesión iniciada correctamente",
+  logout: "Sesión cerrada",
+  register: "Registro completado",
+  regiterWithOrganization: "Cuenta creada correctamente",
+  createOrganization: "Organización creada correctamente",
+  resetPassword: "Correo de recuperación enviado",
+
+  // Productos
+  createProduct: "Producto creado correctamente",
+  updateProduct: "Producto actualizado correctamente",
+  deleteProduct: "Producto eliminado correctamente",
+  uploadProductImage: "Imagen del producto actualizada",
+
+  // Categorías
+  createCategory: "Categoría creada correctamente",
+  updateCategory: "Categoría actualizada correctamente",
+  deleteCategory: "Categoría eliminada correctamente",
+
+  // Proveedores
+  createSupplier: "Proveedor creado correctamente",
+  updateSupplier: "Proveedor actualizado correctamente",
+  deleteSupplier: "Proveedor eliminado correctamente",
+
+  // Ubicaciones
+  createLocation: "Ubicación creada correctamente",
+  updateLocation: "Ubicación actualizada correctamente",
+  deleteLocation: "Ubicación eliminada correctamente",
+  uploadLocationImage: "Imagen de la ubicación actualizada",
+
+  // Inventario
+  createInventory: "Entrada de inventario creada",
+  updateInventory: "Entrada de inventario actualizada",
+  deleteInventory: "Entrada de inventario eliminada",
+
+  // Movimientos
+  createMovement: "Movimiento registrado correctamente",
+
+  // Usuarios y roles
+  createUser: "Usuario creado correctamente",
+  updateUser: "Usuario actualizado correctamente",
+  deleteUser: "Usuario eliminado correctamente",
+  createRole: "Rol creado correctamente",
+  updateRole: "Rol actualizado correctamente",
+  deleteRole: "Rol eliminado correctamente",
+
+  // Configuración
+  updateGroupedSettings: "Configuración guardada",
+  updateAccountProfile: "Cambios guardados",
+  createCurrency: "Moneda creada",
+  updateCurrency: "Moneda actualizada",
+  deleteCurrency: "Moneda eliminada",
+  setDefaultDisplayCurrency: "Moneda de visualización actualizada",
+
+  // Ventas
+  createOrder: "Pedido creado correctamente",
+  updateOrder: "Pedido actualizado correctamente",
+  confirmOrder: "Pedido confirmado",
+  cancelOrder: "Pedido cancelado",
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
-  login:         "Credenciales incorrectas",
+  login: "Credenciales incorrectas",
   deleteProduct: "No se pudo eliminar el producto",
 };
 
 export const toastMiddleware: Middleware = () => (next) => (action) => {
-  console.log("[toast]", (action as any).type); // should log EVERYTHING
   const result = next(action);
 
-  // Log every action so we can see what's coming through
-  console.log("[toastMiddleware] action:", (action as any).type, action);
+  const type = (action as { type?: string }).type;
+  if (!type || typeof type !== "string") return result;
 
-  const type = (action as any).type as string | undefined;
-  if (!type) return result;
+  // Nunca mostrar toasts por lecturas (GET / RTK executeQuery).
+  if (type.includes("executeQuery")) return result;
 
-  // RTK Query fulfilled actions look like: "authApi/executeMutation/fulfilled"
-  // or "productsApi/executeQuery/fulfilled"
-  const endpointName = (action as any)?.meta?.arg?.endpointName as string | undefined;
-  if (!endpointName || SILENT_ENDPOINTS.has(endpointName)) return result;
+  if (!type.includes("executeMutation")) return result;
+
+  const endpointName = (action as { meta?: { arg?: { endpointName?: string } } })?.meta?.arg
+    ?.endpointName as string | undefined;
+  if (!endpointName || SILENT_MUTATIONS.has(endpointName)) return result;
 
   if (type.endsWith("/fulfilled")) {
-    const message = SUCCESS_MESSAGES[endpointName] ?? "Operación exitosa";
-    toast.success(message);
+    const message = SUCCESS_MESSAGES[endpointName];
+    if (message) toast.success(message);
+    return result;
   }
 
   if (type.endsWith("/rejected")) {
-    const payload = (action as any).payload;
+    const payload = (action as { payload?: Record<string, unknown> }).payload;
     const serverMessage =
-      payload?.data?.message ??
-      payload?.data?.error ??
-      payload?.error ??
-      payload?.message ??
+      (payload?.data as { message?: string } | undefined)?.message ??
+      (payload?.data as { error?: string } | undefined)?.error ??
+      (payload as { error?: string } | undefined)?.error ??
+      (payload as { message?: string } | undefined)?.message ??
       null;
     const message = serverMessage ?? ERROR_MESSAGES[endpointName] ?? "Ocurrió un error";
-    toast.error(message);
+    toast.error(typeof message === "string" ? message : "Ocurrió un error");
   }
 
   return result;

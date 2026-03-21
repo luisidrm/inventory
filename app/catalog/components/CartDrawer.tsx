@@ -5,11 +5,9 @@ import { Icon } from "@/components/ui/Icon";
 import { useAppSelector, useAppDispatch } from "@/store/store";
 import { removeItem, updateQuantity, clearCart } from "@/store/cartSlice";
 import { getApiUrl } from "@/lib/auth-api";
+import { getProxiedImageSrc } from "@/lib/proxiedImageSrc";
 import type { CreateSaleOrderRequest } from "@/lib/dashboard-types";
-
-function fmt(v: number) {
-  return `$${v.toFixed(2)}`;
-}
+import { useDisplayCurrency } from "@/contexts/DisplayCurrencyContext";
 
 interface CustomerInfo {
   name: string;
@@ -22,10 +20,11 @@ function buildWaMessage(
   items: { name: string; quantity: number; unitPrice: number }[],
   locationName: string,
   folio: string,
-  customer: CustomerInfo
+  customer: CustomerInfo,
+  formatCup: (n: number) => string,
 ): string {
   const lines = items
-    .map((i) => `- ${i.name} x ${i.quantity} — ${fmt(i.unitPrice)} c/u`)
+    .map((i) => `- ${i.name} x ${i.quantity} — ${formatCup(i.unitPrice)} c/u`)
     .join("\n");
   const total = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
   const parts = [
@@ -33,7 +32,7 @@ function buildWaMessage(
     ``,
     lines,
     ``,
-    `Total: ${fmt(total)}`,
+    `Total: ${formatCup(total)}`,
     `Ubicación: ${locationName}`,
     `Ref. orden: ${folio}`,
   ];
@@ -54,6 +53,7 @@ interface ConfirmProps {
 }
 
 function ConfirmOrderModal({ onClose, onConfirm, submitting, error }: ConfirmProps) {
+  const { formatCup } = useDisplayCurrency();
   const cart = useAppSelector((s) => s.cart);
   const total = cart.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
 
@@ -107,8 +107,8 @@ function ConfirmOrderModal({ onClose, onConfirm, submitting, error }: ConfirmPro
                 <tr key={it.productId}>
                   <td>{it.name}</td>
                   <td className="td-right">{it.quantity}</td>
-                  <td className="td-right">{fmt(it.unitPrice)}</td>
-                  <td className="td-right">{fmt(it.quantity * it.unitPrice)}</td>
+                  <td className="td-right">{formatCup(it.unitPrice)}</td>
+                  <td className="td-right">{formatCup(it.quantity * it.unitPrice)}</td>
                 </tr>
               ))}
             </tbody>
@@ -116,7 +116,7 @@ function ConfirmOrderModal({ onClose, onConfirm, submitting, error }: ConfirmPro
 
           <div className="confirm-total">
             <span>Total estimado</span>
-            <strong>{fmt(total)}</strong>
+            <strong>{formatCup(total)}</strong>
           </div>
 
           <div className="confirm-section">
@@ -175,6 +175,7 @@ interface CartDrawerProps {
 }
 
 export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
+  const { formatCup } = useDisplayCurrency();
   const dispatch = useAppDispatch();
   const cart = useAppSelector((s) => s.cart);
 
@@ -228,7 +229,7 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
       const folio = order.folio ?? (order.id ? `#${order.id}` : "nueva");
 
       if (cart.whatsAppContact) {
-        const msg = buildWaMessage(cart.items, cart.locationName, folio, customer);
+        const msg = buildWaMessage(cart.items, cart.locationName, folio, customer, formatCup);
         window.open(
           `https://wa.me/${cart.whatsAppContact}?text=${encodeURIComponent(msg)}`,
           "_blank",
@@ -292,7 +293,7 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
                 cart.items.map((it) => (
                   <div key={it.productId} className="cart-row">
                     {it.imagenUrl ? (
-                      <img src={it.imagenUrl} alt={it.name} className="cart-row__img" />
+                      <img src={getProxiedImageSrc(it.imagenUrl) ?? it.imagenUrl} alt={it.name} className="cart-row__img" />
                     ) : (
                       <div className="cart-row__no-img">
                         <Icon name="inventory_2" />
@@ -301,7 +302,7 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
 
                     <div className="cart-row__body">
                       <div className="cart-row__name">{it.name}</div>
-                      <div className="cart-row__unit">{fmt(it.unitPrice)} c/u</div>
+                      <div className="cart-row__unit">{formatCup(it.unitPrice)} c/u</div>
                       <div className="cart-row__stepper">
                         <button
                           type="button"
@@ -322,7 +323,7 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
                       </div>
                     </div>
 
-                    <span className="cart-row__subtotal">{fmt(it.quantity * it.unitPrice)}</span>
+                    <span className="cart-row__subtotal">{formatCup(it.quantity * it.unitPrice)}</span>
 
                     <button
                       type="button"
@@ -341,7 +342,7 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
               <div className="cart-panel__foot">
                 <div className="cart-panel__total">
                   <span className="cart-panel__total-label">Total estimado</span>
-                  <span className="cart-panel__total-value">{fmt(total)}</span>
+                  <span className="cart-panel__total-value">{formatCup(total)}</span>
                 </div>
 
                 {cart.whatsAppContact ? (

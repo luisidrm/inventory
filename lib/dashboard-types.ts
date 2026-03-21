@@ -33,6 +33,8 @@ export interface ProductResponse {
   tagIds?: number[];
   createdAt: string;
   modifiedAt: string;
+  /** Stock agregado (si el API lo envía en listados). */
+  totalStock?: number;
 }
 
 export interface CreateProductRequest {
@@ -168,6 +170,12 @@ export interface InventoryResponse {
   locationId: number;
   createdAt: string;
   modifiedAt: string;
+  /** Enriquecimiento opcional en listados */
+  productName?: string;
+  locationName?: string;
+  categoryName?: string;
+  maximumStock?: number;
+  modifiedByUserName?: string;
 }
 
 export interface CreateInventoryRequest {
@@ -204,6 +212,9 @@ export interface InventoryMovementResponse {
   supplierId?: number;
   referenceDocument?: string;
   userId?: number;
+  /** Si el backend lo envía, evita depender solo del listado de usuarios */
+  userFullName?: string;
+  userName?: string;
   createdAt: string;
 }
 
@@ -273,6 +284,8 @@ export interface UpdateUserRequest {
   locationId?: number;
   organizationId?: number;
   roleId?: number;
+  /** Estado de cuenta (p. ej. activo / inactivo); depende del backend */
+  statusId?: number;
 }
 
 // ─── Configuración ───────────────────────────────────────────────────────────
@@ -283,6 +296,8 @@ export interface SettingResponse {
   value: string;
 }
 
+export type InventoryValuationMethod = "FIFO" | "LIFO" | "weighted_average";
+
 export interface InventorySettingsDto {
   roundingDecimals: number;
   priceRoundingDecimals: number;
@@ -290,6 +305,8 @@ export interface InventorySettingsDto {
   defaultUnitOfMeasure: string;
   /** Stock mínimo global; se usa para alertas de stock bajo cuando no hay mínimo por ítem. */
   defaultMinimumStock?: number;
+  /** Método de valoración (si el backend lo soporta). */
+  inventoryValuationMethod?: InventoryValuationMethod;
 }
 
 export interface CompanySettingsDto {
@@ -297,9 +314,14 @@ export interface CompanySettingsDto {
   taxId: string;
 }
 
+export type NotificationFrequency = "immediate" | "daily" | "weekly";
+
 export interface NotificationsSettingsDto {
   alertOnLowStock: boolean;
   lowStockRecipients: string;
+  /** Umbral global de stock crítico para alertas */
+  criticalStockThreshold?: number;
+  notificationFrequency?: NotificationFrequency;
 }
 
 export interface GroupedSettingsResponse {
@@ -314,6 +336,48 @@ export interface UpdateGroupedSettingsRequest {
   notifications?: Partial<NotificationsSettingsDto>;
 }
 
+/** POST /account/update-profile — campos admitidos dependen del backend */
+export interface AccountUpdateProfileRequest {
+  fullName?: string;
+  genderId?: number;
+  birthDate?: string;
+  currentPassword?: string;
+  newPassword?: string;
+  confirmNewPassword?: string;
+}
+
+// ─── Monedas (GET/POST/PUT/DELETE /currency, PUT /currency/default) ─────────
+
+export interface CurrencyResponse {
+  id: number;
+  code: string;
+  name: string;
+  /** Siempre respecto a CUP (base = 1) */
+  exchangeRate: number;
+  isActive: boolean;
+  isBase: boolean;
+  isDefaultDisplay: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCurrencyRequest {
+  code: string;
+  name: string;
+  exchangeRate: number;
+  isActive?: boolean;
+}
+
+export interface UpdateCurrencyRequest {
+  name?: string;
+  exchangeRate?: number | null;
+  isActive?: boolean | null;
+}
+
+export interface SetDefaultCurrencyRequest {
+  currencyId: number;
+}
+
 // ─── Log ─────────────────────────────────────────────────────────────────────
 
 export interface LogResponse {
@@ -323,6 +387,7 @@ export interface LogResponse {
   createdAt: string;
   userId: number;
   description: string;
+  ipAddress?: string;
 }
 
 // ─── Catálogo público ─────────────────────────────────────────────────────────

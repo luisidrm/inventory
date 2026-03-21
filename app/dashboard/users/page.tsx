@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import {
+  usePrefetchAllPagesWhileSearching,
+  SEARCH_TABLE_CHUNK_PAGE_SIZE,
+  TABLE_SEARCH_DEBOUNCE_MS,
+} from "@/lib/usePrefetchAllPagesWhileSearching";
 import type { UserResponse } from "@/lib/auth-types";
 import type { CreateUserRequest } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
@@ -18,6 +24,9 @@ import { FormModal } from "@/components/FormModal";
 import { useAppSelector } from "@/store/store";
 import "../products/products-modal.css";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
+import { GridFilterBar, GridFilterSelect } from "@/components/dashboard";
+import { UserDetailBody } from "@/components/dashboard-detail/entityDetailBodies";
+import { UsersBulkToolbar } from "@/components/DataTableBulkToolbar";
 
 const initialForm = {
   fullName: "",
@@ -32,7 +41,14 @@ const initialForm = {
 export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [filterText, setFilterText] = useState("");
+  const debouncedFilterText = useDebouncedValue(filterText, TABLE_SEARCH_DEBOUNCE_MS);
+  const [filterRoleId, setFilterRoleId] = useState("");
+  const [filterUserStatus, setFilterUserStatus] = useState("");
+  const shouldPrefetchAll =
+    debouncedFilterText.trim().length > 0 || filterRoleId !== "" || filterUserStatus !== "";
+  const perPage = shouldPrefetchAll ? Math.max(pageSize, SEARCH_TABLE_CHUNK_PAGE_SIZE) : pageSize;
+  const loadNextPage = useCallback(() => setPage((p) => p + 1), []);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<UserResponse | null>(null);
   const [form, setForm] = useState(initialForm);
@@ -58,7 +74,7 @@ export default function UsersPage() {
 
   const { data: result, isLoading, isFetching } = useGetUsersQuery({
     page,
-    perPage: pageSize,
+    perPage,
   });
   const { data: locationsResult } = useGetLocationsQuery({
     page: 1,
@@ -77,10 +93,10 @@ export default function UsersPage() {
     { key: "fullName", label: "Nombre" },
     { key: "email", label: "Email" },
     { key: "phone", label: "Telefono" },
-    { key: "gender", label: "Genero" },
     {
       key: "status",
       label: "Estado",
+      sortValue: (row) => (String(row.status ?? "").toUpperCase() === "ACTIVE" ? 1 : 0),
       render: (row) => {
         const isActive = String(row.status ?? "").toUpperCase() === "ACTIVE";
         return (
@@ -94,11 +110,13 @@ export default function UsersPage() {
       ? {
           key: "organization.name",
           label: "Organizacion",
+          sortValue: (row) => row.organization?.name ?? "",
           render: (row) => row.organization?.name ?? "—",
         }
       : {
           key: "location.name",
           label: "Ubicacion",
+          sortValue: (row) => row.location?.name ?? "",
           render: (row) => row.location?.name ?? "—",
         },
   ];
@@ -115,6 +133,13 @@ export default function UsersPage() {
     });
   }, [result?.data, page]);
 
+  usePrefetchAllPagesWhileSearching({
+    isSearchActive: shouldPrefetchAll,
+    isFetching,
+    pagination: result?.pagination,
+    loadNextPage,
+  });
+
   useEffect(() => {
     if (!isFetching) {
       isLoadingMore.current = false;
@@ -125,24 +150,47 @@ export default function UsersPage() {
     if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
-  }, [searchTerm]);
+  }, [debouncedFilterText, filterRoleId, filterUserStatus]);
 
   const loadedRows =
     page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
 
-  const filteredData = searchTerm.trim()
-    ? loadedRows.filter((r) =>
-        Object.values(r).some((v) =>
-          String(v ?? "")
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()),
-        ),
-      )
-    : loadedRows;
+  const clearGridFilters = () => {
+    setFilterText("");
+    setFilterRoleId("");
+    setFilterUserStatus("");
+  };
 
-  const hasMore = result?.pagination
-    ? page < result.pagination.totalPages
-    : false;
+  const filteredData = useMemo(() => {
+    let rows = loadedRows;
+    const q = debouncedFilterText.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(
+        (r) =>
+          String(r.fullName ?? "").toLowerCase().includes(q) ||
+          String(r.email ?? "").toLowerCase().includes(q),
+      );
+    }
+    if (filterRoleId !== "") {
+      const rid = Number(filterRoleId);
+      rows = rows.filter((r) => r.roleId === rid);
+    }
+    if (filterUserStatus === "active") {
+      rows = rows.filter((r) => String(r.status ?? "").toUpperCase() === "ACTIVE");
+    }
+    if (filterUserStatus === "inactive") {
+      rows = rows.filter((r) => String(r.status ?? "").toUpperCase() !== "ACTIVE");
+    }
+    return rows;
+  }, [loadedRows, debouncedFilterText, filterRoleId, filterUserStatus]);
+
+  const gridFiltersActive =
+    filterText.trim() !== "" || filterRoleId !== "" || filterUserStatus !== "";
+
+  const hasMore =
+    !shouldPrefetchAll && result?.pagination
+      ? page < result.pagination.totalPages
+      : false;
 
   const handleLoadMore = () => {
     if (isLoadingMore.current || !hasMore) return;
@@ -253,16 +301,114 @@ export default function UsersPage() {
     }
   };
 
+  const activeStatusId = useMemo(() => {
+    const row = loadedRows.find((r) => String(r.status ?? "").toUpperCase() === "ACTIVE");
+    return row?.statusId;
+  }, [loadedRows]);
+
+  const inactiveStatusId = useMemo(() => {
+    const row = loadedRows.find((r) => String(r.status ?? "").toUpperCase() !== "ACTIVE");
+    return row?.statusId;
+  }, [loadedRows]);
+
+  const handleBulkDeleteUsers = async (ids: number[]) => {
+    for (const id of ids) {
+      await deleteUser(id).unwrap();
+    }
+    setAllRows((prev) => prev.filter((r) => !ids.includes(r.id)));
+  };
+
+  const handleBulkSetUserStatus = async (activate: boolean, ids: number[]) => {
+    const sid = activate ? activeStatusId : inactiveStatusId;
+    if (sid == null) return;
+    for (const id of ids) {
+      await updateUser({ id, body: { statusId: sid } }).unwrap();
+    }
+    setAllRows((prev) =>
+      prev.map((r) =>
+        ids.includes(r.id)
+          ? { ...r, statusId: sid, status: activate ? "ACTIVE" : "INACTIVE" }
+          : r,
+      ),
+    );
+  };
+
   return (
     <>
       <DataTable
+        gridConfig={{
+          storageKey: "dashboard-users",
+          exportFilenamePrefix: "usuarios",
+          primaryColumnKey: "fullName",
+          bulkEntityLabel: "usuarios",
+        }}
+        renderBulkToolbar={(ctx) => (
+          <UsersBulkToolbar
+            count={ctx.count}
+            onClear={ctx.clearSelection}
+            onDeleteSelected={
+              canDeleteUser ? () => void handleBulkDeleteUsers(ctx.selectedIds) : undefined
+            }
+            onActivate={() => void handleBulkSetUserStatus(true, ctx.selectedIds)}
+            onDeactivate={() => void handleBulkSetUserStatus(false, ctx.selectedIds)}
+            exportSelectedCsv={ctx.exportSelectedCsv}
+            exportSelectedXlsx={ctx.exportSelectedXlsx}
+            showDelete={canDeleteUser}
+            statusActionsDisabled={!canEditUser}
+            activateDisabled={activeStatusId == null}
+            deactivateDisabled={inactiveStatusId == null}
+          />
+        )}
+        filters={
+          <GridFilterBar onClear={clearGridFilters}>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Buscar</span>
+              <input
+                type="search"
+                className={`grid-filter-bar__control grid-filter-bar__control--wide ${filterText.trim() ? "grid-filter-bar__control--active" : ""}`}
+                placeholder="Nombre o email…"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
+            </div>
+            {roles.length > 0 ? (
+              <div className="grid-filter-bar__field">
+                <span className="grid-filter-bar__label">Rol</span>
+                <GridFilterSelect
+                  aria-label="Rol"
+                  value={filterRoleId}
+                  onChange={setFilterRoleId}
+                  active={filterRoleId !== ""}
+                  className="grid-filter-bar__control--medium"
+                  options={[
+                    { value: "", label: "Todos" },
+                    ...roles.map((ro) => ({ value: String(ro.id), label: ro.name })),
+                  ]}
+                />
+              </div>
+            ) : null}
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Estado</span>
+              <GridFilterSelect
+                aria-label="Estado"
+                value={filterUserStatus}
+                onChange={setFilterUserStatus}
+                active={filterUserStatus !== ""}
+                className="grid-filter-bar__control--medium"
+                options={[
+                  { value: "", label: "Todos" },
+                  { value: "active", label: "Activo" },
+                  { value: "inactive", label: "Inactivo" },
+                ]}
+              />
+            </div>
+          </GridFilterBar>
+        }
         data={filteredData}
         columns={columns}
         loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Usuarios"
         titleIcon="group"
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
         addLabel="Nuevo usuario"
         onAdd={openCreate}
         addDisabled={!canCreateUser}
@@ -270,6 +416,26 @@ export default function UsersPage() {
           { icon: "edit", label: "Editar", onClick: openEdit, disabled: () => !canEditUser },
           { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger", disabled: () => !canDeleteUser },
         ]}
+        detailDrawer={{
+          entityLabelPlural: "usuarios",
+          getTitle: (row) => row.fullName,
+          getStatusBadge: (row) => {
+            const active = String(row.status ?? "").toUpperCase() === "ACTIVE";
+            return (
+              <span className={`dt-tag ${active ? "dt-tag--green" : "dt-tag--red"}`}>
+                {active ? "Activo" : "Inactivo"}
+              </span>
+            );
+          },
+          render: (row) => (
+            <UserDetailBody
+              row={row}
+              roleName={roles.find((r) => r.id === row.roleId)?.name ?? "—"}
+            />
+          ),
+          onEdit: openEdit,
+          showEditButton: () => canEditUser,
+        }}
         infiniteScroll
         onLoadMore={handleLoadMore}
         hasMore={hasMore}

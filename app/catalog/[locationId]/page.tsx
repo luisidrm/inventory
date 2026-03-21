@@ -16,6 +16,8 @@ import { useFavorites } from "@/lib/useFavorites";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { useFuseSearch } from "@/hooks/useFuseSearch";
 import type { PublicCatalogItem } from "@/lib/dashboard-types";
+import { getProxiedImageSrc } from "@/lib/proxiedImageSrc";
+import { useDisplayCurrency } from "@/contexts/DisplayCurrencyContext";
 
 const PRODUCT_FUSE_KEYS = [
   { name: "name" as const, weight: 0.5 },
@@ -23,11 +25,6 @@ const PRODUCT_FUSE_KEYS = [
   { name: "description" as const, weight: 0.15 },
   { name: "tags.name" as const, weight: 0.1 },
 ];
-
-function fmt(v: number) {
-  const [int, dec] = v.toFixed(2).split(".");
-  return { int, dec, full: `$${v.toFixed(2)}` };
-}
 
 function hexToRgb(hex: string): string {
   const h = hex.replace("#", "");
@@ -45,11 +42,13 @@ function PriceRangeSlider({
   max,
   value,
   onChange,
+  formatPrice,
 }: {
   min: number;
   max: number;
   value: [number, number];
   onChange: (v: [number, number]) => void;
+  formatPrice: (n: number) => string;
 }) {
   const range = max - min || 1;
   const leftPct = ((value[0] - min) / range) * 100;
@@ -58,8 +57,8 @@ function PriceRangeSlider({
   return (
     <>
       <div className="filter-price-display">
-        <span>${value[0].toFixed(2)}</span>
-        <span>${value[1].toFixed(2)}</span>
+        <span>{formatPrice(value[0])}</span>
+        <span>{formatPrice(value[1])}</span>
       </div>
       <div className="filter-range-wrap">
         <div className="filter-range-track" />
@@ -111,6 +110,7 @@ function FilterBody({
   priceRange,
   setPriceRange,
   priceExtent,
+  formatPrice,
 }: {
   categories: { name: string; color: string; count: number }[];
   cat: string | null;
@@ -125,6 +125,7 @@ function FilterBody({
   priceRange: [number, number];
   setPriceRange: (v: [number, number]) => void;
   priceExtent: [number, number];
+  formatPrice: (n: number) => string;
 }) {
   const [visibleTagCount, setVisibleTagCount] = useState(6);
 
@@ -213,6 +214,7 @@ function FilterBody({
           max={priceExtent[1]}
           value={priceRange}
           onChange={setPriceRange}
+          formatPrice={formatPrice}
         />
       </div>
 
@@ -271,10 +273,12 @@ function QuickView({
   item,
   onClose,
   onAdd,
+  formatPrice,
 }: {
   item: PublicCatalogItem;
   onClose: () => void;
   onAdd: () => void;
+  formatPrice: (n: number) => string;
 }) {
   const isElaborado = item.tipo === "elaborado";
   const sold = isElaborado ? false : item.stockAtLocation === 0;
@@ -290,7 +294,7 @@ function QuickView({
 
         <div className="quickview__img-side">
           {item.imagenUrl ? (
-            <img src={item.imagenUrl} alt={item.name} className="quickview__img" />
+            <img src={getProxiedImageSrc(item.imagenUrl) ?? item.imagenUrl} alt={item.name} className="quickview__img" />
           ) : (
             <div className="quickview__no-img"><Icon name="inventory_2" /></div>
           )}
@@ -311,7 +315,7 @@ function QuickView({
           )}
           <h2 className="quickview__name">{item.name}</h2>
           {item.description && <p className="quickview__desc">{item.description}</p>}
-          <div className="quickview__price">{fmt(item.precio).full}</div>
+          <div className="quickview__price">{formatPrice(item.precio)}</div>
 
           {sold ? (
             <div className="quickview__stock quickview__stock--out">
@@ -360,11 +364,13 @@ function Card({
   onQuickView,
   isFavorite,
   onToggleFavorite,
+  formatPrice,
 }: {
   item: PublicCatalogItem;
   onQuickView: (item: PublicCatalogItem) => void;
   isFavorite: boolean;
   onToggleFavorite: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  formatPrice: (n: number) => string;
 }) {
   const dispatch = useAppDispatch();
   const inCart = useAppSelector((s) =>
@@ -400,7 +406,7 @@ function Card({
     <div className={`p-card${sold ? " p-card--sold" : ""}`}>
       <div className="p-card__img-area" onClick={() => onQuickView(item)}>
         {item.imagenUrl ? (
-          <img src={item.imagenUrl} alt={item.name} className="p-card__img" loading="lazy" />
+          <img src={getProxiedImageSrc(item.imagenUrl) ?? item.imagenUrl} alt={item.name} className="p-card__img" loading="lazy" />
         ) : (
           <div className="p-card__no-img"><Icon name="inventory_2" /></div>
         )}
@@ -439,7 +445,7 @@ function Card({
 
         <div className="p-card__price-row">
           <span className="p-card__price">
-            {`$${item.precio.toFixed(2)}`}
+            {formatPrice(item.precio)}
           </span>
         </div>
 
@@ -473,6 +479,7 @@ function Card({
 
 /* ── Page ── */
 export default function CatalogProductsPage() {
+  const { formatCup } = useDisplayCurrency();
   const params = useParams();
   const locationId = Number(params.locationId);
   const dispatch = useAppDispatch();
@@ -655,6 +662,7 @@ export default function CatalogProductsPage() {
     priceRange,
     setPriceRange,
     priceExtent,
+    formatPrice: formatCup,
   };
 
   const hasProducts = !isLoading && !isError && products && products.length > 0;
@@ -784,6 +792,7 @@ export default function CatalogProductsPage() {
                     onQuickView={setQuickViewItem}
                     isFavorite={true}
                     onToggleFavorite={() => toggleFavoriteProduct(String(item.id))}
+                    formatPrice={formatCup}
                   />
                 ))}
               </div>
@@ -812,6 +821,7 @@ export default function CatalogProductsPage() {
                         onQuickView={setQuickViewItem}
                         isFavorite={isFavoriteProduct(String(item.id))}
                         onToggleFavorite={() => toggleFavoriteProduct(String(item.id))}
+                        formatPrice={formatCup}
                       />
                     ))}
                   </div>
@@ -847,6 +857,7 @@ export default function CatalogProductsPage() {
           item={quickViewItem}
           onClose={() => setQuickViewItem(null)}
           onAdd={() => addFromQuickView(quickViewItem)}
+          formatPrice={formatCup}
         />
       )}
     </>

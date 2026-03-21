@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import {
+  usePrefetchAllPagesWhileSearching,
+  SEARCH_TABLE_CHUNK_PAGE_SIZE,
+  TABLE_SEARCH_DEBOUNCE_MS,
+} from "@/lib/usePrefetchAllPagesWhileSearching";
 import type { SupplierResponse, CreateSupplierRequest } from "@/lib/dashboard-types";
 import { DataTable } from "@/components/DataTable";
 import type { DataTableColumn } from "@/components/DataTable";
 import {
   useGetSuppliersQuery,
-  useGetSupplierStatsQuery,
-  useGetDeliveryTimelineQuery,
-  useGetSupplierCategoryDistributionQuery,
   useCreateSupplierMutation,
   useUpdateSupplierMutation,
   useDeleteSupplierMutation,
@@ -16,9 +19,10 @@ import {
 import { DeleteModal } from "@/components/DeleteModal";
 import { FormModal } from "@/components/FormModal";
 import Switch from "@/components/Switch";
-import { StatCard, LineChartCard, PieChartCard, theme } from "@/components/dashboard";
+import { GridFilterBar, GridFilterSelect } from "@/components/dashboard";
 import "../products/products-modal.css";
 import { useUserPermissionCodes } from "@/lib/useUserPermissionCodes";
+import { SupplierDetailBody } from "@/components/dashboard-detail/entityDetailBodies";
 
 const COLUMNS: DataTableColumn<SupplierResponse>[] = [
   { key: "name", label: "Nombre" },
@@ -42,7 +46,12 @@ const initialForm = {
 export default function SuppliersPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [filterText, setFilterText] = useState("");
+  const debouncedFilterText = useDebouncedValue(filterText, TABLE_SEARCH_DEBOUNCE_MS);
+  const [filterActive, setFilterActive] = useState("");
+  const shouldPrefetchAll = debouncedFilterText.trim().length > 0 || filterActive !== "";
+  const perPage = shouldPrefetchAll ? Math.max(pageSize, SEARCH_TABLE_CHUNK_PAGE_SIZE) : pageSize;
+  const loadNextPage = useCallback(() => setPage((p) => p + 1), []);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<SupplierResponse | null>(null);
   const [form, setForm] = useState(initialForm);
@@ -61,7 +70,7 @@ export default function SuppliersPage() {
   const canEditSupplier = hasPermission("supplier.update");
   const canDeleteSupplier = hasPermission("supplier.delete");
 
-  const { data: result, isLoading, isFetching } = useGetSuppliersQuery({ page, perPage: pageSize });
+  const { data: result, isLoading, isFetching } = useGetSuppliersQuery({ page, perPage });
   const [createSupplier] = useCreateSupplierMutation();
   const [updateSupplier] = useUpdateSupplierMutation();
   const [deleteSupplier] = useDeleteSupplierMutation();
@@ -78,6 +87,13 @@ export default function SuppliersPage() {
     });
   }, [result?.data, page]);
 
+  usePrefetchAllPagesWhileSearching({
+    isSearchActive: shouldPrefetchAll,
+    isFetching,
+    pagination: result?.pagination,
+    loadNextPage,
+  });
+
   useEffect(() => {
     if (!isFetching) {
       isLoadingMore.current = false;
@@ -88,22 +104,37 @@ export default function SuppliersPage() {
     if (!filtersChanged.current) { filtersChanged.current = true; return; }
     setPage(1);
     setAllRows([]);
-  }, [searchTerm]);
+  }, [debouncedFilterText, filterActive]);
 
   const loadedRows =
     page === 1 && allRows.length === 0 ? (result?.data ?? []) : allRows;
 
-  const filteredData = searchTerm.trim()
-    ? loadedRows.filter((row) =>
-        Object.values(row).some((val) =>
-          String(val ?? "").toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      )
-    : loadedRows;
+  const clearGridFilters = () => {
+    setFilterText("");
+    setFilterActive("");
+  };
 
-  const hasMore = result?.pagination
-    ? page < result.pagination.totalPages
-    : false;
+  const filteredData = useMemo(() => {
+    let rows = loadedRows;
+    const q = debouncedFilterText.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(
+        (row) =>
+          String(row.name ?? "").toLowerCase().includes(q) ||
+          String(row.contactPerson ?? "").toLowerCase().includes(q),
+      );
+    }
+    if (filterActive === "yes") rows = rows.filter((r) => r.isActive);
+    if (filterActive === "no") rows = rows.filter((r) => !r.isActive);
+    return rows;
+  }, [loadedRows, debouncedFilterText, filterActive]);
+
+  const gridFiltersActive = filterText.trim() !== "" || filterActive !== "";
+
+  const hasMore =
+    !shouldPrefetchAll && result?.pagination
+      ? page < result.pagination.totalPages
+      : false;
 
   const handleLoadMore = () => {
     if (isLoadingMore.current || !hasMore) return;
@@ -195,49 +226,57 @@ export default function SuppliersPage() {
     }
   };
 
-  const { data: supplierStatsApi } = useGetSupplierStatsQuery();
-  const { data: deliveryApi } = useGetDeliveryTimelineQuery();
-  const { data: supplierPieApi } = useGetSupplierCategoryDistributionQuery();
-
-  const supplierStats = supplierStatsApi && typeof supplierStatsApi === "object"
-    ? [
-        { label: "Total Proveedores", value: String((supplierStatsApi as Record<string, unknown>).totalSuppliers ?? "124"), icon: "group" as const, trend: `+${(supplierStatsApi as Record<string, unknown>).totalSuppliersTrend ?? 12}%`, trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-        { label: "Órdenes Activas", value: String((supplierStatsApi as Record<string, unknown>).activeOrders ?? "48"), icon: "shopping_cart" as const, trend: `+${(supplierStatsApi as Record<string, unknown>).activeOrdersTrend ?? 8}%`, trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
-        { label: "Cumplimiento", value: `${(supplierStatsApi as Record<string, unknown>).compliancePercent ?? 94}%`, icon: "check_circle" as const, trend: `+${(supplierStatsApi as Record<string, unknown>).complianceTrend ?? 3}%`, trendUp: true, iconBg: "#FFFBEB", iconColor: "#F59E0B" },
-        { label: "Gastos Mes", value: (supplierStatsApi as Record<string, unknown>).monthlyExpenses != null ? `$${(Number((supplierStatsApi as Record<string, unknown>).monthlyExpenses) / 1000).toFixed(1)}k` : "$12.4k", icon: "payment" as const, trend: `+${(supplierStatsApi as Record<string, unknown>).monthlyExpensesTrend ?? 15}%`, trendUp: true, iconBg: "#FDF2F8", iconColor: "#EC4899" },
-      ]
-    : [
-        { label: "Total Proveedores", value: "124", icon: "group" as const, trend: "+12%", trendUp: true, iconBg: "#EEF2FF", iconColor: theme.accent },
-        { label: "Órdenes Activas", value: "48", icon: "shopping_cart" as const, trend: "+8%", trendUp: true, iconBg: "#F0FDF4", iconColor: theme.success },
-        { label: "Cumplimiento", value: "94%", icon: "check_circle" as const, trend: "+3%", trendUp: true, iconBg: "#FFFBEB", iconColor: "#F59E0B" },
-        { label: "Gastos Mes", value: "$12.4k", icon: "payment" as const, trend: "+15%", trendUp: true, iconBg: "#FDF2F8", iconColor: "#EC4899" },
-      ];
-  const deliveryData = (deliveryApi && deliveryApi.length > 0) ? deliveryApi : [
-    { label: "Lun", value: 45 }, { label: "Mar", value: 70 }, { label: "Mié", value: 55 }, { label: "Jue", value: 90 }, { label: "Vie", value: 65 }, { label: "Sáb", value: 80 },
-  ];
-  const supplierPie = (supplierPieApi && supplierPieApi.length > 0) ? supplierPieApi : [
-    { name: "Electrónica", value: 40 }, { name: "Hogar", value: 30 }, { name: "Textil", value: 20 }, { name: "Otros", value: 10 },
-  ];
+  const handleBulkDeleteSuppliers = async (ids: number[]) => {
+    for (const id of ids) {
+      await deleteSupplier(id).unwrap();
+    }
+    setAllRows((prev) => prev.filter((r) => !ids.includes(r.id)));
+  };
 
   return (
     <>
-      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginBottom: 24 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-          {supplierStats.map((s) => <StatCard key={s.label} {...s} />)}
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-          <LineChartCard title="Pedidos y Entregas en el tiempo" subtitle="Últimos 7 días" data={deliveryData} height={300} filled={false} />
-          <PieChartCard title="Distribución por Categoría" data={supplierPie} height={300} />
-        </div>
-      </div>
       <DataTable
+        gridConfig={{
+          storageKey: "dashboard-suppliers",
+          exportFilenamePrefix: "proveedores",
+          primaryColumnKey: "name",
+          bulkEntityLabel: "proveedores",
+        }}
+        onBulkDeleteSelected={canDeleteSupplier ? handleBulkDeleteSuppliers : undefined}
+        filters={
+          <GridFilterBar onClear={clearGridFilters}>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Buscar</span>
+              <input
+                type="search"
+                className={`grid-filter-bar__control grid-filter-bar__control--wide ${filterText.trim() ? "grid-filter-bar__control--active" : ""}`}
+                placeholder="Nombre o contacto…"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
+            </div>
+            <div className="grid-filter-bar__field">
+              <span className="grid-filter-bar__label">Estado</span>
+              <GridFilterSelect
+                aria-label="Estado"
+                value={filterActive}
+                onChange={setFilterActive}
+                active={filterActive !== ""}
+                className="grid-filter-bar__control--medium"
+                options={[
+                  { value: "", label: "Todos" },
+                  { value: "yes", label: "Activo" },
+                  { value: "no", label: "Inactivo" },
+                ]}
+              />
+            </div>
+          </GridFilterBar>
+        }
         data={filteredData}
         columns={COLUMNS}
         loading={allRows.length === 0 && (isLoading || isFetching)}
         title="Proveedores"
         titleIcon="local_shipping"
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
         addLabel="Nuevo proveedor"
         onAdd={openCreate}
         addDisabled={!canCreateSupplier}
@@ -245,13 +284,29 @@ export default function SuppliersPage() {
           { icon: "edit", label: "Editar", onClick: openEdit, disabled: () => !canEditSupplier },
           { icon: "delete_outline", label: "Eliminar", onClick: openDelete, variant: "danger", disabled: () => !canDeleteSupplier },
         ]}
+        detailDrawer={{
+          entityLabelPlural: "proveedores",
+          getTitle: (row) => row.name,
+          getStatusBadge: (row) => (
+            <span className={`dt-tag ${row.isActive ? "dt-tag--green" : "dt-tag--red"}`}>
+              {row.isActive ? "Activo" : "Inactivo"}
+            </span>
+          ),
+          render: (row) => <SupplierDetailBody row={row} />,
+          onEdit: openEdit,
+          showEditButton: () => canEditSupplier,
+        }}
         infiniteScroll
         onLoadMore={handleLoadMore}
         hasMore={hasMore}
         loadingMore={isFetching && page > 1}
         emptyIcon="local_shipping"
         emptyTitle="Sin registros"
-        emptyDesc={searchTerm ? "No se encontraron resultados" : "Aún no hay proveedores"}
+        emptyDesc={
+          gridFiltersActive && loadedRows.length > 0
+            ? "Ningún proveedor coincide con los filtros."
+            : "Aún no hay proveedores"
+        }
       />
 
       {formOpen && (

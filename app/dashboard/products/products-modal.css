@@ -733,3 +733,28 @@
 .tag-selector-v2__footer-empty {
   font-style: italic;
 }
+
+/* ─── Miniatura en grid de productos ─── */
+.product-grid-thumb-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 0;
+}
+
+.product-grid-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #e8ecf1;
+  background: #f8fafc;
+  vertical-align: middle;
+}
+
+.product-grid-thumb--placeholder {
+  display: grid;
+  place-items: center;
+  color: #94a3b8;
+  font-size: 22px;
+}

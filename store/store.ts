@@ -20,6 +20,7 @@ import { usersApi } from "@/app/dashboard/users/_service/usersApi";
 import { rolesApi } from "@/app/dashboard/roles/_service/rolesApi";
 import { logsApi } from "@/app/dashboard/logs/_service/logsApi";
 import { settingsApi } from "@/app/dashboard/settings/_service/settingsApi";
+import { currencyApi } from "@/app/dashboard/settings/_service/currencyApi";
 import { dashboardApi } from "@/app/dashboard/_service/dashboardApi";
 import { catalogApi } from "@/app/catalog/_service/catalogApi";
 import { salesApi } from "@/app/dashboard/sales/_service/salesApi";
@@ -47,6 +48,7 @@ const combinedReducer = combineReducers({
   [rolesApi.reducerPath]: rolesApi.reducer,
   [logsApi.reducerPath]: logsApi.reducer,
   [settingsApi.reducerPath]: settingsApi.reducer,
+  [currencyApi.reducerPath]: currencyApi.reducer,
   [dashboardApi.reducerPath]: dashboardApi.reducer,
   [catalogApi.reducerPath]: catalogApi.reducer,
   [salesApi.reducerPath]: salesApi.reducer,
@@ -83,6 +85,7 @@ const apiMiddleware = [
   rolesApi.middleware,
   logsApi.middleware,
   settingsApi.middleware,
+  currencyApi.middleware,
   dashboardApi.middleware,
   catalogApi.middleware,
   salesApi.middleware,

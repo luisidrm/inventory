@@ -15,3 +15,9 @@ export type { HeatmapCardProps, ActivityHeatmapCell as HeatmapActivityCell } fro
 export { ListCard } from "./ListCard";
 export type { ListCardProps, ListCardItem } from "./ListCard";
 export { theme } from "./theme";
+export { GridFilterBar } from "./GridFilterBar";
+export { GridFilterSelect } from "./GridFilterSelect";
+export { CompactKpiStrip } from "./CompactKpiStrip";
+export type { CompactKpiItem } from "./CompactKpiStrip";
+export { PageKpiStrip } from "./PageKpiStrip";
+export type { PageKpiMetric } from "./PageKpiStrip";

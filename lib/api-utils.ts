@@ -100,7 +100,7 @@ export function parseChartResult<T>(raw: unknown): T[] {
   if (Array.isArray(raw)) return raw as T[];
   const obj = raw as Record<string, unknown> | null;
   if (!obj) return [];
-  const result = obj.result ?? obj.data ?? obj;
+  const result = obj.result ?? obj.Result ?? obj.data ?? obj.Data ?? obj;
   if (Array.isArray(result)) return result as T[];
   const r = result as Record<string, unknown> | null;
   if (r && Array.isArray(r.data)) return r.data as T[];
@@ -112,7 +112,7 @@ export function parseChartResult<T>(raw: unknown): T[] {
 export function parseSummaryResult<T>(raw: unknown): T | null {
   const obj = raw as Record<string, unknown> | null;
   if (!obj) return null;
-  const result = obj.result ?? obj.data ?? obj;
+  const result = obj.result ?? obj.Result ?? obj.data ?? obj.Data ?? obj;
   if (result && typeof result === "object" && !Array.isArray(result)) return result as T;
   return null;
 }
